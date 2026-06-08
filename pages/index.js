@@ -303,7 +303,7 @@ function ProfilPage({ user, stunden }) {
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
   const woche = myStunden.filter(s => { const d = new Date(s.datum); return d >= weekStart && d <= weekEnd }).reduce((a, s) => a + s.dauer, 0)
   const diff = woche - regelStunden
-  const urlaubGesamt = profile.urlaub_gesamt || 25
+  const urlaubGesamt = profile.urlaub_gesamt || 24
   const urlaubGenommen = profile.urlaub_genommen || 0
   const resturlaub = urlaubGesamt - urlaubGenommen
   const urlaubPct = ((urlaubGenommen / urlaubGesamt) * 100).toFixed(0)
@@ -365,7 +365,7 @@ function ProfilPage({ user, stunden }) {
 function AdminPage({ stunden, baustellen, allUsers }) {
   const [tab, setTab] = useState('mitarbeiter')
   const [showNewUser, setShowNewUser] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', regel_stunden: 38, urlaub_gesamt: 25 })
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', regel_stunden: 38, urlaub_gesamt: 24 })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
