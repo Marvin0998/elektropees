@@ -632,6 +632,24 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
     if(!form.baustelle_id){alert('Bitte eine Baustelle auswählen!');return}
     if(dauer<=0){alert('Endzeit muss nach der Startzeit liegen!');return}
     setSaving(true)
+    // Überschneidungs-Prüfung
+    const {data:existing}=await supabase.from('stunden')
+      .select('start_zeit,end_zeit,baustellen(name)')
+      .eq('user_id',user.id)
+      .eq('datum',form.datum)
+    if(existing&&existing.length>0) {
+      const newStart=form.start.replace(':',''); const newEnd=form.end.replace(':','')
+      const overlap=existing.find(e=>{
+        const eStart=e.start_zeit.slice(0,5).replace(':','')
+        const eEnd=e.end_zeit.slice(0,5).replace(':','')
+        return !(newEnd<=eStart||newStart>=eEnd)
+      })
+      if(overlap){
+        setSaving(false)
+        alert(`Überschneidung! Du hast an diesem Tag bereits Stunden von ${overlap.start_zeit.slice(0,5)} bis ${overlap.end_zeit.slice(0,5)} eingetragen.`)
+        return
+      }
+    }
     await supabase.from('stunden').insert([{user_id:user.id,baustelle_id:form.baustelle_id,datum:form.datum,start_zeit:form.start,end_zeit:form.end,pause_min:45,dauer,notiz:form.notiz,freigabe_status:'ausstehend'}])
     await onSaved(); onClose(); setSaving(false)
   }
