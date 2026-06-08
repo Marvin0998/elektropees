@@ -55,7 +55,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,onStunden}) {
+function HomePage({user,stunden,baustellen,onStunden,onDelete}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -63,7 +63,32 @@ function HomePage({user,stunden,baustellen,onStunden}) {
   const ausstehend=myStunden.filter(s=>s.freigabe_status==='ausstehend').length
   const regelStunden=user.profile?.regel_stunden||38
   const diff=wocheStunden-regelStunden
-  const recent=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,4)
+  const [showAll,setShowAll]=useState(false)
+  const sorted=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum))
+  const recent=showAll?sorted:sorted.slice(0,4)
+
+  const StundenListe=({list})=>list.map(s=>{
+    const b=baustellen.find(b=>b.id===s.baustelle_id)
+    const isFri=new Date(s.datum).getDay()===5
+    const kannLoeschen=s.freigabe_status==='ausstehend'
+    return (
+      <div key={s.id} className="list-item">
+        <div className="list-item-left" style={{flex:1}}>
+          <span className="list-item-title">{b?.name||'—'}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</span>
+          <span className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</span>
+          {s.notiz&&<span style={{fontSize:'0.72rem',color:'#49A7D6'}}>{s.notiz}</span>}
+          <div style={{marginTop:2}}>{freigabeBadge(s.freigabe_status||'ausstehend')}</div>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+          <span className="font-bold text-blue">{s.dauer.toFixed(1)} Std</span>
+          {kannLoeschen&&(
+            <button onClick={()=>onDelete(s.id)} style={{background:'none',border:'none',cursor:'pointer',color:'#e53e3e',fontSize:'0.75rem',padding:'2px 6px',borderRadius:6,background:'#fff5f5'}}>🗑️ Löschen</button>
+          )}
+        </div>
+      </div>
+    )
+  })
+
   return (
     <div className="page-content">
       <div style={{marginBottom:'1rem'}}>
@@ -72,7 +97,7 @@ function HomePage({user,stunden,baustellen,onStunden}) {
       </div>
       <button className="hero-btn" onClick={onStunden}><IconClock/><div><h3>Stunden erfassen</h3><p>Arbeitszeit für heute eintragen</p></div></button>
       {ausstehend>0&&(
-        <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
           <span style={{fontSize:'0.85rem',color:'#92400e'}}>⏳ {ausstehend} Eintrag{ausstehend>1?'e':''} wartet auf Freigabe</span>
         </div>
       )}
@@ -81,21 +106,11 @@ function HomePage({user,stunden,baustellen,onStunden}) {
         <div className="stat-card"><div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div><div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div></div>
       </div>
       <div className="card">
-        <div className="section-header"><span className="section-title">Letzte Einträge</span></div>
-        {recent.length===0?<p className="text-muted text-sm">Noch keine Einträge.</p>:recent.map(s=>{
-          const b=baustellen.find(b=>b.id===s.baustelle_id)
-          const isFri=new Date(s.datum).getDay()===5
-          return (
-            <div key={s.id} className="list-item">
-              <div className="list-item-left">
-                <span className="list-item-title">{b?.name||'—'}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</span>
-                <span className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</span>
-                <div style={{marginTop:2}}>{freigabeBadge(s.freigabe_status||'ausstehend')}</div>
-              </div>
-              <span className="font-bold text-blue">{s.dauer.toFixed(1)} Std</span>
-            </div>
-          )
-        })}
+        <div className="section-header">
+          <span className="section-title">Meine Einträge ({myStunden.length})</span>
+          {myStunden.length>4&&<button className="btn btn-outline btn-sm" onClick={()=>setShowAll(!showAll)}>{showAll?'Weniger anzeigen':'Alle anzeigen'}</button>}
+        </div>
+        {sorted.length===0?<p className="text-muted text-sm">Noch keine Einträge.</p>:<StundenListe list={recent}/>}
       </div>
     </div>
   )
@@ -608,6 +623,11 @@ export default function App() {
     setBaustellen(bs||[]); setStunden(st||[]); setAllUsers(users||[])
   }
   async function handleLogout(){await supabase.auth.signOut(); setUser(null); setPage('home')}
+  async function handleDelete(id) {
+    if(!confirm('Diesen Eintrag wirklich löschen?'))return
+    await supabase.from('stunden').delete().eq('id',id)
+    await loadData()
+  }
   if(loading)return <div className="loading">App wird geladen...</div>
   if(!user)return <LoginPage onLogin={u=>{setUser(u)}}/>
   const isAdmin=user.profile?.role==='admin'
@@ -621,7 +641,7 @@ export default function App() {
         </div>
         <button className="top-logout" onClick={handleLogout}>Abmelden</button>
       </div>
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
