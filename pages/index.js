@@ -98,30 +98,29 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
     const isFri=new Date(s.datum).getDay()===5
     const kannLoeschen=isAdmin===true||s.freigabe_status==='ausstehend'
     const isDeleting=deleteConfirm===s.id
+    const dotClass = s.freigabe_status==='freigegeben'?'approved':s.freigabe_status==='abgelehnt'?'rejected':'pending'
     return (
-      <div key={s.id} style={{borderBottom:'1px solid #e2e8f0',paddingBottom:'0.75rem',marginBottom:'0.75rem'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-          <div style={{flex:1}}>
-            <span style={{fontWeight:600,color:'#1a202c',fontSize:'0.9rem'}}>{b?.name||'—'}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</span>
-            <div className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</div>
-            {s.notiz&&<div style={{fontSize:'0.72rem',color:'#49A7D6'}}>{s.notiz}</div>}
-            <div style={{marginTop:4}}>{freigabeBadge(s.freigabe_status||'ausstehend')}</div>
-          </div>
-          <span className="font-bold text-blue" style={{marginLeft:8}}>{s.dauer.toFixed(1)} Std</span>
+      <div key={s.id} className="entry-item">
+        <div className={`entry-dot ${dotClass}`}/>
+        <div className="entry-info">
+          <div className="entry-site">{b?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}</div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&\` · ${s.notiz}\`}</div>
+        </div>
+        <div className="entry-right">
+          <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
+          <div className={`entry-badge ${dotClass}`}>{s.freigabe_status==='freigegeben'?'✓ Freigegeben':s.freigabe_status==='abgelehnt'?'✗ Abgelehnt':'⏳ Ausstehend'}</div>
         </div>
         {kannLoeschen&&!isDeleting&&(
-          <button
-            onClick={()=>setDeleteConfirm(s.id)}
-            style={{marginTop:'0.5rem',background:'#fff5f5',border:'1px solid #fed7d7',color:'#e53e3e',borderRadius:8,padding:'6px 14px',fontSize:'0.82rem',fontWeight:600,cursor:'pointer',width:'100%',minHeight:36}}>
+          <button onClick={()=>setDeleteConfirm(s.id)} style={{marginTop:'0.625rem',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',color:'var(--red)',borderRadius:'var(--r-sm)',padding:'7px 14px',fontSize:'0.78rem',fontWeight:600,cursor:'pointer',width:'100%',minHeight:36,fontFamily:'inherit'}}>
             🗑️ Eintrag löschen
           </button>
         )}
         {kannLoeschen&&isDeleting&&(
-          <div style={{marginTop:'0.5rem',background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:8,padding:'0.6rem'}}>
-            <p style={{fontSize:'0.82rem',color:'#9b2c2c',marginBottom:'0.5rem',textAlign:'center'}}>Wirklich löschen?</p>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
-              <button onClick={()=>{onDelete(s.id);setDeleteConfirm(null)}} style={{background:'#e53e3e',color:'white',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:700,cursor:'pointer',minHeight:36}}>✓ Ja, löschen</button>
-              <button onClick={()=>setDeleteConfirm(null)} style={{background:'#e2e8f0',color:'#1a202c',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:600,cursor:'pointer',minHeight:36}}>Abbrechen</button>
+          <div className="delete-confirm">
+            <p>Wirklich löschen?</p>
+            <div className="delete-confirm-btns">
+              <button onClick={()=>{onDelete(s.id);setDeleteConfirm(null)}} style={{background:'var(--red)',color:'white',fontWeight:700}}>✓ Ja, löschen</button>
+              <button onClick={()=>setDeleteConfirm(null)} style={{background:'var(--bg)',color:'var(--text)',border:'1px solid var(--border2)'}}>Abbrechen</button>
             </div>
           </div>
         )}
@@ -129,21 +128,43 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
     )
   })
 
+  const hour = new Date().getHours()
+  const greet = hour < 12 ? 'Guten Morgen' : hour < 17 ? 'Guten Tag' : 'Guten Abend'
+
   return (
     <div className="page-content">
-      <div style={{marginBottom:'1rem'}}>
-        <p style={{fontSize:'0.8rem',color:'#718096'}}>Guten Tag,</p>
-        <h2 style={{color:'#0A0A44',fontSize:'1.3rem'}}>{user.profile?.name||user.email}</h2>
+      <div className="welcome-block">
+        <div className="welcome-time">{greet}</div>
+        <div className="welcome-name">{user.profile?.name||user.email}</div>
+        <div className="welcome-sub">Hier kannst du deine Arbeitszeit erfassen und deine aktuellen Einträge prüfen.</div>
       </div>
-      <button className="hero-btn" onClick={onStunden}><IconClock/><div><h3>Stunden erfassen</h3><p>Arbeitszeit für heute eintragen</p></div></button>
+      <button className="hero-btn" onClick={onStunden}>
+        <div className="hero-icon"><IconClock/></div>
+        <div className="hero-text">
+          <div className="hero-label">Hauptaktion</div>
+          <div className="hero-title">Stunden erfassen</div>
+          <div className="hero-sub">Arbeitszeit für heute eintragen</div>
+        </div>
+        <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+      </button>
       {ausstehend>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
           <span style={{fontSize:'0.85rem',color:'#92400e'}}>⏳ {ausstehend} Eintrag{ausstehend>1?'e':''} wartet auf Freigabe</span>
         </div>
       )}
       <div className="stats-row">
-        <div className="stat-card"><div className="stat-num">{wocheStunden.toFixed(1)}</div><div className="stat-label">Std. diese Woche</div><div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,(wocheStunden/regelStunden)*100).toFixed(0)}%`}}/></div></div>
-        <div className="stat-card"><div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div><div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div></div>
+        <div className="stat-card">
+          <div className="stat-label">Stunden diese Woche</div>
+          <div className="stat-num">{wocheStunden.toFixed(1)}</div>
+          <div className="stat-sub">von {regelStunden}.0 h Regelarbeitszeit</div>
+          <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,(wocheStunden/regelStunden)*100).toFixed(0)}%`}}/></div>
+        </div>
+        <div className={`stat-card ${diff>=0?'success':'danger'}`}>
+          <div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div>
+          <div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
+          <div className="stat-sub">noch offen diese Woche</div>
+          <div className="progress-bar"><div className={`progress-fill ${diff<0?'danger':''}`} style={{width:`${Math.min(100,Math.abs(diff)/regelStunden*100).toFixed(0)}%`}}/></div>
+        </div>
       </div>
       <div className="card">
         <div className="section-header">
@@ -426,7 +447,12 @@ function ProfilPage({user,stunden,baustellen}) {
         <div className="stats-row" style={{marginBottom:0}}>
           <div className="stat-card"><div className="stat-num">{total.toFixed(1)}</div><div className="stat-label">Freigegebene Std.</div></div>
           <div className="stat-card"><div className="stat-num">{woche.toFixed(1)}</div><div className="stat-label">Std. diese Woche</div></div>
-          <div className="stat-card"><div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div><div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div></div>
+          <div className={`stat-card ${diff>=0?'success':'danger'}`}>
+          <div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div>
+          <div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
+          <div className="stat-sub">noch offen diese Woche</div>
+          <div className="progress-bar"><div className={`progress-fill ${diff<0?'danger':''}`} style={{width:`${Math.min(100,Math.abs(diff)/regelStunden*100).toFixed(0)}%`}}/></div>
+        </div>
           <div className="stat-card"><div className="stat-num">{regelStunden}</div><div className="stat-label">Regelstunden/Wo</div></div>
         </div>
       </div>
@@ -525,22 +551,19 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                 const b=baustellen.find(b=>b.id===s.baustelle_id)
                 const isFri=new Date(s.datum).getDay()===5
                 return (
-                  <div key={s.id} className="card" style={{borderLeft:'3px solid #f6e05e'}}>
-                    <div style={{marginBottom:'0.75rem'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                        <div>
-                          <div className="font-bold" style={{color:'#0A0A44'}}>{s.profiles?.name||'—'}</div>
-                          <div className="text-sm text-muted">{getDayName(s.datum)}, {formatDate(s.datum)}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</div>
-                          <div className="text-sm" style={{color:'#4a5568'}}>🏗️ {b?.name||'—'}</div>
-                          <div className="text-sm" style={{color:'#4a5568'}}>🕐 {s.start_zeit} – {s.end_zeit}</div>
-                          {s.notiz&&<div className="text-xs text-muted">📝 {s.notiz}</div>}
-                        </div>
-                        <span style={{fontSize:'1.3rem',fontWeight:800,color:'#1B52DD'}}>{s.dauer.toFixed(1)}h</span>
+                  <div key={s.id} className="freigabe-card">
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                      <div>
+                        <div className="freigabe-name">{s.profiles?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6}}>Freitag</span>}</div>
+                        <div className="freigabe-meta">{getDayName(s.datum)}, {formatDate(s.datum)}</div>
+                        <div className="freigabe-meta">🏗️ {b?.name||'—'} · {s.start_zeit}–{s.end_zeit}</div>
+                        {s.notiz&&<div className="freigabe-meta">📝 {s.notiz}</div>}
                       </div>
+                      <div className="freigabe-hours">{s.dauer.toFixed(1)}h</div>
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
-                      <button className="btn btn-success" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleFreigabe(s.id,'freigegeben')}>✓ Freigeben</button>
-                      <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleFreigabe(s.id,'abgelehnt')}>✗ Ablehnen</button>
+                    <div className="freigabe-actions">
+                      <button className="btn-approve" onClick={()=>handleFreigabe(s.id,'freigegeben')}>✓ Freigeben</button>
+                      <button className="btn-reject" onClick={()=>handleFreigabe(s.id,'abgelehnt')}>✗ Ablehnen</button>
                     </div>
                   </div>
                 )
@@ -695,12 +718,12 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
         <div className="form-group"><label>Startzeit</label><input type="time" value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))}/></div>
         <div className="form-group"><label>Endzeit</label><input type="time" value={form.end} onChange={e=>setForm(f=>({...f,end:e.target.value}))}/></div>
       </div>
-      <div className="card" style={{background:'#f0f4f8',marginBottom:'0.75rem',padding:'0.75rem 1rem'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{color:'#4a5568',fontSize:'0.85rem'}}>Arbeitszeit (inkl. 45 Min Pause):</span>
-          <span style={{fontSize:'1.2rem',fontWeight:800,color:'#0A0A44'}}>{dauer.toFixed(2)} Std</span>
+      <div className="calc-box">
+        <div>
+          <div className="calc-label">Arbeitszeit (inkl. 45 Min Pause)</div>
+          <div className="calc-note">✓ Pause ist bezahlt · Freigabe durch Chef erforderlich</div>
         </div>
-        <div style={{fontSize:'0.75rem',color:'#718096',marginTop:4}}>✓ Pause ist bezahlt · Freigabe durch Chef erforderlich</div>
+        <div className="calc-value">{dauer.toFixed(2)} Std</div>
       </div>
       <div className="form-group">
         <label>Baustelle</label>
@@ -786,13 +809,12 @@ export default function App() {
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   return (
     <div className="app-container">
-      {/* PWA Install Banner */}
       {showInstallBanner&&(
-        <div style={{background:'linear-gradient(135deg,#0A0A44,#1B52DD)',padding:'0.6rem 1rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'0.5rem'}}>
-          <span style={{color:'white',fontSize:'0.82rem'}}>📱 App auf Homescreen installieren</span>
-          <div style={{display:'flex',gap:'0.5rem'}}>
-            <button onClick={handleInstall} style={{background:'white',color:'#1B52DD',border:'none',borderRadius:8,padding:'4px 12px',fontSize:'0.8rem',fontWeight:700,cursor:'pointer'}}>Installieren</button>
-            <button onClick={()=>setShowInstallBanner(false)} style={{background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:8,padding:'4px 8px',fontSize:'0.8rem',cursor:'pointer'}}>✕</button>
+        <div className="pwa-banner">
+          <span>📱 App auf Homescreen installieren</span>
+          <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+            <button className="pwa-btn" onClick={handleInstall}>Installieren</button>
+            <button className="pwa-close" onClick={()=>setShowInstallBanner(false)}>✕</button>
           </div>
         </div>
       )}
@@ -802,7 +824,7 @@ export default function App() {
           <div><div className="top-title">Elektro Pees</div><div className="top-user">{user.profile?.name||user.email}</div></div>
         </div>
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
-          <button onClick={loadData} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'white',padding:'6px 10px',borderRadius:8,cursor:'pointer',fontSize:'1rem'}} title="Aktualisieren">↻</button>
+          <button onClick={loadData} style={{width:34,height:34,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.7)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}} title="Aktualisieren">↻</button>
           <button className="top-logout" onClick={handleLogout}>Abmelden</button>
         </div>
       </div>
