@@ -52,8 +52,10 @@ function LoginPage({onLogin}) {
   return (
     <div className="login-page">
       <div style={{textAlign:'center',marginBottom:'2rem'}}>
-        <img src="/logo.png" alt="Elektro Pees" style={{height:'70px',width:'auto',marginBottom:'1rem'}} onError={e=>{e.target.style.display='none'}}/>
-        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'1rem',marginTop:4,fontWeight:600}}>Stundenerfassung</p>
+        <div style={{background:'white',borderRadius:16,padding:'14px 20px',display:'inline-block',marginBottom:'1rem',boxShadow:'0 8px 24px rgba(0,0,0,0.25)'}}>
+          <img src="/logo.png" alt="Elektro Pees" style={{height:'52px',width:'auto',display:'block'}} onError={e=>{e.target.style.display='none'}}/>
+        </div>
+        <p style={{color:'rgba(255,255,255,0.75)',fontSize:'0.85rem',marginTop:4,fontWeight:500,letterSpacing:'0.06em',textTransform:'uppercase'}}>Stundenerfassung</p>
       </div>
       <div className="login-card">
         <h2 style={{color:'#0A0A44',fontSize:'1.2rem',marginBottom:'1.5rem',textAlign:'center'}}>Anmelden</h2>
