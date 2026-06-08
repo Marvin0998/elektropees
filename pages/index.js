@@ -166,9 +166,15 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
     setForm({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); setShowNew(false); setSaving(false)
   }
   async function handleAbschliessen(id) {
-    if(!confirm('Baustelle wirklich abschließen?'))return
-    await supabase.from('baustellen').update({status:'abgeschlossen'}).eq('id',id); await onRefresh(); setShowDetail(null)
+    await supabase.from('baustellen').update({status:'abgeschlossen'}).eq('id',id)
+    await onRefresh(); setShowDetail(null)
   }
+  async function handleLoeschen(id) {
+    setBsDeleteConfirm(false)
+    await supabase.from('baustellen').delete().eq('id',id)
+    await onRefresh(); setShowDetail(null)
+  }
+  const [bsConfirm,setBsConfirm]=useState(null)
   const detailBs=baustellen.find(b=>b.id===showDetail)
   const detailStunden=stunden.filter(s=>s.baustelle_id===showDetail&&s.freigabe_status==='freigegeben')
   const detailTotal=detailStunden.reduce((a,s)=>a+s.dauer,0)
@@ -214,7 +220,28 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
               </div>
             ))}
           </div>
-          {isAdmin&&detailBs.status==='aktiv'&&<button className="btn btn-danger" onClick={()=>handleAbschliessen(detailBs.id)}>🔒 Baustelle abschließen</button>}
+          {isAdmin&&!bsDeleteConfirm&&(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginBottom:'0.5rem'}}>
+              {detailBs.status==='aktiv'&&(
+                <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>
+                  🔒 Archivieren
+                </button>
+              )}
+              <button className="btn" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem',background:'#742a2a',color:'white',gridColumn:detailBs.status==='aktiv'?'auto':'1/-1'}} onClick={()=>setBsDeleteConfirm(true)}>
+                🗑️ Löschen
+              </button>
+            </div>
+          )}
+          {isAdmin&&bsDeleteConfirm&&(
+            <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:10,padding:'0.75rem',marginBottom:'0.5rem'}}>
+              <p style={{fontSize:'0.85rem',color:'#9b2c2c',marginBottom:'0.5rem',textAlign:'center',fontWeight:600}}>Baustelle wirklich löschen?</p>
+              <p style={{fontSize:'0.75rem',color:'#c53030',marginBottom:'0.75rem',textAlign:'center'}}>Diese Aktion kann nicht rückgängig gemacht werden!</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'#e53e3e',color:'white',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:700,cursor:'pointer',minHeight:36}}>✓ Ja, löschen</button>
+                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'#e2e8f0',color:'#1a202c',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:600,cursor:'pointer',minHeight:36}}>Abbrechen</button>
+              </div>
+            </div>
+          )}
           <button className="btn btn-secondary" onClick={()=>setShowDetail(null)}>Schließen</button>
         </div></div>
       )}
