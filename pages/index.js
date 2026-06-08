@@ -523,7 +523,7 @@ function AdminPage({ stunden, baustellen, allUsers }) {
 
 // ─── STUNDEN MODAL ────────────────────────────────────────
 function StundenModal({ user, baustellen, onClose, onSaved }) {
-  const [form, setForm] = useState({ datum: today(), start: '07:00', end: '16:00', pause: '30', baustelle_id: '', notiz: '' })
+  const [form, setForm] = useState({ datum: today(), start: '07:00', end: '16:00', pause: '45', baustelle_id: '', notiz: '' })
   const [saving, setSaving] = useState(false)
   const [showNewBs, setShowNewBs] = useState(false)
   const [newBs, setNewBs] = useState({ name: '', kunde: '', adresse: '', beschreibung: '' })
