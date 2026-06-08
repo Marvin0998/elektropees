@@ -65,7 +65,7 @@ function LoginPage({ onLogin }) {
   return (
     <div className="login-page">
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div className="logo-circle">EP</div>
+        <img src="/logo.png" alt="Elektro Pees" style={{height:'80px', width:'auto', marginBottom:'1rem'}} />
         <h1 style={{ color: 'white', fontSize: '1.6rem', fontWeight: 700 }}>Elektro Pees</h1>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', marginTop: 4 }}>Stundenerfassung</p>
       </div>
@@ -672,7 +672,7 @@ export default function App() {
       {/* TOP BAR */}
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="top-logo">EP</div>
+          <img src="/logo.png" alt="Elektro Pees" style={{height:'36px', width:'auto'}} />
           <div>
             <div className="top-title">Elektro Pees</div>
             <div className="top-user">{user.profile?.name || user.email}</div>
