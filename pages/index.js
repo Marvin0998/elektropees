@@ -174,7 +174,6 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
     await supabase.from('baustellen').delete().eq('id',id)
     await onRefresh(); setShowDetail(null)
   }
-  const [bsConfirm,setBsConfirm]=useState(null)
   const detailBs=baustellen.find(b=>b.id===showDetail)
   const detailStunden=stunden.filter(s=>s.baustelle_id===showDetail&&s.freigabe_status==='freigegeben')
   const detailTotal=detailStunden.reduce((a,s)=>a+s.dauer,0)
