@@ -607,6 +607,20 @@ export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
   const [showStunden,setShowStunden]=useState(false)
+  const [installPrompt,setInstallPrompt]=useState(null)
+  const [showInstallBanner,setShowInstallBanner]=useState(false)
+
+  useEffect(()=>{
+    // PWA Install-Prompt abfangen
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true) }
+    window.addEventListener('beforeinstallprompt', handler)
+    // Benachrichtigungen anfragen
+    if('Notification' in window && Notification.permission==='default'){
+      Notification.requestPermission()
+    }
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  },[])
+
   useEffect(()=>{
     supabase.auth.getSession().then(async({data:{session}})=>{
       if(session?.user){const {data:profile}=await supabase.from('profiles').select('*').eq('id',session.user.id).single(); setUser({...session.user,profile})}
@@ -614,6 +628,7 @@ export default function App() {
     })
   },[])
   useEffect(()=>{if(user)loadData()},[user])
+
   async function loadData() {
     const [{data:bs},{data:st},{data:users}]=await Promise.all([
       supabase.from('baustellen').select('*').order('created_at',{ascending:false}),
@@ -628,12 +643,29 @@ export default function App() {
     await supabase.from('stunden').delete().eq('id',id)
     await loadData()
   }
+  async function handleInstall() {
+    if(!installPrompt)return
+    installPrompt.prompt()
+    const result = await installPrompt.userChoice
+    if(result.outcome==='accepted') setShowInstallBanner(false)
+  }
+
   if(loading)return <div className="loading">App wird geladen...</div>
   if(!user)return <LoginPage onLogin={u=>{setUser(u)}}/>
   const isAdmin=user.profile?.role==='admin'
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   return (
     <div className="app-container">
+      {/* PWA Install Banner */}
+      {showInstallBanner&&(
+        <div style={{background:'linear-gradient(135deg,#0A0A44,#1B52DD)',padding:'0.6rem 1rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'0.5rem'}}>
+          <span style={{color:'white',fontSize:'0.82rem'}}>📱 App auf Homescreen installieren</span>
+          <div style={{display:'flex',gap:'0.5rem'}}>
+            <button onClick={handleInstall} style={{background:'white',color:'#1B52DD',border:'none',borderRadius:8,padding:'4px 12px',fontSize:'0.8rem',fontWeight:700,cursor:'pointer'}}>Installieren</button>
+            <button onClick={()=>setShowInstallBanner(false)} style={{background:'rgba(255,255,255,0.2)',color:'white',border:'none',borderRadius:8,padding:'4px 8px',fontSize:'0.8rem',cursor:'pointer'}}>✕</button>
+          </div>
+        </div>
+      )}
       <div className="top-bar">
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <img src="/logo.png" alt="Elektro Pees" style={{height:'36px',width:'auto'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
