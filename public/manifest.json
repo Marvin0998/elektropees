@@ -1,1 +1,24 @@
-
+{
+  "name": "Elektro Pees Stundenerfassung",
+  "short_name": "Elektro Pees",
+  "description": "Stundenerfassung für Elektro Pees Mitarbeiter",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A44",
+  "theme_color": "#1B52DD",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
