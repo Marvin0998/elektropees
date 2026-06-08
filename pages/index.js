@@ -504,47 +504,74 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
     <div className="page-content">
       {msg&&<div className="alert alert-success">{msg}</div>}
       <div className="tab-row">
-        {[['freigabe',`Freigaben ${ausstehend.length>0?`(${ausstehend.length})`:'✓'}`],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung']].map(([key,label])=>(
+        {[['freigabe',ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung']].map(([key,label])=>(
           <button key={key} className={`tab-btn ${tab===key?'active':''}`} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
 
       {tab==='freigabe'&&(
         <>
-          {ausstehend.length===0
-            ?<div className="card"><p className="text-muted text-sm">✓ Alle Stunden sind freigegeben!</p></div>
-            :(
-              <>
-                <div style={{marginBottom:'0.75rem',display:'flex',justifyContent:'flex-end'}}>
-                  <button className="btn btn-success btn-sm" onClick={handleAlleFreigeben}>✓ Alle freigeben ({ausstehend.length})</button>
-                </div>
-                {ausstehend.sort((a,b)=>b.datum.localeCompare(a.datum)).map(s=>{
-                  const b=baustellen.find(b=>b.id===s.baustelle_id)
-                  const isFri=new Date(s.datum).getDay()===5
-                  return (
-                    <div key={s.id} className="card" style={{borderLeft:'3px solid #f6e05e'}}>
-                      <div style={{marginBottom:'0.75rem'}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                          <div>
-                            <div className="font-bold" style={{color:'#0A0A44'}}>{s.profiles?.name||'—'}</div>
-                            <div className="text-sm text-muted">{getDayName(s.datum)}, {formatDate(s.datum)}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</div>
-                            <div className="text-sm" style={{color:'#4a5568'}}>🏗️ {b?.name||'—'}</div>
-                            <div className="text-sm" style={{color:'#4a5568'}}>🕐 {s.start_zeit} – {s.end_zeit}</div>
-                            {s.notiz&&<div className="text-xs text-muted">📝 {s.notiz}</div>}
-                          </div>
-                          <span style={{fontSize:'1.3rem',fontWeight:800,color:'#1B52DD'}}>{s.dauer.toFixed(1)}h</span>
+          {ausstehend.length===0&&(
+            <div className="card" style={{borderLeft:'3px solid #38a169',background:'#f0fff4'}}>
+              <p style={{color:'#276749',fontWeight:600}}>✓ Alle Stunden sind freigegeben!</p>
+            </div>
+          )}
+          {ausstehend.length>0&&(
+            <>
+              <div style={{marginBottom:'0.75rem',display:'flex',justifyContent:'flex-end'}}>
+                <button className="btn btn-success btn-sm" onClick={handleAlleFreigeben}>✓ Alle freigeben ({ausstehend.length})</button>
+              </div>
+              {ausstehend.sort((a,b)=>b.datum.localeCompare(a.datum)).map(s=>{
+                const b=baustellen.find(b=>b.id===s.baustelle_id)
+                const isFri=new Date(s.datum).getDay()===5
+                return (
+                  <div key={s.id} className="card" style={{borderLeft:'3px solid #f6e05e'}}>
+                    <div style={{marginBottom:'0.75rem'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                        <div>
+                          <div className="font-bold" style={{color:'#0A0A44'}}>{s.profiles?.name||'—'}</div>
+                          <div className="text-sm text-muted">{getDayName(s.datum)}, {formatDate(s.datum)}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</div>
+                          <div className="text-sm" style={{color:'#4a5568'}}>🏗️ {b?.name||'—'}</div>
+                          <div className="text-sm" style={{color:'#4a5568'}}>🕐 {s.start_zeit} – {s.end_zeit}</div>
+                          {s.notiz&&<div className="text-xs text-muted">📝 {s.notiz}</div>}
                         </div>
-                      </div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
-                        <button className="btn btn-success" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleFreigabe(s.id,'freigegeben')}>✓ Freigeben</button>
-                        <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleFreigabe(s.id,'abgelehnt')}>✗ Ablehnen</button>
+                        <span style={{fontSize:'1.3rem',fontWeight:800,color:'#1B52DD'}}>{s.dauer.toFixed(1)}h</span>
                       </div>
                     </div>
-                  )
-                })}
-              </>
-            )
-          }
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+                      <button className="btn btn-success" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleFreigabe(s.id,'freigegeben')}>✓ Freigeben</button>
+                      <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleFreigabe(s.id,'abgelehnt')}>✗ Ablehnen</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+          {/* Erledigte Einträge */}
+          {stunden.filter(s=>s.freigabe_status==='freigegeben'||s.freigabe_status==='abgelehnt').length>0&&(
+            <div className="card" style={{marginTop:'0.75rem'}}>
+              <div className="card-title" style={{fontSize:'0.85rem',color:'#4a5568'}}>✓ Erledigte Einträge</div>
+              {stunden.filter(s=>s.freigabe_status!=='ausstehend').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,10).map(s=>{
+                const b=baustellen.find(b=>b.id===s.baustelle_id)
+                const freigegeben=s.freigabe_status==='freigegeben'
+                return (
+                  <div key={s.id} className="list-item" style={{opacity:0.7}}>
+                    <div className="list-item-left">
+                      <span className="list-item-title text-sm">{s.profiles?.name||'—'}</span>
+                      <span className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {b?.name||'—'}</span>
+                      <span className="list-item-sub">{s.start_zeit} – {s.end_zeit}</span>
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+                      <span style={{fontWeight:700,color:freigegeben?'#1B52DD':'#e53e3e'}}>{s.dauer.toFixed(1)}h</span>
+                      <span style={{fontSize:'0.68rem',background:freigegeben?'#c6f6d5':'#fed7d7',color:freigegeben?'#276749':'#9b2c2c',padding:'1px 8px',borderRadius:20,fontWeight:600}}>
+                        {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </>
       )}
 
@@ -726,6 +753,12 @@ export default function App() {
     })
   },[])
   useEffect(()=>{if(user)loadData()},[user])
+  // Auto-Refresh alle 30 Sekunden
+  useEffect(()=>{
+    if(!user)return
+    const interval=setInterval(()=>loadData(),30000)
+    return ()=>clearInterval(interval)
+  },[user])
 
   async function loadData() {
     const [{data:bs},{data:st},{data:users}]=await Promise.all([
