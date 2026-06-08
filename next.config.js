@@ -1,4 +1,3 @@
-node_modules/
-.next/
-.env.local
-.DS_Store
+/** @type {import('next').NextConfig} */
+const nextConfig = {}
+module.exports = nextConfig
