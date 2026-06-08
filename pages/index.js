@@ -79,7 +79,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,onStunden,onDelete}) {
+function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -96,7 +96,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete}) {
   const StundenListe=({list})=>list.map(s=>{
     const b=baustellen.find(b=>b.id===s.baustelle_id)
     const isFri=new Date(s.datum).getDay()===5
-    const kannLoeschen=s.freigabe_status==='ausstehend'
+    const kannLoeschen=s.freigabe_status==='ausstehend'||(isAdmin&&s.freigabe_status!==undefined)
     const isDeleting=deleteConfirm===s.id
     return (
       <div key={s.id} style={{borderBottom:'1px solid #e2e8f0',paddingBottom:'0.75rem',marginBottom:'0.75rem'}}>
@@ -726,7 +726,7 @@ export default function App() {
         </div>
         <button className="top-logout" onClick={handleLogout}>Abmelden</button>
       </div>
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
