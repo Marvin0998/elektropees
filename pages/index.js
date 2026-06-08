@@ -22,11 +22,11 @@ function getWeekStart(d) {
   day.setHours(0, 0, 0, 0)
   return day
 }
-function calcDauer(start, end, pause) {
-  const [sh, sm] = start.split(':').map(Number)
-  const [eh, em] = end.split(':').map(Number)
-  const mins = (eh * 60 + em) - (sh * 60 + sm) - (parseInt(pause) || 0)
-  return mins > 0 ? parseFloat((mins / 60).toFixed(2)) : 0
+function calcDauer(start,end,pause) {
+  const [sh,sm]=start.split(':').map(Number)
+  const [eh,em]=end.split(':').map(Number)
+  const mins=(eh*60+em)-(sh*60+sm)
+  return mins>0?parseFloat((mins/60).toFixed(2)):0
 }
 function initials(name) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -541,7 +541,8 @@ function StundenModal({ user, baustellen, onClose, onSaved }) {
       datum: form.datum,
       start_zeit: form.start,
       end_zeit: form.end,
-      pause_min: parseInt(form.pause),
+      pause_min: 45,
+      dauer,
       dauer,
       notiz: form.notiz
     }])
@@ -576,8 +577,8 @@ function StundenModal({ user, baustellen, onClose, onSaved }) {
           <div className="form-group"><label>Endzeit</label><input type="time" value={form.end} onChange={e => setForm(f => ({ ...f, end: e.target.value }))} /></div>
         </div>
         <div className="form-group">
-          <label>Pause (Minuten)</label>
-          <input type="number" value={form.pause} onChange={e => setForm(f => ({ ...f, pause: e.target.value }))} min="0" max="120" />
+          <label>Pause (Minuten) — wird mitbezahlt</label>
+          <input type="number" value={form.pause} onChange={e => setForm(f => ({ ...f, pause: e.target.value }))} min="45" max="45" readOnly style={{background:'#f7fafc',color:'#718096'}} />
         </div>
         <div className="card" style={{ background: '#f0f4f8', marginBottom: '1rem', padding: '0.75rem 1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
