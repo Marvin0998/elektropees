@@ -28,14 +28,27 @@ const urlaubBadge=(s)=>{
 }
 
 function LoginPage({onLogin}) {
-  const [email,setEmail]=useState(''); const [password,setPassword]=useState(''); const [error,setError]=useState(''); const [loading,setLoading]=useState(false)
+  const [profiles,setProfiles]=useState([])
+  const [selectedEmail,setSelectedEmail]=useState('')
+  const [password,setPassword]=useState('')
+  const [error,setError]=useState('')
+  const [loading,setLoading]=useState(false)
+
+  useEffect(()=>{
+    supabase.from('profiles').select('name, email').order('name').then(({data})=>{
+      setProfiles(data||[])
+    })
+  },[])
+
   async function handleLogin(e) {
     e.preventDefault(); setError(''); setLoading(true)
-    const {data,error}=await supabase.auth.signInWithPassword({email,password})
-    if(error){setError('E-Mail oder Passwort falsch.'); setLoading(false); return}
+    if(!selectedEmail){setError('Bitte einen Namen auswaehlen.'); setLoading(false); return}
+    const {data,error}=await supabase.auth.signInWithPassword({email:selectedEmail,password})
+    if(error){setError('Passwort falsch. Bitte erneut versuchen.'); setLoading(false); return}
     const {data:profile}=await supabase.from('profiles').select('*').eq('id',data.user.id).single()
     onLogin({...data.user,profile}); setLoading(false)
   }
+
   return (
     <div className="login-page">
       <div style={{textAlign:'center',marginBottom:'2rem'}}>
@@ -46,8 +59,19 @@ function LoginPage({onLogin}) {
         <h2 style={{color:'#0A0A44',fontSize:'1.2rem',marginBottom:'1.5rem',textAlign:'center'}}>Anmelden</h2>
         {error&&<div className="alert alert-error">{error}</div>}
         <form onSubmit={handleLogin}>
-          <div className="form-group"><label>E-Mail</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="max@elektropees.de" required/></div>
-          <div className="form-group"><label>Passwort</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required/></div>
+          <div className="form-group">
+            <label>Name auswaehlen</label>
+            <select value={selectedEmail} onChange={e=>setSelectedEmail(e.target.value)} required style={{fontSize:'1rem'}}>
+              <option value="">Bitte auswaehlen</option>
+              {profiles.map(p=>(
+                <option key={p.email} value={p.email}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Passwort</label>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Passwort eingeben" required/>
+          </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>{loading?'Wird angemeldet...':'Anmelden'}</button>
         </form>
       </div>
@@ -430,12 +454,24 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
     setMsg(`✓ ${ausstehend.length} Einträge freigegeben!`); await onRefresh(); setTimeout(()=>setMsg(''),3000)
   }
   async function handleNewUser() {
-    if(!newUser.name||!newUser.email||!newUser.password){alert('Name, E-Mail und Passwort sind Pflicht!');return}
+    if(!newUser.name||!newUser.password){alert('Name und Passwort sind Pflicht!');return}
+    if(newUser.password.length<6){alert('Passwort muss mindestens 6 Zeichen haben!');return}
     setSaving(true)
-    const {data,error}=await supabase.auth.signUp({email:newUser.email,password:newUser.password})
+    // Automatische E-Mail aus dem Namen generieren
+    const cleanName=newUser.name.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z.]/g,'')
+    const autoEmail=cleanName+'@elektropees.intern'
+    const {data,error}=await supabase.auth.signUp({email:autoEmail,password:newUser.password})
     if(error){alert('Fehler: '+error.message);setSaving(false);return}
-    if(data.user){await supabase.from('profiles').upsert({id:data.user.id,name:newUser.name,email:newUser.email,role:'mitarbeiter',regel_stunden:newUser.regel_stunden,urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0})}
-    setMsg('✓ Mitarbeiter angelegt!'); setShowNewUser(false); setSaving(false)
+    if(data.user){
+      await supabase.from('profiles').upsert({
+        id:data.user.id,name:newUser.name,email:autoEmail,
+        role:'mitarbeiter',regel_stunden:newUser.regel_stunden,
+        urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0
+      })
+    }
+    setMsg('✓ Mitarbeiter "'+newUser.name+'" wurde angelegt!')
+    setNewUser({name:'',password:'',regel_stunden:38,urlaub_gesamt:24})
+    setShowNewUser(false); setSaving(false)
   }
 
   return (
@@ -543,8 +579,10 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
         <div className="modal-overlay open"><div className="modal-sheet">
           <div className="modal-handle"/><div className="modal-title">👤 Mitarbeiter anlegen</div>
           <div className="form-group"><label>Name *</label><input value={newUser.name} onChange={e=>setNewUser(u=>({...u,name:e.target.value}))} placeholder="Max Mustermann"/></div>
-          <div className="form-group"><label>E-Mail *</label><input type="email" value={newUser.email} onChange={e=>setNewUser(u=>({...u,email:e.target.value}))} placeholder="max@elektropees.de"/></div>
           <div className="form-group"><label>Passwort *</label><input type="password" value={newUser.password} onChange={e=>setNewUser(u=>({...u,password:e.target.value}))} placeholder="Mindestens 6 Zeichen"/></div>
+          <div style={{background:'#f7fafc',borderRadius:8,padding:'0.6rem 0.8rem',fontSize:'0.78rem',color:'#718096',marginBottom:'0.75rem'}}>
+            💡 Der Mitarbeiter meldet sich mit seinem Namen und diesem Passwort an.
+          </div>
           <div className="form-row">
             <div className="form-group"><label>Wochenstunden</label><input type="number" value={newUser.regel_stunden} onChange={e=>setNewUser(u=>({...u,regel_stunden:parseInt(e.target.value)}))}/></div>
             <div className="form-group"><label>Urlaubstage/Jahr</label><input type="number" value={newUser.urlaub_gesamt} onChange={e=>setNewUser(u=>({...u,urlaub_gesamt:parseInt(e.target.value)}))}/></div>
