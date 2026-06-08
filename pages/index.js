@@ -801,7 +801,10 @@ export default function App() {
           <img src="/logo.png" alt="Elektro Pees" style={{height:'36px',width:'auto'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
           <div><div className="top-title">Elektro Pees</div><div className="top-user">{user.profile?.name||user.email}</div></div>
         </div>
-        <button className="top-logout" onClick={handleLogout}>Abmelden</button>
+        <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+          <button onClick={loadData} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'white',padding:'6px 10px',borderRadius:8,cursor:'pointer',fontSize:'1rem'}} title="Aktualisieren">↻</button>
+          <button className="top-logout" onClick={handleLogout}>Abmelden</button>
+        </div>
       </div>
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
