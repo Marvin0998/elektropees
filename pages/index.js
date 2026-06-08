@@ -67,24 +67,40 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete}) {
   const sorted=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum))
   const recent=showAll?sorted:sorted.slice(0,4)
 
+  const [deleteConfirm,setDeleteConfirm]=useState(null)
+
   const StundenListe=({list})=>list.map(s=>{
     const b=baustellen.find(b=>b.id===s.baustelle_id)
     const isFri=new Date(s.datum).getDay()===5
     const kannLoeschen=s.freigabe_status==='ausstehend'
+    const isDeleting=deleteConfirm===s.id
     return (
-      <div key={s.id} className="list-item">
-        <div className="list-item-left" style={{flex:1}}>
-          <span className="list-item-title">{b?.name||'—'}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</span>
-          <span className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</span>
-          {s.notiz&&<span style={{fontSize:'0.72rem',color:'#49A7D6'}}>{s.notiz}</span>}
-          <div style={{marginTop:2}}>{freigabeBadge(s.freigabe_status||'ausstehend')}</div>
+      <div key={s.id} style={{borderBottom:'1px solid #e2e8f0',paddingBottom:'0.75rem',marginBottom:'0.75rem'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div style={{flex:1}}>
+            <span style={{fontWeight:600,color:'#1a202c',fontSize:'0.9rem'}}>{b?.name||'—'}{isFri&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:'10px',marginLeft:4}}>Freitag</span>}</span>
+            <div className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</div>
+            {s.notiz&&<div style={{fontSize:'0.72rem',color:'#49A7D6'}}>{s.notiz}</div>}
+            <div style={{marginTop:4}}>{freigabeBadge(s.freigabe_status||'ausstehend')}</div>
+          </div>
+          <span className="font-bold text-blue" style={{marginLeft:8}}>{s.dauer.toFixed(1)} Std</span>
         </div>
-        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-          <span className="font-bold text-blue">{s.dauer.toFixed(1)} Std</span>
-          {kannLoeschen&&(
-            <button onClick={()=>onDelete(s.id)} style={{background:'none',border:'none',cursor:'pointer',color:'#e53e3e',fontSize:'0.75rem',padding:'2px 6px',borderRadius:6,background:'#fff5f5'}}>🗑️ Löschen</button>
-          )}
-        </div>
+        {kannLoeschen&&!isDeleting&&(
+          <button
+            onClick={()=>setDeleteConfirm(s.id)}
+            style={{marginTop:'0.5rem',background:'#fff5f5',border:'1px solid #fed7d7',color:'#e53e3e',borderRadius:8,padding:'6px 14px',fontSize:'0.82rem',fontWeight:600,cursor:'pointer',width:'100%',minHeight:36}}>
+            🗑️ Eintrag löschen
+          </button>
+        )}
+        {kannLoeschen&&isDeleting&&(
+          <div style={{marginTop:'0.5rem',background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:8,padding:'0.6rem'}}>
+            <p style={{fontSize:'0.82rem',color:'#9b2c2c',marginBottom:'0.5rem',textAlign:'center'}}>Wirklich löschen?</p>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+              <button onClick={()=>{onDelete(s.id);setDeleteConfirm(null)}} style={{background:'#e53e3e',color:'white',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:700,cursor:'pointer',minHeight:36}}>✓ Ja, löschen</button>
+              <button onClick={()=>setDeleteConfirm(null)} style={{background:'#e2e8f0',color:'#1a202c',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:600,cursor:'pointer',minHeight:36}}>Abbrechen</button>
+            </div>
+          </div>
+        )}
       </div>
     )
   })
@@ -639,7 +655,6 @@ export default function App() {
   }
   async function handleLogout(){await supabase.auth.signOut(); setUser(null); setPage('home')}
   async function handleDelete(id) {
-    if(!confirm('Diesen Eintrag wirklich löschen?'))return
     await supabase.from('stunden').delete().eq('id',id)
     await loadData()
   }
