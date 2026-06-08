@@ -157,7 +157,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
 }
 
 function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
-  const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false)
+  const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); const [saving,setSaving]=useState(false)
   const list=baustellen.filter(b=>b.status===filter)
   async function handleSave() {
@@ -242,7 +242,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
               </div>
             </div>
           )}
-          <button className="btn btn-secondary" onClick={()=>setShowDetail(null)}>Schließen</button>
+          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false)}}>Schließen</button>
         </div></div>
       )}
       {showNew&&(
