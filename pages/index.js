@@ -96,7 +96,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
   const StundenListe=({list})=>list.map(s=>{
     const b=baustellen.find(b=>b.id===s.baustelle_id)
     const isFri=new Date(s.datum).getDay()===5
-    const kannLoeschen=s.freigabe_status==='ausstehend'||(isAdmin&&s.freigabe_status!==undefined)
+    const kannLoeschen=isAdmin===true||s.freigabe_status==='ausstehend'
     const isDeleting=deleteConfirm===s.id
     return (
       <div key={s.id} style={{borderBottom:'1px solid #e2e8f0',paddingBottom:'0.75rem',marginBottom:'0.75rem'}}>
