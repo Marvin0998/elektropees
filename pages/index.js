@@ -105,7 +105,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
         <div className={`entry-dot ${dotClass}`}/>
         <div className="entry-info">
           <div className="entry-site">{b?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}</div>
-          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&\` · ${s.notiz}\`}</div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&` · ${s.notiz}`}</div>
         </div>
         <div className="entry-right">
           <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
