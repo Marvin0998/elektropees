@@ -7,6 +7,7 @@ const IconUser = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const IconStar = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
 const IconClock = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
 const IconSun = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+const IconCounter = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="8" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="16" cy="10" r="1" fill="currentColor"/></svg>
 
 function formatDate(d) { if(!d)return'—'; const [y,m,day]=d.split('-'); return `${day}.${m}.${y}` }
 function getWeekStart(d) { const day=new Date(d); const dow=day.getDay(); const diff=dow===0?-6:1-dow; day.setDate(day.getDate()+diff); day.setHours(0,0,0,0); return day }
@@ -52,7 +53,8 @@ function LoginPage({onLogin}) {
   return (
     <div className="login-page">
       <div style={{textAlign:'center',marginBottom:'2rem'}}>
-        <img src="/logo.png" alt="Elektro Pees" style={{height:'160px',width:'auto',display:'block',margin:'0 auto 1.5rem'}} onError={e=>{e.target.style.display='none'}}/>
+        <img src="/logo.png" alt="Elektro Pees" style={{height:'70px',width:'auto',marginBottom:'1rem'}} onError={e=>{e.target.style.display='none'}}/>
+        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'1rem',marginTop:4,fontWeight:600}}>Stundenerfassung</p>
       </div>
       <div className="login-card">
         <h2 style={{color:'#0A0A44',fontSize:'1.2rem',marginBottom:'1.5rem',textAlign:'center'}}>Anmelden</h2>
@@ -103,7 +105,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
         <div className={`entry-dot ${dotClass}`}/>
         <div className="entry-info">
           <div className="entry-site">{b?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}</div>
-          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&` · ${s.notiz}`}</div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&\` · ${s.notiz}\`}</div>
         </div>
         <div className="entry-right">
           <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
@@ -177,7 +179,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
 }
 
 function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
-  const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false); const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
+  const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); const [saving,setSaving]=useState(false)
   const list=baustellen.filter(b=>b.status===filter)
   async function handleSave() {
@@ -188,14 +190,6 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
   async function handleAbschliessen(id) {
     await supabase.from('baustellen').update({status:'abgeschlossen'}).eq('id',id)
     await onRefresh(); setShowDetail(null)
-  }
-  async function handleEdit(id) {
-    await supabase.from('baustellen').update({
-      name:editForm.name,kunde:editForm.kunde,adresse:editForm.adresse,
-      beschreibung:editForm.beschreibung,kontakt:editForm.kontakt,telefon:editForm.telefon
-    }).eq('id',id)
-    await onRefresh()
-    setEditMode(false)
   }
   async function handleLoeschen(id) {
     setBsDeleteConfirm(false)
@@ -212,7 +206,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
       {list.length===0?<p className="text-muted text-sm">Keine Baustellen.</p>:list.map(b=>{
         const hours=stunden.filter(s=>s.baustelle_id===b.id&&s.freigabe_status==='freigegeben').reduce((a,s)=>a+s.dauer,0)
         return (
-          <div key={b.id} className="card" onClick={()=>{setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||''})}} style={{cursor:'pointer'}}>
+          <div key={b.id} className="card" onClick={()=>setShowDetail(b.id)} style={{cursor:'pointer'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><div className="font-bold" style={{color:'#0A0A44'}}>{b.name}</div><div className="text-xs text-muted" style={{marginTop:3}}>{b.kunde} · {b.adresse}</div></div>
               <span className={`badge ${b.status==='aktiv'?'badge-active':'badge-done'}`}>{b.status==='aktiv'?'Aktiv':'Fertig'}</span>
@@ -247,52 +241,29 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
               </div>
             ))}
           </div>
-          {/* Bearbeiten Button - für alle sichtbar */}
-          {!editMode&&(
-            <button className="btn btn-secondary" style={{marginBottom:'0.5rem'}} onClick={()=>setEditMode(true)}>
-              ✏️ Baustelle bearbeiten
-            </button>
-          )}
-          {/* Bearbeiten Formular */}
-          {editMode&&(
-            <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'1rem',marginBottom:'0.75rem',border:'1px solid var(--border2)'}}>
-              <div style={{fontWeight:600,color:'var(--dark)',marginBottom:'0.75rem',fontSize:'0.9rem'}}>✏️ Baustelle bearbeiten</div>
-              {['name','kunde','adresse','beschreibung','kontakt','telefon'].map(field=>(
-                <div key={field} className="form-group" style={{marginBottom:'0.625rem'}}>
-                  <label style={{fontSize:'0.68rem',fontWeight:600,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:4}}>{field==='name'?'Name':field==='kunde'?'Kunde':field==='adresse'?'Adresse':field==='beschreibung'?'Beschreibung':field==='kontakt'?'Kontakt':'Telefon'}</label>
-                  <input style={{width:'100%',padding:'0.6rem 0.875rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}}
-                    value={editForm[field]||''}
-                    onChange={e=>setEditForm(f=>({...f,[field]:e.target.value}))}/>
-                </div>
-              ))}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginTop:'0.75rem'}}>
-                <button className="btn btn-primary" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleEdit(detailBs.id)}>✓ Speichern</button>
-                <button className="btn btn-secondary" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>setEditMode(false)}>Abbrechen</button>
-              </div>
+          {isAdmin&&!bsDeleteConfirm&&(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginBottom:'0.5rem'}}>
+              {detailBs.status==='aktiv'&&(
+                <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>
+                  🔒 Archivieren
+                </button>
+              )}
+              <button className="btn" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem',background:'#742a2a',color:'white',gridColumn:detailBs.status==='aktiv'?'auto':'1/-1'}} onClick={()=>setBsDeleteConfirm(true)}>
+                🗑️ Löschen
+              </button>
             </div>
-          )}
-          {/* Archivieren - für alle wenn aktiv */}
-          {detailBs.status==='aktiv'&&!editMode&&(
-            <button className="btn btn-danger" style={{marginBottom:'0.5rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>
-              🔒 Archivieren
-            </button>
-          )}
-          {/* Löschen - nur Admin */}
-          {isAdmin&&!editMode&&!bsDeleteConfirm&&(
-            <button className="btn" style={{marginBottom:'0.5rem',background:'#742a2a',color:'white',border:'none',borderRadius:'var(--r-sm)',padding:'0.875rem',width:'100%',fontFamily:'inherit',fontWeight:600,fontSize:'0.95rem',cursor:'pointer'}} onClick={()=>setBsDeleteConfirm(true)}>
-              🗑️ Löschen
-            </button>
           )}
           {isAdmin&&bsDeleteConfirm&&(
-            <div className="delete-confirm" style={{marginBottom:'0.5rem'}}>
-              <p>Baustelle wirklich löschen?</p>
-              <div className="delete-confirm-btns">
-                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'var(--red)',color:'white',fontWeight:700}}>✓ Ja, löschen</button>
-                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'var(--bg)',color:'var(--text)',border:'1px solid var(--border2)'}}>Abbrechen</button>
+            <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:10,padding:'0.75rem',marginBottom:'0.5rem'}}>
+              <p style={{fontSize:'0.85rem',color:'#9b2c2c',marginBottom:'0.5rem',textAlign:'center',fontWeight:600}}>Baustelle wirklich löschen?</p>
+              <p style={{fontSize:'0.75rem',color:'#c53030',marginBottom:'0.75rem',textAlign:'center'}}>Diese Aktion kann nicht rückgängig gemacht werden!</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'#e53e3e',color:'white',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:700,cursor:'pointer',minHeight:36}}>✓ Ja, löschen</button>
+                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'#e2e8f0',color:'#1a202c',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:600,cursor:'pointer',minHeight:36}}>Abbrechen</button>
               </div>
             </div>
           )}
-          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false);setEditMode(false)}}>Schließen</button>
+          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false)}}>Schließen</button>
         </div></div>
       )}
       {showNew&&(
@@ -781,6 +752,170 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
   )
 }
 
+// ─── MATERIAL DEFINITIONS ────────────────────────────
+const MATERIALS = [
+  { id: 'steckdose', label: 'Steckdose', icon: '🔌' },
+  { id: 'rahmen1', label: '1-Fach Rahmen', icon: '▫️' },
+  { id: 'rahmen2', label: '2-Fach Rahmen', icon: '▫️' },
+  { id: 'rahmen3', label: '3-Fach Rahmen', icon: '▫️' },
+  { id: 'rahmen4', label: '4-Fach Rahmen', icon: '▫️' },
+  { id: 'rahmen5', label: '5-Fach Rahmen', icon: '▫️' },
+  { id: 'wechsel', label: 'Aus/Wechselschalter', icon: '🔁' },
+  { id: 'kontroll', label: 'Kontrollschalter', icon: '💡' },
+  { id: 'serien', label: 'Serienschalter', icon: '🔀' },
+  { id: 'kreuz', label: 'Kreuzschalter', icon: '✖️' },
+  { id: 'netzwerk', label: 'Netzwerkdose', icon: '🌐' },
+  { id: 'sat', label: 'Sat-Dose', icon: '📡' },
+]
+
+function CounterPage({ baustellen }) {
+  const [selectedBs, setSelectedBs] = useState('')
+  const [counts, setCounts] = useState({})
+  const [custom, setCustom] = useState([])
+  const [newCustom, setNewCustom] = useState('')
+  const [showAddCustom, setShowAddCustom] = useState(false)
+
+  // Load from localStorage per Baustelle
+  useEffect(() => {
+    if (!selectedBs) return
+    const saved = localStorage.getItem('counter_' + selectedBs)
+    if (saved) {
+      const data = JSON.parse(saved)
+      setCounts(data.counts || {})
+      setCustom(data.custom || [])
+    } else {
+      setCounts({})
+      setCustom([])
+    }
+  }, [selectedBs])
+
+  function save(newCounts, newCustom) {
+    if (!selectedBs) return
+    localStorage.setItem('counter_' + selectedBs, JSON.stringify({ counts: newCounts, custom: newCustom }))
+  }
+
+  function change(id, delta) {
+    const newCounts = { ...counts, [id]: Math.max(0, (counts[id] || 0) + delta) }
+    setCounts(newCounts)
+    save(newCounts, custom)
+  }
+
+  function addCustom() {
+    if (!newCustom.trim()) return
+    const id = 'custom_' + Date.now()
+    const newC = [...custom, { id, label: newCustom.trim() }]
+    setCustom(newC)
+    setNewCustom('')
+    setShowAddCustom(false)
+    save(counts, newC)
+  }
+
+  function removeCustom(id) {
+    const newC = custom.filter(c => c.id !== id)
+    const newCounts = { ...counts }
+    delete newCounts[id]
+    setCustom(newC)
+    setCounts(newCounts)
+    save(newCounts, newC)
+  }
+
+  function resetAll() {
+    if (!confirm('Alle Zähler auf 0 zurücksetzen?')) return
+    const newCounts = {}
+    setCounts(newCounts)
+    save(newCounts, custom)
+  }
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0)
+  const aktiveBaustellen = baustellen.filter(b => b.status === 'aktiv')
+
+  return (
+    <div className="page-content">
+      <div className="section-header" style={{marginBottom:'1rem'}}>
+        <span className="section-title">Material-Counter</span>
+        {selectedBs && total > 0 && (
+          <button className="btn btn-outline btn-sm" onClick={resetAll} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
+        )}
+      </div>
+
+      <div className="form-group" style={{marginBottom:'1rem'}}>
+        <label>Baustelle auswählen</label>
+        <select value={selectedBs} onChange={e => setSelectedBs(e.target.value)}>
+          <option value="">— Bitte auswählen —</option>
+          {aktiveBaustellen.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+
+      {!selectedBs && (
+        <div className="empty-state">
+          <div className="empty-icon"><IconCounter/></div>
+          <div className="empty-title">Baustelle auswählen</div>
+          <div className="empty-sub">Wähle eine Baustelle um den Counter zu starten.</div>
+        </div>
+      )}
+
+      {selectedBs && (
+        <>
+          {/* Gesamt Badge */}
+          {total > 0 && (
+            <div style={{background:'var(--blue-pale)',border:'1px solid rgba(27,82,221,0.15)',borderRadius:'var(--r-md)',padding:'0.75rem 1rem',marginBottom:'1rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:'0.85rem',color:'var(--blue)',fontWeight:600}}>Gesamt gezählt</span>
+              <span style={{fontSize:'1.3rem',fontWeight:700,color:'var(--dark)',fontFamily:'DM Mono,monospace'}}>{total} Stk</span>
+            </div>
+          )}
+
+          {/* Standard Material */}
+          <div className="card" style={{padding:'0.75rem'}}>
+            {MATERIALS.map(m => (
+              <div key={m.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 0.5rem',borderBottom:'1px solid var(--border)'}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:'var(--blue-pale)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}}>
+                  {m.icon}
+                </div>
+                <span style={{flex:1,fontSize:'0.87rem',fontWeight:500,color:'var(--dark)'}}>{m.label}</span>
+                <div style={{display:'flex',alignItems:'center',gap:0}}>
+                  <button onClick={() => change(m.id, -1)} style={{width:36,height:36,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>−</button>
+                  <span style={{width:44,textAlign:'center',fontSize:'1.1rem',fontWeight:700,color:'var(--dark)',fontFamily:'DM Mono,monospace'}}>{counts[m.id]||0}</span>
+                  <button onClick={() => change(m.id, 1)} style={{width:36,height:36,borderRadius:'50%',border:'none',background:'var(--blue)',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'white',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Benutzerdefiniert */}
+          <div className="card" style={{marginTop:'0.875rem'}}>
+            <div className="card-title" style={{marginBottom:'0.75rem'}}>
+              🔧 Benutzerdefiniert
+            </div>
+            {custom.map(c => (
+              <div key={c.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 0',borderBottom:'1px solid var(--border)'}}>
+                <div style={{width:40,height:40,borderRadius:'50%',background:'var(--bg)',border:'1.5px solid var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.75rem',fontWeight:700,color:'var(--text3)',flexShrink:0}}>▪</div>
+                <span style={{flex:1,fontSize:'0.87rem',fontWeight:500,color:'var(--dark)'}}>{c.label}</span>
+                <div style={{display:'flex',alignItems:'center',gap:0}}>
+                  <button onClick={() => change(c.id, -1)} style={{width:36,height:36,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center'}}>−</button>
+                  <span style={{width:44,textAlign:'center',fontSize:'1.1rem',fontWeight:700,color:'var(--dark)',fontFamily:'DM Mono,monospace'}}>{counts[c.id]||0}</span>
+                  <button onClick={() => change(c.id, 1)} style={{width:36,height:36,borderRadius:'50%',border:'none',background:'var(--blue)',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'white',display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
+                </div>
+                <button onClick={() => removeCustom(c.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:'1rem',padding:'4px',marginLeft:2}}>✕</button>
+              </div>
+            ))}
+
+            {showAddCustom ? (
+              <div style={{paddingTop:'0.75rem',display:'flex',gap:'0.5rem'}}>
+                <input value={newCustom} onChange={e => setNewCustom(e.target.value)} onKeyDown={e => e.key==='Enter'&&addCustom()} placeholder="z.B. Außensteckdose..." style={{flex:1,padding:'0.6rem 0.875rem',border:'1.5px solid var(--blue)',borderRadius:'var(--r-sm)',fontSize:'0.87rem',fontFamily:'inherit'}} autoFocus/>
+                <button onClick={addCustom} style={{padding:'0.6rem 1rem',background:'var(--blue)',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:600,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>+ Hinzufügen</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowAddCustom(true)} className="btn btn-outline" style={{marginTop:'0.75rem',marginBottom:0}}>
+                + Eigene Position hinzufügen
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
@@ -862,6 +997,7 @@ export default function App() {
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
+      {page==='counter'&&<CounterPage baustellen={baustellen}/>}
       {page==='admin'&&isAdmin&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
