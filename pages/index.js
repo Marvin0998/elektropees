@@ -777,21 +777,25 @@ function CounterPage({ baustellen }) {
 
   // Load from localStorage per Baustelle
   useEffect(() => {
-    if (!selectedBs) return
-    const saved = localStorage.getItem('counter_' + selectedBs)
-    if (saved) {
-      const data = JSON.parse(saved)
-      setCounts(data.counts || {})
-      setCustom(data.custom || [])
-    } else {
-      setCounts({})
-      setCustom([])
-    }
+    if (!selectedBs || typeof window === 'undefined') return
+    try {
+      const saved = window.localStorage.getItem('counter_' + selectedBs)
+      if (saved) {
+        const data = JSON.parse(saved)
+        setCounts(data.counts || {})
+        setCustom(data.custom || [])
+      } else {
+        setCounts({})
+        setCustom([])
+      }
+    } catch(e) { setCounts({}); setCustom([]) }
   }, [selectedBs])
 
   function save(newCounts, newCustom) {
-    if (!selectedBs) return
-    localStorage.setItem('counter_' + selectedBs, JSON.stringify({ counts: newCounts, custom: newCustom }))
+    if (!selectedBs || typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem('counter_' + selectedBs, JSON.stringify({ counts: newCounts, custom: newCustom }))
+    } catch(e) {}
   }
 
   function change(id, delta) {
