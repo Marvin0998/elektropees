@@ -753,19 +753,119 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
 }
 
 // ─── MATERIAL DEFINITIONS ────────────────────────────
+// Custom SVG Icons für Elektro-Material
+const ElektroIcons = {
+  steckdose: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <circle cx="20" cy="20" r="7" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="16" y="12" width="3" height="6" rx="1.5" fill="#1B52DD"/>
+      <rect x="21" y="12" width="3" height="6" rx="1.5" fill="#1B52DD"/>
+    </svg>
+  ),
+  rahmen1: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+    </svg>
+  ),
+  rahmen2: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="3" y="7" width="34" height="26" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="7" y="11" width="11" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="22" y="11" width="11" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+    </svg>
+  ),
+  rahmen3: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="2" y="4" width="36" height="32" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="5" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="16" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="27" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+    </svg>
+  ),
+  rahmen4: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="1" y="4" width="38" height="32" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="3" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="12" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="21" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="30" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+    </svg>
+  ),
+  rahmen5: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="1" y="5" width="38" height="30" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="3" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="10" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="17" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="24" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="31" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+    </svg>
+  ),
+  schalter: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="13" y="13" width="14" height="8" rx="2" fill="#1B52DD" opacity="0.15" stroke="#1B52DD" strokeWidth="1.5"/>
+    </svg>
+  ),
+  kontroll: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <circle cx="20" cy="20" r="4" fill="#1B52DD"/>
+      <circle cx="20" cy="20" r="2" fill="white"/>
+    </svg>
+  ),
+  serien: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="13" y="13" width="14" height="6" rx="2" fill="#1B52DD" opacity="0.15" stroke="#1B52DD" strokeWidth="1.5"/>
+      <rect x="13" y="21" width="14" height="6" rx="2" fill="#1B52DD" opacity="0.15" stroke="#1B52DD" strokeWidth="1.5"/>
+    </svg>
+  ),
+  kreuz: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <line x1="14" y1="14" x2="26" y2="26" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/>
+      <line x1="26" y1="14" x2="14" y2="26" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  ),
+  netzwerk: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <rect x="9" y="14" width="22" height="14" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <rect x="12" y="17" width="4" height="3" rx="0.5" fill="#1B52DD"/>
+      <rect x="18" y="17" width="4" height="3" rx="0.5" fill="#1B52DD"/>
+      <rect x="24" y="17" width="4" height="3" rx="0.5" fill="#1B52DD"/>
+    </svg>
+  ),
+  sat: (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
+      <circle cx="20" cy="20" r="9" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <ellipse cx="20" cy="20" rx="4" ry="9" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
+      <line x1="11" y1="20" x2="29" y2="20" stroke="#1B52DD" strokeWidth="1.5"/>
+    </svg>
+  ),
+}
+
 const MATERIALS = [
-  { id: 'steckdose', label: 'Steckdose', icon: '🔌' },
-  { id: 'rahmen1', label: '1-Fach Rahmen', icon: '▫️' },
-  { id: 'rahmen2', label: '2-Fach Rahmen', icon: '▫️' },
-  { id: 'rahmen3', label: '3-Fach Rahmen', icon: '▫️' },
-  { id: 'rahmen4', label: '4-Fach Rahmen', icon: '▫️' },
-  { id: 'rahmen5', label: '5-Fach Rahmen', icon: '▫️' },
-  { id: 'wechsel', label: 'Aus/Wechselschalter', icon: '🔁' },
-  { id: 'kontroll', label: 'Kontrollschalter', icon: '💡' },
-  { id: 'serien', label: 'Serienschalter', icon: '🔀' },
-  { id: 'kreuz', label: 'Kreuzschalter', icon: '✖️' },
-  { id: 'netzwerk', label: 'Netzwerkdose', icon: '🌐' },
-  { id: 'sat', label: 'Sat-Dose', icon: '📡' },
+  { id: 'steckdose', label: 'Steckdose', icon: 'steckdose' },
+  { id: 'rahmen1', label: '1-Fach Rahmen', icon: 'rahmen1' },
+  { id: 'rahmen2', label: '2-Fach Rahmen', icon: 'rahmen2' },
+  { id: 'rahmen3', label: '3-Fach Rahmen', icon: 'rahmen3' },
+  { id: 'rahmen4', label: '4-Fach Rahmen', icon: 'rahmen4' },
+  { id: 'rahmen5', label: '5-Fach Rahmen', icon: 'rahmen5' },
+  { id: 'wechsel', label: 'Aus/Wechselschalter', icon: 'schalter' },
+  { id: 'kontroll', label: 'Kontrollschalter', icon: 'kontroll' },
+  { id: 'serien', label: 'Serienschalter', icon: 'serien' },
+  { id: 'kreuz', label: 'Kreuzschalter', icon: 'kreuz' },
+  { id: 'netzwerk', label: 'Netzwerkdose', icon: 'netzwerk' },
+  { id: 'sat', label: 'Sat-Dose', icon: 'sat' },
 ]
 
 function CounterPage({ baustellen }) {
@@ -872,8 +972,8 @@ function CounterPage({ baustellen }) {
           <div className="card" style={{padding:'0.75rem'}}>
             {MATERIALS.map(m => (
               <div key={m.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 0.5rem',borderBottom:'1px solid var(--border)'}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'var(--blue-pale)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}}>
-                  {m.icon}
+                <div style={{width:40,height:40,borderRadius:'50%',background:'var(--blue-pale)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  {ElektroIcons[m.icon]}
                 </div>
                 <span style={{flex:1,fontSize:'0.87rem',fontWeight:500,color:'var(--dark)'}}>{m.label}</span>
                 <div style={{display:'flex',alignItems:'center',gap:0}}>
