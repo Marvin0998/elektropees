@@ -177,7 +177,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
 }
 
 function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
-  const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
+  const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false); const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); const [saving,setSaving]=useState(false)
   const list=baustellen.filter(b=>b.status===filter)
   async function handleSave() {
@@ -188,6 +188,14 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
   async function handleAbschliessen(id) {
     await supabase.from('baustellen').update({status:'abgeschlossen'}).eq('id',id)
     await onRefresh(); setShowDetail(null)
+  }
+  async function handleEdit(id) {
+    await supabase.from('baustellen').update({
+      name:editForm.name,kunde:editForm.kunde,adresse:editForm.adresse,
+      beschreibung:editForm.beschreibung,kontakt:editForm.kontakt,telefon:editForm.telefon
+    }).eq('id',id)
+    await onRefresh()
+    setEditMode(false)
   }
   async function handleLoeschen(id) {
     setBsDeleteConfirm(false)
@@ -204,7 +212,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
       {list.length===0?<p className="text-muted text-sm">Keine Baustellen.</p>:list.map(b=>{
         const hours=stunden.filter(s=>s.baustelle_id===b.id&&s.freigabe_status==='freigegeben').reduce((a,s)=>a+s.dauer,0)
         return (
-          <div key={b.id} className="card" onClick={()=>setShowDetail(b.id)} style={{cursor:'pointer'}}>
+          <div key={b.id} className="card" onClick={()=>{setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||''})}} style={{cursor:'pointer'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><div className="font-bold" style={{color:'#0A0A44'}}>{b.name}</div><div className="text-xs text-muted" style={{marginTop:3}}>{b.kunde} · {b.adresse}</div></div>
               <span className={`badge ${b.status==='aktiv'?'badge-active':'badge-done'}`}>{b.status==='aktiv'?'Aktiv':'Fertig'}</span>
@@ -239,29 +247,52 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
               </div>
             ))}
           </div>
-          {isAdmin&&!bsDeleteConfirm&&(
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginBottom:'0.5rem'}}>
-              {detailBs.status==='aktiv'&&(
-                <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>
-                  🔒 Archivieren
-                </button>
-              )}
-              <button className="btn" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem',background:'#742a2a',color:'white',gridColumn:detailBs.status==='aktiv'?'auto':'1/-1'}} onClick={()=>setBsDeleteConfirm(true)}>
-                🗑️ Löschen
-              </button>
-            </div>
+          {/* Bearbeiten Button - für alle sichtbar */}
+          {!editMode&&(
+            <button className="btn btn-secondary" style={{marginBottom:'0.5rem'}} onClick={()=>setEditMode(true)}>
+              ✏️ Baustelle bearbeiten
+            </button>
           )}
-          {isAdmin&&bsDeleteConfirm&&(
-            <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:10,padding:'0.75rem',marginBottom:'0.5rem'}}>
-              <p style={{fontSize:'0.85rem',color:'#9b2c2c',marginBottom:'0.5rem',textAlign:'center',fontWeight:600}}>Baustelle wirklich löschen?</p>
-              <p style={{fontSize:'0.75rem',color:'#c53030',marginBottom:'0.75rem',textAlign:'center'}}>Diese Aktion kann nicht rückgängig gemacht werden!</p>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
-                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'#e53e3e',color:'white',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:700,cursor:'pointer',minHeight:36}}>✓ Ja, löschen</button>
-                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'#e2e8f0',color:'#1a202c',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:600,cursor:'pointer',minHeight:36}}>Abbrechen</button>
+          {/* Bearbeiten Formular */}
+          {editMode&&(
+            <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'1rem',marginBottom:'0.75rem',border:'1px solid var(--border2)'}}>
+              <div style={{fontWeight:600,color:'var(--dark)',marginBottom:'0.75rem',fontSize:'0.9rem'}}>✏️ Baustelle bearbeiten</div>
+              {['name','kunde','adresse','beschreibung','kontakt','telefon'].map(field=>(
+                <div key={field} className="form-group" style={{marginBottom:'0.625rem'}}>
+                  <label style={{fontSize:'0.68rem',fontWeight:600,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:4}}>{field==='name'?'Name':field==='kunde'?'Kunde':field==='adresse'?'Adresse':field==='beschreibung'?'Beschreibung':field==='kontakt'?'Kontakt':'Telefon'}</label>
+                  <input style={{width:'100%',padding:'0.6rem 0.875rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}}
+                    value={editForm[field]||''}
+                    onChange={e=>setEditForm(f=>({...f,[field]:e.target.value}))}/>
+                </div>
+              ))}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginTop:'0.75rem'}}>
+                <button className="btn btn-primary" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleEdit(detailBs.id)}>✓ Speichern</button>
+                <button className="btn btn-secondary" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>setEditMode(false)}>Abbrechen</button>
               </div>
             </div>
           )}
-          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false)}}>Schließen</button>
+          {/* Archivieren - für alle wenn aktiv */}
+          {detailBs.status==='aktiv'&&!editMode&&(
+            <button className="btn btn-danger" style={{marginBottom:'0.5rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>
+              🔒 Archivieren
+            </button>
+          )}
+          {/* Löschen - nur Admin */}
+          {isAdmin&&!editMode&&!bsDeleteConfirm&&(
+            <button className="btn" style={{marginBottom:'0.5rem',background:'#742a2a',color:'white',border:'none',borderRadius:'var(--r-sm)',padding:'0.875rem',width:'100%',fontFamily:'inherit',fontWeight:600,fontSize:'0.95rem',cursor:'pointer'}} onClick={()=>setBsDeleteConfirm(true)}>
+              🗑️ Löschen
+            </button>
+          )}
+          {isAdmin&&bsDeleteConfirm&&(
+            <div className="delete-confirm" style={{marginBottom:'0.5rem'}}>
+              <p>Baustelle wirklich löschen?</p>
+              <div className="delete-confirm-btns">
+                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'var(--red)',color:'white',fontWeight:700}}>✓ Ja, löschen</button>
+                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'var(--bg)',color:'var(--text)',border:'1px solid var(--border2)'}}>Abbrechen</button>
+              </div>
+            </div>
+          )}
+          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false);setEditMode(false)}}>Schließen</button>
         </div></div>
       )}
       {showNew&&(
