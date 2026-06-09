@@ -52,7 +52,7 @@ function LoginPage({onLogin}) {
   return (
     <div className="login-page">
       <div style={{textAlign:'center',marginBottom:'2rem'}}>
-        <img src="/logo.png" alt="Elektro Pees" style={{height:'90px',width:'auto',display:'block',margin:'0 auto 1.25rem'}} onError={e=>{e.target.style.display='none'}}/>
+        <img src="/logo.png" alt="Elektro Pees" style={{height:'160px',width:'auto',display:'block',margin:'0 auto 1.5rem'}} onError={e=>{e.target.style.display='none'}}/>
       </div>
       <div className="login-card">
         <h2 style={{color:'#0A0A44',fontSize:'1.2rem',marginBottom:'1.5rem',textAlign:'center'}}>Anmelden</h2>
