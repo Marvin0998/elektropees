@@ -969,13 +969,7 @@ function CounterPage({ baustellen }) {
 
       {selectedBs && (
         <>
-          {/* Gesamt Badge */}
-          {total > 0 && (
-            <div style={{background:'var(--blue-pale)',border:'1px solid rgba(27,82,221,0.15)',borderRadius:'var(--r-md)',padding:'0.75rem 1rem',marginBottom:'1rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontSize:'0.85rem',color:'var(--blue)',fontWeight:600}}>Gesamt gezählt</span>
-              <span style={{fontSize:'1.3rem',fontWeight:700,color:'var(--dark)',fontFamily:'DM Mono,monospace'}}>{total} Stk</span>
-            </div>
-          )}
+
 
           {/* Standard Material */}
           <div className="card" style={{padding:'0.75rem'}}>
