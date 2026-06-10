@@ -751,6 +751,171 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
   )
 }
 
+// ─── ELEKTRO SVG ICONS ───────────────────────────────
+const EI = {
+  steckdose: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><circle cx="20" cy="21" r="6" stroke="#1B52DD" strokeWidth="1.5"/><rect x="17" y="11" width="2.5" height="6" rx="1.2" fill="#1B52DD"/><rect x="21" y="11" width="2.5" height="6" rx="1.2" fill="#1B52DD"/></svg>,
+  rahmen1: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
+  rahmen2: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="3" y="7" width="34" height="26" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="7" y="11" width="11" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="22" y="11" width="11" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
+  rahmen3: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="2" y="4" width="36" height="32" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="5" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="16" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="27" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
+  rahmen4: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="1" y="4" width="38" height="32" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="3" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="12" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="21" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="30" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
+  rahmen5: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="1" y="5" width="38" height="30" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="3" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="10" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="17" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="24" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="31" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
+  schalter: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="13" y="13" width="14" height="8" rx="2" fill="#1B52DD" fillOpacity="0.15" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
+  kontroll: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="20" cy="20" r="4" fill="#1B52DD"/><circle cx="20" cy="20" r="2" fill="white"/></svg>,
+  serien: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="3" y="3" width="34" height="34" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="7" y="7" width="26" height="26" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="10" y="11" width="8" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="12" y="13" width="4" height="7" rx="1.5" fill="#1B52DD" fillOpacity="0.25" stroke="#1B52DD" strokeWidth="1"/><rect x="22" y="11" width="8" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="24" y="13" width="4" height="7" rx="1.5" fill="#1B52DD" fillOpacity="0.25" stroke="#1B52DD" strokeWidth="1"/></svg>,
+  kreuz: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><line x1="14" y1="14" x2="26" y2="26" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/><line x1="26" y1="14" x2="14" y2="26" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/></svg>,
+  netzwerk: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="3" y="3" width="34" height="34" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="7" y="7" width="26" height="26" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="10" y="12" width="8" height="12" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><line x1="12" y1="15" x2="12" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="14" y1="15" x2="14" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="16" y1="15" x2="16" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><rect x="22" y="12" width="8" height="12" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><line x1="24" y1="15" x2="24" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="26" y1="15" x2="26" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="28" y1="15" x2="28" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/></svg>,
+  sat: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><rect x="8" y="10" width="24" height="16" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="10" y="12" width="20" height="12" rx="1" stroke="#1B52DD" strokeWidth="1" fill="#1B52DD" fillOpacity="0.08"/><line x1="15" y1="26" x2="13" y2="31" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/><line x1="25" y1="26" x2="27" y2="31" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="31" x2="28" y2="31" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  rohr: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><ellipse cx="20" cy="20" rx="9" ry="9" stroke="#1B52DD" strokeWidth="1.5"/><ellipse cx="20" cy="20" rx="5" ry="5" stroke="#1B52DD" strokeWidth="1.5" fill="#1B52DD" fillOpacity="0.1"/><line x1="7" y1="20" x2="11" y2="20" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/><line x1="29" y1="20" x2="33" y2="20" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/></svg>,
+  kabelkanal: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><rect x="7" y="14" width="26" height="12" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><rect x="7" y="14" width="26" height="4" rx="2" fill="#1B52DD" fillOpacity="0.15"/><line x1="12" y1="20" x2="12" y2="26" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="17" y1="20" x2="17" y2="26" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="22" y1="20" x2="22" y2="26" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/><line x1="27" y1="20" x2="27" y2="26" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/></svg>,
+  ap1: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="2" stroke="#1B52DD" strokeWidth="2"/><rect x="8" y="8" width="24" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="20" cy="21" r="5" stroke="#1B52DD" strokeWidth="1.5"/><rect x="18" y="13" width="2" height="5" rx="1" fill="#1B52DD"/><rect x="21" y="13" width="2" height="5" rx="1" fill="#1B52DD"/></svg>,
+  ap2: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="2" y="4" width="36" height="32" rx="2" stroke="#1B52DD" strokeWidth="2"/><rect x="5" y="8" width="13" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="11.5" cy="22" r="4" stroke="#1B52DD" strokeWidth="1.5"/><rect x="10" y="13" width="1.8" height="4" rx="0.9" fill="#1B52DD"/><rect x="12.5" y="13" width="1.8" height="4" rx="0.9" fill="#1B52DD"/><rect x="22" y="8" width="13" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="28.5" cy="22" r="4" stroke="#1B52DD" strokeWidth="1.5"/><rect x="27" y="13" width="1.8" height="4" rx="0.9" fill="#1B52DD"/><rect x="29.5" y="13" width="1.8" height="4" rx="0.9" fill="#1B52DD"/></svg>,
+  ap3: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="1" y="5" width="38" height="30" rx="2" stroke="#1B52DD" strokeWidth="2"/><rect x="3" y="9" width="10" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="8" cy="22" r="3" stroke="#1B52DD" strokeWidth="1.2"/><rect x="6.5" y="13" width="1.5" height="3.5" rx="0.7" fill="#1B52DD"/><rect x="8.5" y="13" width="1.5" height="3.5" rx="0.7" fill="#1B52DD"/><rect x="15" y="9" width="10" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="20" cy="22" r="3" stroke="#1B52DD" strokeWidth="1.2"/><rect x="18.5" y="13" width="1.5" height="3.5" rx="0.7" fill="#1B52DD"/><rect x="20.5" y="13" width="1.5" height="3.5" rx="0.7" fill="#1B52DD"/><rect x="27" y="9" width="10" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5"/><circle cx="32" cy="22" r="3" stroke="#1B52DD" strokeWidth="1.2"/><rect x="30.5" y="13" width="1.5" height="3.5" rx="0.7" fill="#1B52DD"/><rect x="32.5" y="13" width="1.5" height="3.5" rx="0.7" fill="#1B52DD"/></svg>,
+  kabel: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><path d="M8 20 Q14 12 20 20 Q26 28 32 20" stroke="#1B52DD" strokeWidth="2" fill="none" strokeLinecap="round"/><circle cx="8" cy="20" r="2" fill="#1B52DD"/><circle cx="32" cy="20" r="2" fill="#1B52DD"/></svg>,
+  kabel_nyy: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><path d="M8 18 Q14 10 20 18 Q26 26 32 18" stroke="#1B52DD" strokeWidth="2.5" fill="none" strokeLinecap="round"/><circle cx="8" cy="18" r="2" fill="#1B52DD"/><circle cx="32" cy="18" r="2" fill="#1B52DD"/><text x="20" y="32" textAnchor="middle" fontSize="7" fill="#1B52DD" fontWeight="bold" fontFamily="sans-serif">NYY</text></svg>,
+  kabel_bus: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><path d="M8 16 L32 16" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/><path d="M8 24 L32 24" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="16" r="2" fill="#1B52DD"/><circle cx="32" cy="16" r="2" fill="#1B52DD"/><circle cx="8" cy="24" r="2" fill="#1B52DD"/><circle cx="32" cy="24" r="2" fill="#1B52DD"/><line x1="14" y1="16" x2="14" y2="24" stroke="#1B52DD" strokeWidth="1" strokeDasharray="2,2"/><line x1="20" y1="16" x2="20" y2="24" stroke="#1B52DD" strokeWidth="1" strokeDasharray="2,2"/><line x1="26" y1="16" x2="26" y2="24" stroke="#1B52DD" strokeWidth="1" strokeDasharray="2,2"/></svg>,
+}
+
+const MATERIALS_BAUSTELLE = [
+  { id: 'steckdose', label: 'Steckdose', icon: 'steckdose', unit: 'Stk' },
+  { id: 'rahmen1', label: '1-Fach Rahmen', icon: 'rahmen1', unit: 'Stk' },
+  { id: 'rahmen2', label: '2-Fach Rahmen', icon: 'rahmen2', unit: 'Stk' },
+  { id: 'rahmen3', label: '3-Fach Rahmen', icon: 'rahmen3', unit: 'Stk' },
+  { id: 'rahmen4', label: '4-Fach Rahmen', icon: 'rahmen4', unit: 'Stk' },
+  { id: 'rahmen5', label: '5-Fach Rahmen', icon: 'rahmen5', unit: 'Stk' },
+  { id: 'wechsel', label: 'Aus/Wechselschalter', icon: 'schalter', unit: 'Stk' },
+  { id: 'kontroll', label: 'Kontrollschalter', icon: 'kontroll', unit: 'Stk' },
+  { id: 'serien', label: 'Serienschalter', icon: 'serien', unit: 'Stk' },
+  { id: 'kreuz', label: 'Kreuzschalter', icon: 'kreuz', unit: 'Stk' },
+  { id: 'netzwerk', label: 'Netzwerkdose', icon: 'netzwerk', unit: 'Stk' },
+  { id: 'sat', label: 'Sat-Dose', icon: 'sat', unit: 'Stk' },
+]
+
+const MATERIALS_WAERMEPUMPE = [
+  { id: 'm16', label: 'M16 Rohr', icon: 'rohr', unit: 'm' },
+  { id: 'm20', label: 'M20 Rohr', icon: 'rohr', unit: 'm' },
+  { id: 'm25', label: 'M25 Rohr', icon: 'rohr', unit: 'm' },
+  { id: 'm32', label: 'M32 Rohr', icon: 'rohr', unit: 'm' },
+  { id: 'm40', label: 'M40 Rohr', icon: 'rohr', unit: 'm' },
+  { id: 'm50', label: 'M50 Rohr', icon: 'rohr', unit: 'm' },
+  { id: 'kk2030', label: 'Kabelkanal 20×30', icon: 'kabelkanal', unit: 'm' },
+  { id: 'kk4040', label: 'Kabelkanal 40×40', icon: 'kabelkanal', unit: 'm' },
+  { id: 'kk4060', label: 'Kabelkanal 40×60', icon: 'kabelkanal', unit: 'm' },
+  { id: 'ap1', label: 'AP-Steckdose 1-fach', icon: 'ap1', unit: 'Stk' },
+  { id: 'ap2', label: 'AP-Steckdose 2-fach', icon: 'ap2', unit: 'Stk' },
+  { id: 'ap3', label: 'AP-Steckdose 3-fach', icon: 'ap3', unit: 'Stk' },
+  { id: 'k315', label: 'Kabel 3×1,5 mm²', icon: 'kabel', unit: 'm' },
+  { id: 'k515', label: 'Kabel 5×1,5 mm²', icon: 'kabel', unit: 'm' },
+  { id: 'k54', label: 'Kabel 5×4 mm²', icon: 'kabel', unit: 'm' },
+  { id: 'k54nyy', label: 'Kabel 5×4 NYY mm²', icon: 'kabel_nyy', unit: 'm' },
+  { id: 'k2bus', label: '2×0,75 Busleitung mm²', icon: 'kabel_bus', unit: 'm' },
+  { id: 'k510', label: 'Kabel 5×10 mm²', icon: 'kabel', unit: 'm' },
+]
+
+function CounterPage({ baustellen }) {
+  const [mode, setMode] = useState('baustelle')
+  const [selectedBs, setSelectedBs] = useState('')
+  const [counts, setCounts] = useState({})
+  const [custom, setCustom] = useState([])
+  const [newCustom, setNewCustom] = useState('')
+  const [showAddCustom, setShowAddCustom] = useState(false)
+
+  const materials = mode === 'baustelle' ? MATERIALS_BAUSTELLE : MATERIALS_WAERMEPUMPE
+  const storageKey = 'counter_' + mode + '_' + selectedBs
+
+  useEffect(() => {
+    if (!selectedBs || typeof window === 'undefined') return
+    try {
+      const saved = window.localStorage.getItem(storageKey)
+      if (saved) { const d = JSON.parse(saved); setCounts(d.counts||{}); setCustom(d.custom||[]) }
+      else { setCounts({}); setCustom([]) }
+    } catch(e) { setCounts({}); setCustom([]) }
+  }, [selectedBs, mode])
+
+  function save(nc, ncu) {
+    if (!selectedBs || typeof window === 'undefined') return
+    try { window.localStorage.setItem(storageKey, JSON.stringify({counts:nc,custom:ncu})) } catch(e) {}
+  }
+  function change(id, delta) { const nc={...counts,[id]:Math.max(0,(counts[id]||0)+delta)}; setCounts(nc); save(nc,custom) }
+  function addCustom() {
+    if (!newCustom.trim()) return
+    const ncu=[...custom,{id:'c'+Date.now(),label:newCustom.trim()}]
+    setCustom(ncu); setNewCustom(''); setShowAddCustom(false); save(counts,ncu)
+  }
+  function removeCustom(id) { const ncu=custom.filter(c=>c.id!==id); const nc={...counts}; delete nc[id]; setCustom(ncu); setCounts(nc); save(nc,ncu) }
+
+  const aktiveBaustellen = baustellen.filter(b => b.status === 'aktiv')
+
+  return (
+    <div className="page-content">
+      <div style={{display:'flex',background:'white',borderRadius:'var(--r-xl)',padding:4,marginBottom:'1rem',boxShadow:'var(--shadow-sm)',border:'1px solid var(--border)'}}>
+        <button onClick={()=>{setMode('baustelle');setCounts({});setCustom([])}} style={{flex:1,padding:'0.625rem',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.85rem',fontWeight:600,transition:'all 0.2s',background:mode==='baustelle'?'var(--dark)':'transparent',color:mode==='baustelle'?'white':'var(--text2)'}}>🏗️ Baustelle</button>
+        <button onClick={()=>{setMode('waermepumpe');setCounts({});setCustom([])}} style={{flex:1,padding:'0.625rem',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.85rem',fontWeight:600,transition:'all 0.2s',background:mode==='waermepumpe'?'var(--dark)':'transparent',color:mode==='waermepumpe'?'white':'var(--text2)'}}>🌡️ Wärmepumpe</button>
+      </div>
+      <div className="form-group" style={{marginBottom:'1rem'}}>
+        <label>Baustelle auswählen</label>
+        <select value={selectedBs} onChange={e=>setSelectedBs(e.target.value)}>
+          <option value="">— Bitte auswählen —</option>
+          {aktiveBaustellen.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+      {!selectedBs&&(
+        <div className="empty-state">
+          <div className="empty-icon"><IconCounter/></div>
+          <div className="empty-title">Baustelle auswählen</div>
+          <div className="empty-sub">Wähle eine Baustelle um den Counter zu starten.</div>
+        </div>
+      )}
+      {selectedBs&&(
+        <>
+          <div className="section-header" style={{marginBottom:'0.75rem'}}>
+            <span className="section-title">{mode==='baustelle'?'Elektro-Material':'Wärmepumpen-Material'}</span>
+            <button className="btn btn-outline btn-sm" onClick={()=>{setCounts({});save({},custom)}} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
+          </div>
+          <div className="card" style={{padding:'0.5rem 0.75rem'}}>
+            {materials.map(m=>(
+              <div key={m.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.625rem 0.25rem',borderBottom:'1px solid var(--border)'}}>
+                <div style={{width:38,height:38,borderRadius:'50%',background:'var(--blue-pale)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{EI[m.icon]}</div>
+                <span style={{flex:1,fontSize:'0.85rem',fontWeight:500,color:'var(--dark)',lineHeight:1.3}}>{m.label}</span>
+                <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
+                  <button onClick={()=>change(m.id,-1)} style={{width:34,height:34,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',fontSize:'1.3rem',fontWeight:700,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>−</button>
+                  <div style={{width:48,textAlign:'center'}}>
+                    <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--dark)',fontFamily:"'DM Mono',monospace",lineHeight:1}}>{counts[m.id]||0}</div>
+                    <div style={{fontSize:'0.6rem',color:'var(--text3)',marginTop:1}}>{m.unit}</div>
+                  </div>
+                  <button onClick={()=>change(m.id,1)} style={{width:34,height:34,borderRadius:'50%',border:'none',background:'var(--blue)',fontSize:'1.3rem',fontWeight:700,cursor:'pointer',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="card" style={{marginTop:'0.875rem'}}>
+            <div className="card-title">🔧 Benutzerdefiniert</div>
+            {custom.map(c=>(
+              <div key={c.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.625rem 0',borderBottom:'1px solid var(--border)'}}>
+                <div style={{width:38,height:38,borderRadius:'50%',background:'var(--bg)',border:'1.5px solid var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.8rem',color:'var(--text3)',flexShrink:0}}>▪</div>
+                <span style={{flex:1,fontSize:'0.85rem',fontWeight:500,color:'var(--dark)'}}>{c.label}</span>
+                <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
+                  <button onClick={()=>change(c.id,-1)} style={{width:34,height:34,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',fontSize:'1.3rem',cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>−</button>
+                  <span style={{width:48,textAlign:'center',fontSize:'1.1rem',fontWeight:700,color:'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{counts[c.id]||0}</span>
+                  <button onClick={()=>change(c.id,1)} style={{width:34,height:34,borderRadius:'50%',border:'none',background:'var(--blue)',fontSize:'1.3rem',cursor:'pointer',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}>+</button>
+                </div>
+                <button onClick={()=>removeCustom(c.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:'1rem',padding:4}}>✕</button>
+              </div>
+            ))}
+            {showAddCustom?(
+              <div style={{paddingTop:'0.75rem',display:'flex',gap:'0.5rem'}}>
+                <input value={newCustom} onChange={e=>setNewCustom(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCustom()} placeholder="Position benennen..." style={{flex:1,padding:'0.6rem 0.875rem',border:'1.5px solid var(--blue)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}} autoFocus/>
+                <button onClick={addCustom} style={{padding:'0.6rem 1rem',background:'var(--blue)',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>+ Add</button>
+              </div>
+            ):(
+              <button onClick={()=>setShowAddCustom(true)} className="btn btn-outline" style={{marginTop:'0.75rem',marginBottom:0}}>+ Eigene Position</button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
@@ -830,7 +995,8 @@ export default function App() {
       </div>
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
-      {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
+      {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>
+      {page==='counter'&&<CounterPage baustellen={baustellen}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
       {page==='admin'&&isAdmin&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData}/>}
@@ -838,6 +1004,7 @@ export default function App() {
         <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
         <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
         <button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>
+        <button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>
         <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
         {isAdmin&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
