@@ -579,17 +579,20 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                 const b=baustellen.find(b=>b.id===s.baustelle_id)
                 const freigegeben=s.freigabe_status==='freigegeben'
                 return (
-                  <div key={s.id} className="list-item" style={{opacity:0.7}}>
-                    <div className="list-item-left">
-                      <span className="list-item-title text-sm">{s.profiles?.name||'—'}</span>
-                      <span className="list-item-sub">{getDayName(s.datum)}, {formatDate(s.datum)} · {b?.name||'—'}</span>
-                      <span className="list-item-sub">{s.start_zeit} – {s.end_zeit}</span>
-                    </div>
-                    <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-                      <span style={{fontWeight:700,color:freigegeben?'#1B52DD':'#e53e3e'}}>{s.dauer.toFixed(1)}h</span>
-                      <span style={{fontSize:'0.68rem',background:freigegeben?'#c6f6d5':'#fed7d7',color:freigegeben?'#276749':'#9b2c2c',padding:'1px 8px',borderRadius:20,fontWeight:600}}>
-                        {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
-                      </span>
+                  <div key={s.id} style={{padding:'0.75rem 0',borderBottom:'1px solid var(--border)',opacity:0.8}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                      <div>
+                        <div style={{fontWeight:500,fontSize:'0.87rem',color:'var(--dark)'}}>{s.profiles?.name||'—'}</div>
+                        <div style={{fontSize:'0.72rem',color:'var(--text3)',marginTop:2}}>{getDayName(s.datum)}, {formatDate(s.datum)} · {b?.name||'—'}</div>
+                        <div style={{fontSize:'0.72rem',color:'var(--text3)'}}>{s.start_zeit} – {s.end_zeit}</div>
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5,flexShrink:0}}>
+                        <span style={{fontWeight:700,color:freigegeben?'var(--blue)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>{s.dauer.toFixed(1)}h</span>
+                        <span style={{fontSize:'0.65rem',background:freigegeben?'var(--green-pale)':'var(--red-pale)',color:freigegeben?'var(--green)':'var(--red)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>
+                          {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
+                        </span>
+                        <button onClick={async()=>{await supabase.from('stunden').delete().eq('id',s.id);await onRefresh()}} style={{fontSize:'0.68rem',color:'var(--text3)',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontFamily:'inherit'}}>🗑️ Löschen</button>
+                      </div>
                     </div>
                   </div>
                 )
@@ -986,7 +989,7 @@ export default function App() {
       )}
       <div className="top-bar">
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <img src="/logo.png" alt="Elektro Pees" style={{height:'44px',width:'auto',maxWidth:'140px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
+          <img src="/logo.png" alt="Elektro Pees" style={{height:'52px',width:'auto',maxWidth:'160px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
           <div><div className="top-title">Elektro Pees</div><div className="top-user">{user.profile?.name||user.email}</div></div>
         </div>
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
