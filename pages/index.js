@@ -611,21 +611,67 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
             const woche=stunden.filter(s=>s.user_id===u.id&&s.freigabe_status==='freigegeben').filter(s=>{const d=new Date(s.datum);return d>=ws&&d<=we}).reduce((a,s)=>a+s.dauer,0)
             const diff=woche-(u.regel_stunden||38)
             const offene=stunden.filter(s=>s.user_id===u.id&&s.freigabe_status==='ausstehend').length
+            const isOpen=selectedMitarbeiter===u.id
+            const myStunden=[...stunden.filter(s=>s.user_id===u.id)].sort((a,b)=>b.datum.localeCompare(a.datum))
             return (
-              <div key={u.id} className="card">
-                <div style={{display:'flex',alignItems:'center',gap:'0.75rem',marginBottom:'0.75rem'}}>
+              <div key={u.id} className="card" style={{padding:0,overflow:'hidden'}}>
+                {/* Header - klickbar */}
+                <div onClick={()=>setSelectedMitarbeiter(isOpen?null:u.id)} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'1rem 1.25rem',cursor:'pointer',userSelect:'none'}}>
                   <div className="employee-avatar">{initials(u.name||u.email)}</div>
-                  <div>
-                    <div className="font-bold" style={{color:'#0A0A44'}}>{u.name}</div>
+                  <div style={{flex:1}}>
+                    <div className="font-bold" style={{color:'var(--dark)'}}>{u.name}</div>
                     <div className="text-xs text-muted">{u.email}</div>
-                    {offene>0&&<span style={{fontSize:'0.7rem',background:'#fef3c7',color:'#92400e',padding:'1px 8px',borderRadius:10}}>⏳ {offene} ausstehend</span>}
+                    {offene>0&&<span style={{fontSize:'0.68rem',background:'#fef3c7',color:'#92400e',padding:'1px 8px',borderRadius:10,marginTop:2,display:'inline-block'}}>⏳ {offene} ausstehend</span>}
                   </div>
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:2}}>
+                    <span style={{fontSize:'1.1rem',fontWeight:700,color:'var(--blue)',fontFamily:"'DM Mono',monospace"}}>{myH.toFixed(1)}h</span>
+                    <span style={{fontSize:'0.7rem',color:diff>=0?'var(--green)':'var(--red)',fontWeight:600}}>{diff>=0?'+':''}{diff.toFixed(1)} Wo</span>
+                  </div>
+                  <span style={{color:'var(--text3)',fontSize:'0.85rem',marginLeft:4}}>{isOpen?'▲':'▼'}</span>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center'}}>
-                  <div><div className="font-bold text-blue">{myH.toFixed(1)}</div><div style={{fontSize:'0.7rem',color:'#718096'}}>Ges. Std.</div></div>
-                  <div><div className={`font-bold ${diff>=0?'text-green':'text-red'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div><div style={{fontSize:'0.7rem',color:'#718096'}}>{diff>=0?'Plus':'Minus'}</div></div>
-                  <div><div className="font-bold" style={{color:'#d69e2e'}}>{(u.urlaub_gesamt||24)-(u.urlaub_genommen||0)}</div><div style={{fontSize:'0.7rem',color:'#718096'}}>Resturlaub</div></div>
-                </div>
+
+                {/* Detail-Ansicht */}
+                {isOpen&&(
+                  <div style={{borderTop:'1px solid var(--border)',background:'var(--bg)'}}>
+                    {/* Kurzstats */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0,borderBottom:'1px solid var(--border)'}}>
+                      <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
+                        <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--blue)',fontFamily:"'DM Mono',monospace"}}>{myH.toFixed(1)}</div>
+                        <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Ges. Std.</div>
+                      </div>
+                      <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
+                        <div style={{fontSize:'1.1rem',fontWeight:700,color:diff>=0?'var(--green)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
+                        <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{diff>=0?'Überstunden':'Fehlstunden'}</div>
+                      </div>
+                      <div style={{padding:'0.75rem',textAlign:'center'}}>
+                        <div style={{fontSize:'1.1rem',fontWeight:700,color:'#d69e2e',fontFamily:"'DM Mono',monospace"}}>{(u.urlaub_gesamt||24)-(u.urlaub_genommen||0)}</div>
+                        <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub</div>
+                      </div>
+                    </div>
+
+                    {/* Einträge nach Datum */}
+                    <div style={{padding:'0.75rem 1rem'}}>
+                      <div style={{fontSize:'0.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'0.5rem'}}>Alle Einträge</div>
+                      {myStunden.length===0
+                        ?<p style={{fontSize:'0.82rem',color:'var(--text3)'}}>Noch keine Einträge.</p>
+                        :myStunden.map(s=>{
+                          const b=baustellen.find(b=>b.id===s.baustelle_id)
+                          const statusColor=s.freigabe_status==='freigegeben'?'var(--green)':s.freigabe_status==='abgelehnt'?'var(--red)':'#d69e2e'
+                          return (
+                            <div key={s.id} style={{display:'flex',alignItems:'center',gap:'0.5rem',padding:'0.5rem 0',borderBottom:'1px solid var(--border)'}}>
+                              <div style={{width:6,height:6,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:'0.82rem',fontWeight:500,color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b?.name||'—'}</div>
+                                <div style={{fontSize:'0.68rem',color:'var(--text3)'}}>{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</div>
+                              </div>
+                              <span style={{fontSize:'0.85rem',fontWeight:700,color:'var(--dark)',fontFamily:"'DM Mono',monospace",flexShrink:0}}>{s.dauer.toFixed(1)}h</span>
+                            </div>
+                          )
+                        })
+                      }
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
