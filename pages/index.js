@@ -17,6 +17,45 @@ function today() { return new Date().toISOString().split('T')[0] }
 function getDayName(dateStr) { const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; return days[new Date(dateStr).getDay()] }
 function countWorkdays(from,to) { let count=0; const d=new Date(from); while(d<=new Date(to)){const dow=d.getDay(); if(dow>=1&&dow<=4)count++; d.setDate(d.getDate()+1)} return count }
 
+// ─── STUNDENKONTO ─────────────────────────────────────────────────────────────
+function berechneStundenkonto(stunden) {
+  const freigegeben = stunden.filter(s => s.freigabe_status === 'freigegeben')
+  const wochenMap = {}
+  freigegeben.forEach(s => {
+    const d = new Date(s.datum)
+    const montag = new Date(d)
+    const tag = d.getDay()
+    const diffZumMontag = (tag === 0 ? -6 : 1 - tag)
+    montag.setDate(d.getDate() + diffZumMontag)
+    const key = montag.toISOString().split('T')[0]
+    if (!wochenMap[key]) wochenMap[key] = { geleistet: 0, montag: new Date(montag) }
+    wochenMap[key].geleistet += parseFloat(s.dauer) || 0
+  })
+  const heute = new Date()
+  heute.setHours(0, 0, 0, 0)
+  let saldo = 0
+  const verlauf = []
+  Object.entries(wochenMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([key, { geleistet, montag }]) => {
+      const donnerstag = new Date(montag)
+      donnerstag.setDate(montag.getDate() + 3)
+      let regelstunden = 38
+      if (montag > heute) {
+        regelstunden = 0
+      } else if (donnerstag >= heute) {
+        const wochentag = heute.getDay()
+        const vergangeneArbeitstage = Math.min(wochentag === 0 ? 4 : Math.min(wochentag, 4), 4)
+        regelstunden = vergangeneArbeitstage * 9.5
+      }
+      const differenz = geleistet - regelstunden
+      saldo += differenz
+      const label = `KW ${montag.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}–${donnerstag.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`
+      verlauf.push({ key, label, geleistet, regelstunden, differenz })
+    })
+  return { saldo, verlauf }
+}
+
 const freigabeBadge=(s)=>{
   if(s==='freigegeben')return <span style={{background:'#c6f6d5',color:'#276749',padding:'2px 8px',borderRadius:20,fontSize:'0.68rem',fontWeight:600}}>✓ Freigegeben</span>
   if(s==='abgelehnt')return <span style={{background:'#fed7d7',color:'#9b2c2c',padding:'2px 8px',borderRadius:20,fontSize:'0.68rem',fontWeight:600}}>✗ Abgelehnt</span>
@@ -479,6 +518,50 @@ function ProfilPage({user,stunden,baustellen}) {
         <div className="progress-bar"><div className="progress-fill" style={{width:`${urlaubPct}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
         <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{urlaubPct}% verbraucht</div>
       </div>
+
+      {/* ── STUNDENKONTO ── */}
+      {(()=>{
+        const { saldo, verlauf } = berechneStundenkonto(myStunden)
+        const positiv = saldo >= 0
+        return (
+          <div className="card">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div className="card-title" style={{marginBottom:0}}>⏱ Stundenkonto</div>
+              <span style={{
+                fontWeight:800, fontSize:'1.3rem',
+                color: positiv ? 'var(--green)' : 'var(--red)',
+                background: positiv ? '#e8f8f0' : '#fdeaea',
+                borderRadius:10, padding:'3px 14px'
+              }}>
+                {positiv ? '+' : ''}{saldo.toFixed(1)}h
+              </span>
+            </div>
+            <div style={{fontSize:'0.72rem',color:'#888',marginBottom:10}}>
+              Alle freigegebenen Stunden vs. Regelarbeitszeit (38h/Woche Mo–Do)
+            </div>
+            {verlauf.length === 0
+              ? <p className="text-muted text-sm">Noch keine freigegebenen Einträge.</p>
+              : <div style={{maxHeight:220,overflowY:'auto'}}>
+                  {verlauf.slice().reverse().map(w => {
+                    const pos = w.differenz >= 0
+                    return (
+                      <div key={w.key} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f0f0f0',fontSize:'0.82rem'}}>
+                        <span style={{color:'#555'}}>{w.label}</span>
+                        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                          <span style={{color:'#aaa',fontFamily:"'DM Mono',monospace"}}>{w.geleistet.toFixed(1)}h</span>
+                          <span style={{fontWeight:700,minWidth:54,textAlign:'right',color:pos?'var(--green)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>
+                            {pos?'+':''}{w.differenz.toFixed(1)}h
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+            }
+          </div>
+        )
+      })()}
+
       <div className="card">
         <div className="card-title">📋 Meine Einträge</div>
         {recent.length===0?<p className="text-muted text-sm">Noch keine Einträge.</p>:recent.map(s=>{
@@ -620,6 +703,9 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
             const offene=stunden.filter(s=>s.user_id===u.id&&s.freigabe_status==='ausstehend').length
             const isOpen=selectedMitarbeiter===u.id
             const myStunden=[...stunden.filter(s=>s.user_id===u.id)].sort((a,b)=>b.datum.localeCompare(a.datum))
+            // Stundenkonto für diesen Mitarbeiter
+            const { saldo: maKonto } = berechneStundenkonto(myStunden)
+            const maKontoPos = maKonto >= 0
             return (
               <div key={u.id} className="card" style={{padding:0,overflow:'hidden'}}>
                 <div onClick={()=>setSelectedMitarbeiter(isOpen?null:u.id)} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'1rem 1.25rem',cursor:'pointer',userSelect:'none'}}>
@@ -637,7 +723,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                 </div>
                 {isOpen&&(
                   <div style={{borderTop:'1px solid var(--border)',background:'var(--bg)'}}>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0,borderBottom:'1px solid var(--border)'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:0,borderBottom:'1px solid var(--border)'}}>
                       <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
                         <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--blue)',fontFamily:"'DM Mono',monospace"}}>{myH.toFixed(1)}</div>
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Ges. Std.</div>
@@ -646,13 +732,16 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <div style={{fontSize:'1.1rem',fontWeight:700,color:diff>=0?'var(--green)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{diff>=0?'Überstunden':'Fehlstunden'}</div>
                       </div>
-                      <div style={{padding:'0.75rem',textAlign:'center'}}>
+                      <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
                         <div style={{fontSize:'1.1rem',fontWeight:700,color:'#d69e2e',fontFamily:"'DM Mono',monospace"}}>{(u.urlaub_gesamt||24)-(u.urlaub_genommen||0)}</div>
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub</div>
                       </div>
+                      <div style={{padding:'0.75rem',textAlign:'center'}}>
+                        <div style={{fontSize:'1.1rem',fontWeight:700,color:maKontoPos?'var(--green)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>{maKontoPos?'+':''}{maKonto.toFixed(1)}</div>
+                        <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>⏱ Konto</div>
+                      </div>
                     </div>
                     {(()=>{
-                      // Alle Wochen ermitteln
                       const byWeek = {}
                       myStunden.forEach(s => {
                         const ws = getWeekStart(new Date(s.datum))
@@ -676,7 +765,6 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
 
                       return (
                         <div>
-                          {/* Wochen-Slider */}
                           <div style={{display:'flex',alignItems:'center',gap:8,padding:'0.75rem 1rem',borderBottom:'1px solid var(--border)'}}>
                             <button onClick={e=>{e.stopPropagation();setWeekOffsets(o=>({...o,[u.id]:safeIdx+1}))}} disabled={safeIdx>=weekKeys.length-1} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',color:safeIdx>=weekKeys.length-1?'var(--text3)':'var(--dark)',flexShrink:0}}>‹</button>
                             <div style={{flex:1,textAlign:'center'}}>
@@ -687,7 +775,6 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                             </div>
                             <button onClick={e=>{e.stopPropagation();setWeekOffsets(o=>({...o,[u.id]:safeIdx-1}))}} disabled={safeIdx<=0} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',color:safeIdx<=0?'var(--text3)':'var(--dark)',flexShrink:0}}>›</button>
                           </div>
-                          {/* Tages-Einträge */}
                           <div style={{padding:'0.75rem 1rem'}}>
                             {Object.keys(week.days).sort((a,b)=>b.localeCompare(a)).map(dayKey => {
                               const dayEntries = week.days[dayKey]
