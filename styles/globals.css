@@ -42,7 +42,7 @@ body {
 .top-bar {
   background: var(--dark);
   padding: 0 1.25rem;
-  height: 62px;
+  height: 72px;
   display: flex; align-items: center; justify-content: space-between;
   position: sticky; top: 0; z-index: 100;
   border-bottom: 1px solid rgba(255,255,255,0.06);
