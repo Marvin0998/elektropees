@@ -591,7 +591,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <span style={{fontSize:'0.65rem',background:freigegeben?'var(--green-pale)':'var(--red-pale)',color:freigegeben?'var(--green)':'var(--red)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>
                           {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
                         </span>
-                        <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>onRefresh()) }} style={{fontSize:'0.68rem',color:'var(--text3)',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontFamily:'inherit'}}>🗑️ Löschen</button>
+                        <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>{ onRefresh() }) }} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'5px 10px',fontFamily:'inherit',fontWeight:600,minHeight:32,minWidth:70}}>🗑️ Löschen</button>
                       </div>
                     </div>
                   </div>
