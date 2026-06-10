@@ -15,7 +15,7 @@ function calcDauer(start,end) { const [sh,sm]=start.split(':').map(Number); cons
 function initials(name) { return name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) }
 function today() { return new Date().toISOString().split('T')[0] }
 function getDayName(dateStr) { const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; return days[new Date(dateStr).getDay()] }
-function countWorkdays(from,to) { let count=0; const d=new Date(from); while(d<=new Date(to)){const dow=d.getDay(); if(dow>=1&&dow<=5)count++; d.setDate(d.getDate()+1)} return count }
+function countWorkdays(from,to) { let count=0; const d=new Date(from); while(d<=new Date(to)){const dow=d.getDay(); if(dow>=1&&dow<=4)count++; d.setDate(d.getDate()+1)} return count }
 
 const freigabeBadge=(s)=>{
   if(s==='freigegeben')return <span style={{background:'#c6f6d5',color:'#276749',padding:'2px 8px',borderRadius:20,fontSize:'0.68rem',fontWeight:600}}>✓ Freigegeben</span>
@@ -53,8 +53,7 @@ function LoginPage({onLogin}) {
   return (
     <div className="login-page">
       <div style={{textAlign:'center',marginBottom:'2rem'}}>
-        <img src="/logo.png" alt="Elektro Pees" style={{height:'70px',width:'auto',marginBottom:'1rem'}} onError={e=>{e.target.style.display='none'}}/>
-        <p style={{color:'rgba(255,255,255,0.85)',fontSize:'1rem',marginTop:4,fontWeight:600}}>Stundenerfassung</p>
+        <img src="/logo.png" alt="Elektro Pees" style={{height:'90px',width:'auto',display:'block',margin:'0 auto 1.25rem'}} onError={e=>{e.target.style.display='none'}}/>
       </div>
       <div className="login-card">
         <h2 style={{color:'#0A0A44',fontSize:'1.2rem',marginBottom:'1.5rem',textAlign:'center'}}>Anmelden</h2>
@@ -91,7 +90,6 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
   const [showAll,setShowAll]=useState(false)
   const sorted=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum))
   const recent=showAll?sorted:sorted.slice(0,4)
-
   const [deleteConfirm,setDeleteConfirm]=useState(null)
 
   const StundenListe=({list})=>list.map(s=>{
@@ -180,6 +178,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
 
 function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
   const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
+  const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); const [saving,setSaving]=useState(false)
   const list=baustellen.filter(b=>b.status===filter)
   async function handleSave() {
@@ -190,6 +189,10 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
   async function handleAbschliessen(id) {
     await supabase.from('baustellen').update({status:'abgeschlossen'}).eq('id',id)
     await onRefresh(); setShowDetail(null)
+  }
+  async function handleEdit(id) {
+    await supabase.from('baustellen').update({name:editForm.name,kunde:editForm.kunde,adresse:editForm.adresse,beschreibung:editForm.beschreibung,kontakt:editForm.kontakt,telefon:editForm.telefon}).eq('id',id)
+    await onRefresh(); setEditMode(false)
   }
   async function handleLoeschen(id) {
     setBsDeleteConfirm(false)
@@ -206,7 +209,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
       {list.length===0?<p className="text-muted text-sm">Keine Baustellen.</p>:list.map(b=>{
         const hours=stunden.filter(s=>s.baustelle_id===b.id&&s.freigabe_status==='freigegeben').reduce((a,s)=>a+s.dauer,0)
         return (
-          <div key={b.id} className="card" onClick={()=>setShowDetail(b.id)} style={{cursor:'pointer'}}>
+          <div key={b.id} className="card" onClick={()=>{setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||''})}} style={{cursor:'pointer'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><div className="font-bold" style={{color:'#0A0A44'}}>{b.name}</div><div className="text-xs text-muted" style={{marginTop:3}}>{b.kunde} · {b.adresse}</div></div>
               <span className={`badge ${b.status==='aktiv'?'badge-active':'badge-done'}`}>{b.status==='aktiv'?'Aktiv':'Fertig'}</span>
@@ -241,29 +244,40 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
               </div>
             ))}
           </div>
-          {isAdmin&&!bsDeleteConfirm&&(
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginBottom:'0.5rem'}}>
-              {detailBs.status==='aktiv'&&(
-                <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>
-                  🔒 Archivieren
-                </button>
-              )}
-              <button className="btn" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem',background:'#742a2a',color:'white',gridColumn:detailBs.status==='aktiv'?'auto':'1/-1'}} onClick={()=>setBsDeleteConfirm(true)}>
-                🗑️ Löschen
-              </button>
-            </div>
+          {!editMode&&(
+            <button className="btn btn-secondary" style={{marginBottom:'0.5rem'}} onClick={()=>setEditMode(true)}>✏️ Baustelle bearbeiten</button>
           )}
-          {isAdmin&&bsDeleteConfirm&&(
-            <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:10,padding:'0.75rem',marginBottom:'0.5rem'}}>
-              <p style={{fontSize:'0.85rem',color:'#9b2c2c',marginBottom:'0.5rem',textAlign:'center',fontWeight:600}}>Baustelle wirklich löschen?</p>
-              <p style={{fontSize:'0.75rem',color:'#c53030',marginBottom:'0.75rem',textAlign:'center'}}>Diese Aktion kann nicht rückgängig gemacht werden!</p>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
-                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'#e53e3e',color:'white',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:700,cursor:'pointer',minHeight:36}}>✓ Ja, löschen</button>
-                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'#e2e8f0',color:'#1a202c',border:'none',borderRadius:8,padding:'8px',fontSize:'0.85rem',fontWeight:600,cursor:'pointer',minHeight:36}}>Abbrechen</button>
+          {editMode&&(
+            <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'1rem',marginBottom:'0.75rem',border:'1px solid var(--border2)'}}>
+              <div style={{fontWeight:600,color:'var(--dark)',marginBottom:'0.75rem',fontSize:'0.9rem'}}>✏️ Bearbeiten</div>
+              {['name','kunde','adresse','beschreibung','kontakt','telefon'].map(field=>(
+                <div key={field} className="form-group" style={{marginBottom:'0.5rem'}}>
+                  <label style={{fontSize:'0.68rem',fontWeight:600,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:3}}>{field==='name'?'Name':field==='kunde'?'Kunde':field==='adresse'?'Adresse':field==='beschreibung'?'Beschreibung':field==='kontakt'?'Kontakt':'Telefon'}</label>
+                  <input style={{width:'100%',padding:'0.5rem 0.75rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}} value={editForm[field]||''} onChange={e=>setEditForm(f=>({...f,[field]:e.target.value}))}/>
+                </div>
+              ))}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginTop:'0.5rem'}}>
+                <button className="btn btn-primary" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>handleEdit(detailBs.id)}>✓ Speichern</button>
+                <button className="btn btn-secondary" style={{marginBottom:0,padding:'0.6rem',fontSize:'0.85rem'}} onClick={()=>setEditMode(false)}>Abbrechen</button>
               </div>
             </div>
           )}
-          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false)}}>Schließen</button>
+          {detailBs.status==='aktiv'&&!editMode&&(
+            <button className="btn btn-danger" style={{marginBottom:'0.5rem'}} onClick={()=>handleAbschliessen(detailBs.id)}>🔒 Archivieren</button>
+          )}
+          {isAdmin&&!editMode&&!bsDeleteConfirm&&(
+            <button className="btn" style={{marginBottom:'0.5rem',background:'#742a2a',color:'white',border:'none',borderRadius:'var(--r-sm)',padding:'0.875rem',width:'100%',fontFamily:'inherit',fontWeight:600,fontSize:'0.95rem',cursor:'pointer'}} onClick={()=>setBsDeleteConfirm(true)}>🗑️ Löschen</button>
+          )}
+          {isAdmin&&bsDeleteConfirm&&(
+            <div className="delete-confirm" style={{marginBottom:'0.5rem'}}>
+              <p>Baustelle wirklich löschen?</p>
+              <div className="delete-confirm-btns">
+                <button onClick={()=>handleLoeschen(detailBs.id)} style={{background:'var(--red)',color:'white',fontWeight:700}}>✓ Ja, löschen</button>
+                <button onClick={()=>setBsDeleteConfirm(false)} style={{background:'var(--bg)',color:'var(--text)',border:'1px solid var(--border2)'}}>Abbrechen</button>
+              </div>
+            </div>
+          )}
+          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false);setEditMode(false)}}>Schließen</button>
         </div></div>
       )}
       {showNew&&(
@@ -343,7 +357,7 @@ function UrlaubPage({user,isAdmin,allUsers}) {
               <div key={a.id} className="list-item">
                 <div className="list-item-left">
                   <span className="list-item-title text-sm">{formatDate(a.von_datum)} – {formatDate(a.bis_datum)}</span>
-                  <span className="list-item-sub">{a.tage} Arbeitstage{a.notiz&&` · ${a.notiz}`}</span>
+                  <span className="list-item-sub">{a.tage} Arbeitstage (Mo–Do){a.notiz&&` · ${a.notiz}`}</span>
                   <div style={{marginTop:3}}>{urlaubBadge(a.status)}</div>
                 </div>
               </div>
@@ -362,7 +376,7 @@ function UrlaubPage({user,isAdmin,allUsers}) {
                   <div>
                     <div className="font-bold" style={{color:'#0A0A44'}}>{a.profiles?.name||'—'}</div>
                     <div className="text-sm text-muted">{formatDate(a.von_datum)} – {formatDate(a.bis_datum)}</div>
-                    <div className="text-sm" style={{color:'#1B52DD',fontWeight:600}}>{a.tage} Arbeitstage</div>
+                    <div className="text-sm" style={{color:'#1B52DD',fontWeight:600}}>{a.tage} Arbeitstage (Mo–Do)</div>
                     {a.notiz&&<div className="text-xs text-muted" style={{marginTop:2}}>📝 {a.notiz}</div>}
                   </div>
                   {urlaubBadge(a.status)}
@@ -412,7 +426,7 @@ function UrlaubPage({user,isAdmin,allUsers}) {
             <div className="form-group"><label>Von *</label><input type="date" value={form.von} onChange={e=>setForm(f=>({...f,von:e.target.value}))}/></div>
             <div className="form-group"><label>Bis *</label><input type="date" value={form.bis} onChange={e=>setForm(f=>({...f,bis:e.target.value}))}/></div>
           </div>
-          {tage>0&&<div className="card" style={{background:'#ebf8ff',padding:'0.75rem 1rem',marginBottom:'1rem'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{color:'#2b6cb0',fontSize:'0.85rem'}}>Arbeitstage (Mo–Fr):</span><span style={{fontSize:'1.2rem',fontWeight:800,color:'#0A0A44'}}>{tage} Tage</span></div></div>}
+          {tage>0&&<div className="card" style={{background:'#ebf8ff',padding:'0.75rem 1rem',marginBottom:'1rem'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{color:'#2b6cb0',fontSize:'0.85rem'}}>Arbeitstage (Mo–Do):</span><span style={{fontSize:'1.2rem',fontWeight:800,color:'#0A0A44'}}>{tage} Tage</span></div></div>}
           <div className="form-group"><label>Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Familienurlaub..."/></div>
           <button className="btn btn-primary" onClick={handleAntrag} disabled={saving||tage<=0}>{saving?'Wird gesendet...':'✓ Antrag einreichen'}</button>
           <button className="btn btn-secondary" onClick={()=>setShowNew(false)}>Abbrechen</button>
@@ -449,11 +463,9 @@ function ProfilPage({user,stunden,baustellen}) {
           <div className="stat-card"><div className="stat-num">{total.toFixed(1)}</div><div className="stat-label">Freigegebene Std.</div></div>
           <div className="stat-card"><div className="stat-num">{woche.toFixed(1)}</div><div className="stat-label">Std. diese Woche</div></div>
           <div className={`stat-card ${diff>=0?'success':'danger'}`}>
-          <div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div>
-          <div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
-          <div className="stat-sub">noch offen diese Woche</div>
-          <div className="progress-bar"><div className={`progress-fill ${diff<0?'danger':''}`} style={{width:`${Math.min(100,Math.abs(diff)/regelStunden*100).toFixed(0)}%`}}/></div>
-        </div>
+            <div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div>
+            <div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
+          </div>
           <div className="stat-card"><div className="stat-num">{regelStunden}</div><div className="stat-label">Regelstunden/Wo</div></div>
         </div>
       </div>
@@ -503,7 +515,6 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
     await onRefresh(); setTimeout(()=>setMsg(''),3000)
   }
   async function handleAlleFreigeben() {
-    if(!confirm(`Alle ${ausstehend.length} ausstehenden Einträge freigeben?`))return
     await supabase.from('stunden').update({freigabe_status:'freigegeben'}).eq('freigabe_status','ausstehend')
     setMsg(`✓ ${ausstehend.length} Einträge freigegeben!`); await onRefresh(); setTimeout(()=>setMsg(''),3000)
   }
@@ -511,17 +522,12 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
     if(!newUser.name||!newUser.password){alert('Name und Passwort sind Pflicht!');return}
     if(newUser.password.length<6){alert('Passwort muss mindestens 6 Zeichen haben!');return}
     setSaving(true)
-    // Automatische E-Mail aus dem Namen generieren
     const cleanName=newUser.name.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z.]/g,'')
     const autoEmail=cleanName+'@elektropees.intern'
     const {data,error}=await supabase.auth.signUp({email:autoEmail,password:newUser.password})
     if(error){alert('Fehler: '+error.message);setSaving(false);return}
     if(data.user){
-      await supabase.from('profiles').upsert({
-        id:data.user.id,name:newUser.name,email:autoEmail,
-        role:'mitarbeiter',regel_stunden:newUser.regel_stunden,
-        urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0
-      })
+      await supabase.from('profiles').upsert({id:data.user.id,name:newUser.name,email:autoEmail,role:'mitarbeiter',regel_stunden:newUser.regel_stunden,urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0})
     }
     setMsg('✓ Mitarbeiter "'+newUser.name+'" wurde angelegt!')
     setNewUser({name:'',password:'',regel_stunden:38,urlaub_gesamt:24})
@@ -572,11 +578,10 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
               })}
             </>
           )}
-          {/* Erledigte Einträge */}
           {stunden.filter(s=>s.freigabe_status==='freigegeben'||s.freigabe_status==='abgelehnt').length>0&&(
             <div className="card" style={{marginTop:'0.75rem'}}>
               <div className="card-title" style={{fontSize:'0.85rem',color:'#4a5568'}}>✓ Erledigte Einträge</div>
-              {stunden.filter(s=>s.freigabe_status!=='ausstehend').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,10).map(s=>{
+              {stunden.filter(s=>s.freigabe_status!=='ausstehend').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,20).map(s=>{
                 const b=baustellen.find(b=>b.id===s.baustelle_id)
                 const freigegeben=s.freigabe_status==='freigegeben'
                 return (
@@ -592,7 +597,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <span style={{fontSize:'0.65rem',background:freigegeben?'var(--green-pale)':'var(--red-pale)',color:freigegeben?'var(--green)':'var(--red)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>
                           {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
                         </span>
-                        <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>{ onRefresh() }) }} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'5px 10px',fontFamily:'inherit',fontWeight:600,minHeight:32,minWidth:70}}>🗑️ Löschen</button>
+                        <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>onRefresh()) }} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'5px 10px',fontFamily:'inherit',fontWeight:600,minHeight:32,minWidth:70}}>🗑️ Löschen</button>
                       </div>
                     </div>
                   </div>
@@ -616,7 +621,6 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
             const myStunden=[...stunden.filter(s=>s.user_id===u.id)].sort((a,b)=>b.datum.localeCompare(a.datum))
             return (
               <div key={u.id} className="card" style={{padding:0,overflow:'hidden'}}>
-                {/* Header - klickbar */}
                 <div onClick={()=>setSelectedMitarbeiter(isOpen?null:u.id)} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'1rem 1.25rem',cursor:'pointer',userSelect:'none'}}>
                   <div className="employee-avatar">{initials(u.name||u.email)}</div>
                   <div style={{flex:1}}>
@@ -630,11 +634,8 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                   </div>
                   <span style={{color:'var(--text3)',fontSize:'0.85rem',marginLeft:4}}>{isOpen?'▲':'▼'}</span>
                 </div>
-
-                {/* Detail-Ansicht */}
                 {isOpen&&(
                   <div style={{borderTop:'1px solid var(--border)',background:'var(--bg)'}}>
-                    {/* Kurzstats */}
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0,borderBottom:'1px solid var(--border)'}}>
                       <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
                         <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--blue)',fontFamily:"'DM Mono',monospace"}}>{myH.toFixed(1)}</div>
@@ -649,38 +650,32 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub</div>
                       </div>
                     </div>
-
-                    {/* Einträge gegliedert nach Kalenderwochen + Tagen */}
                     <div style={{padding:'0.75rem 1rem'}}>
                       {myStunden.length===0
                         ?<p style={{fontSize:'0.82rem',color:'var(--text3)'}}>Noch keine Einträge.</p>
                         :(() => {
-                          // Gruppiere nach Kalenderwoche
                           const byWeek = {}
                           myStunden.forEach(s => {
                             const d = new Date(s.datum)
                             const ws = getWeekStart(d)
-                            const we = new Date(ws); we.setDate(we.getDate()+6)
                             const key = ws.toISOString().split('T')[0]
-                            if(!byWeek[key]) byWeek[key] = {start:ws,end:we,days:{}}
-                            const dayKey = s.datum
-                            if(!byWeek[key].days[dayKey]) byWeek[key].days[dayKey] = []
-                            byWeek[key].days[dayKey].push(s)
+                            if(!byWeek[key]) byWeek[key] = {days:{}}
+                            if(!byWeek[key].days[s.datum]) byWeek[key].days[s.datum] = []
+                            byWeek[key].days[s.datum].push(s)
                           })
                           return Object.keys(byWeek).sort((a,b)=>b.localeCompare(a)).map(wk => {
                             const week = byWeek[wk]
                             const weekTotal = Object.values(week.days).flat().reduce((a,s)=>a+s.dauer,0)
                             const isCurrentWeek = getWeekStart(new Date()).toISOString().split('T')[0]===wk
+                            const weEnd = new Date(new Date(wk).setDate(new Date(wk).getDate()+6)).toISOString().split('T')[0]
                             return (
                               <div key={wk} style={{marginBottom:'1rem'}}>
-                                {/* Wochen-Header */}
                                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:isCurrentWeek?'var(--blue-pale)':'var(--bg)',borderRadius:'var(--r-sm)',padding:'6px 10px',marginBottom:'0.5rem',border:isCurrentWeek?'1px solid rgba(27,82,221,0.15)':'1px solid var(--border)'}}>
                                   <span style={{fontSize:'0.72rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>
-                                    {isCurrentWeek?'📅 Aktuelle Woche':'KW '+(()=>{const d=new Date(wk);const y=d.getFullYear();const s=new Date(y,0,1);return Math.ceil((((d-s)/86400000)+s.getDay()+1)/7)})()}  {formatDate(wk)} – {formatDate(new Date(new Date(wk).setDate(new Date(wk).getDate()+6)).toISOString().split('T')[0])}
+                                    {isCurrentWeek?'📅 Aktuelle Woche':'KW'} {formatDate(wk)} – {formatDate(weEnd)}
                                   </span>
                                   <span style={{fontSize:'0.78rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{weekTotal.toFixed(1)}h</span>
                                 </div>
-                                {/* Tage */}
                                 {Object.keys(week.days).sort((a,b)=>b.localeCompare(a)).map(dayKey => {
                                   const dayEntries = week.days[dayKey]
                                   const dayTotal = dayEntries.reduce((a,s)=>a+s.dauer,0)
@@ -775,11 +770,7 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
     if(!form.baustelle_id){alert('Bitte eine Baustelle auswählen!');return}
     if(dauer<=0){alert('Endzeit muss nach der Startzeit liegen!');return}
     setSaving(true)
-    // Überschneidungs-Prüfung
-    const {data:existing}=await supabase.from('stunden')
-      .select('start_zeit,end_zeit,baustellen(name)')
-      .eq('user_id',user.id)
-      .eq('datum',form.datum)
+    const {data:existing}=await supabase.from('stunden').select('start_zeit,end_zeit,baustellen(name)').eq('user_id',user.id).eq('datum',form.datum)
     if(existing&&existing.length>0) {
       const newStart=form.start.replace(':',''); const newEnd=form.end.replace(':','')
       const overlap=existing.find(e=>{
@@ -844,7 +835,6 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
   )
 }
 
-// ─── ELEKTRO SVG ICONS ───────────────────────────────
 const EI = {
   steckdose: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2"/><circle cx="20" cy="21" r="6" stroke="#1B52DD" strokeWidth="1.5"/><rect x="17" y="11" width="2.5" height="6" rx="1.2" fill="#1B52DD"/><rect x="21" y="11" width="2.5" height="6" rx="1.2" fill="#1B52DD"/></svg>,
   rahmen1: <svg viewBox="0 0 40 40" fill="none" width="22" height="22"><rect x="4" y="4" width="32" height="32" rx="3" stroke="#1B52DD" strokeWidth="2"/><rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5"/></svg>,
@@ -1017,13 +1007,8 @@ export default function App() {
   const [showInstallBanner,setShowInstallBanner]=useState(false)
 
   useEffect(()=>{
-    // PWA Install-Prompt abfangen
     const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true) }
     window.addEventListener('beforeinstallprompt', handler)
-    // Benachrichtigungen anfragen
-    if('Notification' in window && Notification.permission==='default'){
-      Notification.requestPermission()
-    }
     return () => window.removeEventListener('beforeinstallprompt', handler)
   },[])
 
@@ -1034,7 +1019,6 @@ export default function App() {
     })
   },[])
   useEffect(()=>{if(user)loadData()},[user])
-  // Auto-Refresh alle 30 Sekunden
   useEffect(()=>{
     if(!user)return
     const interval=setInterval(()=>loadData(),30000)
@@ -1077,14 +1061,12 @@ export default function App() {
         </div>
       )}
       <div style={{background:'var(--dark)'}}>
-        {/* Logo + App label + User row */}
         <div style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <img src="/logo.png" alt="Elektro Pees" style={{height:'72px',width:'auto',maxWidth:'240px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div style="color:white;font-size:1.1rem;font-weight:700">Elektro Pees</div>'}}/>
             <span style={{color:'rgba(255,255,255,0.25)',fontSize:'0.65rem',letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:400}}>App</span>
           </div>
         </div>
-        {/* User + Buttons */}
         <div style={{padding:'7px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <div style={{width:26,height:26,borderRadius:'50%',background:'linear-gradient(135deg,var(--blue),var(--blue-light))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.68rem',fontWeight:700,color:'white',flexShrink:0}}>
