@@ -504,6 +504,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
   const [tab,setTab]=useState('freigabe')
   const [showNewUser,setShowNewUser]=useState(false)
   const [selectedMitarbeiter,setSelectedMitarbeiter]=useState(null)
+  const [weekOffsets,setWeekOffsets]=useState({})
   const [newUser,setNewUser]=useState({name:'',email:'',password:'',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const mitarbeiter=allUsers.filter(u=>u.role!=='admin')
@@ -650,64 +651,74 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub</div>
                       </div>
                     </div>
-                    <div style={{padding:'0.75rem 1rem'}}>
-                      {myStunden.length===0
-                        ?<p style={{fontSize:'0.82rem',color:'var(--text3)'}}>Noch keine Einträge.</p>
-                        :(() => {
-                          const byWeek = {}
-                          myStunden.forEach(s => {
-                            const d = new Date(s.datum)
-                            const ws = getWeekStart(d)
-                            const key = ws.toISOString().split('T')[0]
-                            if(!byWeek[key]) byWeek[key] = {days:{}}
-                            if(!byWeek[key].days[s.datum]) byWeek[key].days[s.datum] = []
-                            byWeek[key].days[s.datum].push(s)
-                          })
-                          return Object.keys(byWeek).sort((a,b)=>b.localeCompare(a)).map(wk => {
-                            const week = byWeek[wk]
-                            const weekTotal = Object.values(week.days).flat().reduce((a,s)=>a+s.dauer,0)
-                            const isCurrentWeek = getWeekStart(new Date()).toISOString().split('T')[0]===wk
-                            const weEnd = new Date(new Date(wk).setDate(new Date(wk).getDate()+6)).toISOString().split('T')[0]
-                            return (
-                              <div key={wk} style={{marginBottom:'1rem'}}>
-                                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:isCurrentWeek?'var(--blue-pale)':'var(--bg)',borderRadius:'var(--r-sm)',padding:'6px 10px',marginBottom:'0.5rem',border:isCurrentWeek?'1px solid rgba(27,82,221,0.15)':'1px solid var(--border)'}}>
-                                  <span style={{fontSize:'0.72rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>
-                                    {isCurrentWeek?'📅 Aktuelle Woche':'KW'} {formatDate(wk)} – {formatDate(weEnd)}
-                                  </span>
-                                  <span style={{fontSize:'0.78rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{weekTotal.toFixed(1)}h</span>
-                                </div>
-                                {Object.keys(week.days).sort((a,b)=>b.localeCompare(a)).map(dayKey => {
-                                  const dayEntries = week.days[dayKey]
-                                  const dayTotal = dayEntries.reduce((a,s)=>a+s.dauer,0)
-                                  return (
-                                    <div key={dayKey} style={{marginBottom:'0.5rem'}}>
-                                      <div style={{fontSize:'0.72rem',fontWeight:600,color:'var(--text2)',padding:'4px 0',borderBottom:'1px solid var(--border2)',marginBottom:'4px',display:'flex',justifyContent:'space-between'}}>
-                                        <span>{getDayName(dayKey)}, {formatDate(dayKey)}</span>
-                                        <span style={{color:'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{dayTotal.toFixed(1)}h</span>
-                                      </div>
-                                      {dayEntries.map(s=>{
-                                        const b=baustellen.find(b=>b.id===s.baustelle_id)
-                                        const statusColor=s.freigabe_status==='freigegeben'?'var(--green)':s.freigabe_status==='abgelehnt'?'var(--red)':'#d69e2e'
-                                        return (
-                                          <div key={s.id} style={{display:'flex',alignItems:'center',gap:'0.5rem',padding:'4px 0 4px 8px'}}>
-                                            <div style={{width:5,height:5,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
-                                            <div style={{flex:1,minWidth:0}}>
-                                              <div style={{fontSize:'0.8rem',fontWeight:500,color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b?.name||'—'}</div>
-                                              <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{s.start_zeit}–{s.end_zeit}</div>
-                                            </div>
-                                            <span style={{fontSize:'0.8rem',fontWeight:600,color:'var(--dark)',fontFamily:"'DM Mono',monospace",flexShrink:0}}>{s.dauer.toFixed(1)}h</span>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  )
-                                })}
+                    {(()=>{
+                      // Alle Wochen ermitteln
+                      const byWeek = {}
+                      myStunden.forEach(s => {
+                        const ws = getWeekStart(new Date(s.datum))
+                        const key = ws.toISOString().split('T')[0]
+                        if(!byWeek[key]) byWeek[key] = {days:{}}
+                        if(!byWeek[key].days[s.datum]) byWeek[key].days[s.datum] = []
+                        byWeek[key].days[s.datum].push(s)
+                      })
+                      const weekKeys = Object.keys(byWeek).sort((a,b)=>b.localeCompare(a))
+                      if(weekKeys.length===0) return <p style={{fontSize:'0.82rem',color:'var(--text3)',padding:'0.75rem 1rem'}}>Noch keine Einträge.</p>
+
+                      const currentWkKey = getWeekStart(new Date()).toISOString().split('T')[0]
+                      const defaultIdx = weekKeys.indexOf(currentWkKey) >= 0 ? weekKeys.indexOf(currentWkKey) : 0
+                      const wkIdx = weekOffsets[u.id] ?? defaultIdx
+                      const safeIdx = Math.min(Math.max(wkIdx,0), weekKeys.length-1)
+                      const wk = weekKeys[safeIdx]
+                      const week = byWeek[wk]
+                      const weekTotal = Object.values(week.days).flat().reduce((a,s)=>a+s.dauer,0)
+                      const weEnd = new Date(new Date(wk).setDate(new Date(wk).getDate()+6)).toISOString().split('T')[0]
+                      const isCurrentWeek = wk===currentWkKey
+
+                      return (
+                        <div>
+                          {/* Wochen-Slider */}
+                          <div style={{display:'flex',alignItems:'center',gap:8,padding:'0.75rem 1rem',borderBottom:'1px solid var(--border)'}}>
+                            <button onClick={e=>{e.stopPropagation();setWeekOffsets(o=>({...o,[u.id]:safeIdx+1}))}} disabled={safeIdx>=weekKeys.length-1} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',color:safeIdx>=weekKeys.length-1?'var(--text3)':'var(--dark)',flexShrink:0}}>‹</button>
+                            <div style={{flex:1,textAlign:'center'}}>
+                              <div style={{fontSize:'0.72rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                                {isCurrentWeek?'📅 Aktuelle Woche':'KW '+safeIdx} · {formatDate(wk)} – {formatDate(weEnd)}
                               </div>
-                            )
-                          })
-                        })()
-                      }
-                    </div>
+                              <div style={{fontSize:'1rem',fontWeight:700,color:'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{weekTotal.toFixed(1)}h</div>
+                            </div>
+                            <button onClick={e=>{e.stopPropagation();setWeekOffsets(o=>({...o,[u.id]:safeIdx-1}))}} disabled={safeIdx<=0} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',color:safeIdx<=0?'var(--text3)':'var(--dark)',flexShrink:0}}>›</button>
+                          </div>
+                          {/* Tages-Einträge */}
+                          <div style={{padding:'0.75rem 1rem'}}>
+                            {Object.keys(week.days).sort((a,b)=>b.localeCompare(a)).map(dayKey => {
+                              const dayEntries = week.days[dayKey]
+                              const dayTotal = dayEntries.reduce((a,s)=>a+s.dauer,0)
+                              return (
+                                <div key={dayKey} style={{marginBottom:'0.75rem'}}>
+                                  <div style={{fontSize:'0.72rem',fontWeight:600,color:'var(--text2)',padding:'4px 0',borderBottom:'1px solid var(--border2)',marginBottom:'4px',display:'flex',justifyContent:'space-between'}}>
+                                    <span>{getDayName(dayKey)}, {formatDate(dayKey)}</span>
+                                    <span style={{color:'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{dayTotal.toFixed(1)}h</span>
+                                  </div>
+                                  {dayEntries.map(s=>{
+                                    const b=baustellen.find(b=>b.id===s.baustelle_id)
+                                    const statusColor=s.freigabe_status==='freigegeben'?'var(--green)':s.freigabe_status==='abgelehnt'?'var(--red)':'#d69e2e'
+                                    return (
+                                      <div key={s.id} style={{display:'flex',alignItems:'center',gap:'0.5rem',padding:'4px 0 4px 8px'}}>
+                                        <div style={{width:5,height:5,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
+                                        <div style={{flex:1,minWidth:0}}>
+                                          <div style={{fontSize:'0.8rem',fontWeight:500,color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b?.name||'—'}</div>
+                                          <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{s.start_zeit}–{s.end_zeit}</div>
+                                        </div>
+                                        <span style={{fontSize:'0.8rem',fontWeight:600,color:'var(--dark)',fontFamily:"'DM Mono',monospace",flexShrink:0}}>{s.dauer.toFixed(1)}h</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
