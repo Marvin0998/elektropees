@@ -591,7 +591,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <span style={{fontSize:'0.65rem',background:freigegeben?'var(--green-pale)':'var(--red-pale)',color:freigegeben?'var(--green)':'var(--red)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>
                           {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
                         </span>
-                        <button onClick={async()=>{await supabase.from('stunden').delete().eq('id',s.id);await onRefresh()}} style={{fontSize:'0.68rem',color:'var(--text3)',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontFamily:'inherit'}}>🗑️ Löschen</button>
+                        <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>onRefresh()) }} style={{fontSize:'0.68rem',color:'var(--text3)',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontFamily:'inherit'}}>🗑️ Löschen</button>
                       </div>
                     </div>
                   </div>
@@ -989,7 +989,7 @@ export default function App() {
       )}
       <div className="top-bar">
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <img src="/logo.png" alt="Elektro Pees" style={{height:'52px',width:'auto',maxWidth:'160px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
+          <img src="/logo.png" alt="Elektro Pees" style={{height:'80px',width:'auto',maxWidth:'200px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
           <div><div className="top-title">Elektro Pees</div><div className="top-user">{user.profile?.name||user.email}</div></div>
         </div>
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
