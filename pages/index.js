@@ -7,7 +7,6 @@ const IconUser = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const IconStar = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
 const IconClock = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
 const IconSun = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-const IconCounter = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="8" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="16" cy="10" r="1" fill="currentColor"/></svg>
 
 function formatDate(d) { if(!d)return'—'; const [y,m,day]=d.split('-'); return `${day}.${m}.${y}` }
 function getWeekStart(d) { const day=new Date(d); const dow=day.getDay(); const diff=dow===0?-6:1-dow; day.setDate(day.getDate()+diff); day.setHours(0,0,0,0); return day }
@@ -105,7 +104,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
         <div className={`entry-dot ${dotClass}`}/>
         <div className="entry-info">
           <div className="entry-site">{b?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}</div>
-          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&` · ${s.notiz}`}</div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&\` · ${s.notiz}\`}</div>
         </div>
         <div className="entry-right">
           <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
@@ -752,277 +751,6 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
   )
 }
 
-// ─── MATERIAL DEFINITIONS ────────────────────────────
-// Custom SVG Icons für Elektro-Material
-const ElektroIcons = {
-  steckdose: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <circle cx="20" cy="20" r="7" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="16" y="12" width="3" height="6" rx="1.5" fill="#1B52DD"/>
-      <rect x="21" y="12" width="3" height="6" rx="1.5" fill="#1B52DD"/>
-    </svg>
-  ),
-  rahmen1: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="4" y="4" width="32" height="32" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-    </svg>
-  ),
-  rahmen2: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="3" y="7" width="34" height="26" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="7" y="11" width="11" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="22" y="11" width="11" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-    </svg>
-  ),
-  rahmen3: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="2" y="4" width="36" height="32" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="5" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="16" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="27" y="8" width="9" height="24" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-    </svg>
-  ),
-  rahmen4: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="1" y="4" width="38" height="32" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="3" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="12" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="21" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="30" y="8" width="7" height="24" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-    </svg>
-  ),
-  rahmen5: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="1" y="5" width="38" height="30" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="3" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="10" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="17" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="24" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="31" y="9" width="5.5" height="22" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-    </svg>
-  ),
-  schalter: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="13" y="13" width="14" height="8" rx="2" fill="#1B52DD" opacity="0.15" stroke="#1B52DD" strokeWidth="1.5"/>
-    </svg>
-  ),
-  kontroll: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <circle cx="20" cy="20" r="4" fill="#1B52DD"/>
-      <circle cx="20" cy="20" r="2" fill="white"/>
-    </svg>
-  ),
-  serien: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="3" y="3" width="34" height="34" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="7" y="7" width="26" height="26" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="10" y="11" width="8" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="12" y="13" width="4" height="7" rx="1.5" fill="#1B52DD" opacity="0.25" stroke="#1B52DD" strokeWidth="1"/>
-      <rect x="22" y="11" width="8" height="18" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="24" y="13" width="4" height="7" rx="1.5" fill="#1B52DD" opacity="0.25" stroke="#1B52DD" strokeWidth="1"/>
-    </svg>
-  ),
-  kreuz: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="10" y="10" width="20" height="20" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <line x1="14" y1="14" x2="26" y2="26" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/>
-      <line x1="26" y1="14" x2="14" y2="26" stroke="#1B52DD" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-  ),
-  netzwerk: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="3" y="3" width="34" height="34" rx="3" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="7" y="7" width="26" height="26" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="10" y="12" width="8" height="12" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <line x1="12" y1="15" x2="12" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/>
-      <line x1="14" y1="15" x2="14" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/>
-      <line x1="16" y1="15" x2="16" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/>
-      <rect x="22" y="12" width="8" height="12" rx="1.5" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <line x1="24" y1="15" x2="24" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/>
-      <line x1="26" y1="15" x2="26" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/>
-      <line x1="28" y1="15" x2="28" y2="21" stroke="#1B52DD" strokeWidth="1" strokeLinecap="round"/>
-    </svg>
-  ),
-  sat: (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-      <rect x="4" y="4" width="32" height="32" rx="4" stroke="#1B52DD" strokeWidth="2" fill="none"/>
-      <rect x="8" y="10" width="24" height="16" rx="2" stroke="#1B52DD" strokeWidth="1.5" fill="none"/>
-      <rect x="10" y="12" width="20" height="12" rx="1" stroke="#1B52DD" strokeWidth="1" fill="#1B52DD" opacity="0.08"/>
-      <line x1="15" y1="26" x2="13" y2="31" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="25" y1="26" x2="27" y2="31" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="12" y1="31" x2="28" y2="31" stroke="#1B52DD" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  ),
-}
-
-const MATERIALS = [
-  { id: 'steckdose', label: 'Steckdose', icon: 'steckdose' },
-  { id: 'rahmen1', label: '1-Fach Rahmen', icon: 'rahmen1' },
-  { id: 'rahmen2', label: '2-Fach Rahmen', icon: 'rahmen2' },
-  { id: 'rahmen3', label: '3-Fach Rahmen', icon: 'rahmen3' },
-  { id: 'rahmen4', label: '4-Fach Rahmen', icon: 'rahmen4' },
-  { id: 'rahmen5', label: '5-Fach Rahmen', icon: 'rahmen5' },
-  { id: 'wechsel', label: 'Aus/Wechselschalter', icon: 'schalter' },
-  { id: 'kontroll', label: 'Kontrollschalter', icon: 'kontroll' },
-  { id: 'serien', label: 'Serienschalter', icon: 'serien' },
-  { id: 'kreuz', label: 'Kreuzschalter', icon: 'kreuz' },
-  { id: 'netzwerk', label: 'Netzwerkdose', icon: 'netzwerk' },
-  { id: 'sat', label: 'Sat-Dose', icon: 'sat' },
-]
-
-function CounterPage({ baustellen }) {
-  const [selectedBs, setSelectedBs] = useState('')
-  const [counts, setCounts] = useState({})
-  const [custom, setCustom] = useState([])
-  const [newCustom, setNewCustom] = useState('')
-  const [showAddCustom, setShowAddCustom] = useState(false)
-
-  // Load from localStorage per Baustelle
-  useEffect(() => {
-    if (!selectedBs || typeof window === 'undefined') return
-    try {
-      const saved = window.localStorage.getItem('counter_' + selectedBs)
-      if (saved) {
-        const data = JSON.parse(saved)
-        setCounts(data.counts || {})
-        setCustom(data.custom || [])
-      } else {
-        setCounts({})
-        setCustom([])
-      }
-    } catch(e) { setCounts({}); setCustom([]) }
-  }, [selectedBs])
-
-  function save(newCounts, newCustom) {
-    if (!selectedBs || typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem('counter_' + selectedBs, JSON.stringify({ counts: newCounts, custom: newCustom }))
-    } catch(e) {}
-  }
-
-  function change(id, delta) {
-    const newCounts = { ...counts, [id]: Math.max(0, (counts[id] || 0) + delta) }
-    setCounts(newCounts)
-    save(newCounts, custom)
-  }
-
-  function addCustom() {
-    if (!newCustom.trim()) return
-    const id = 'custom_' + Date.now()
-    const newC = [...custom, { id, label: newCustom.trim() }]
-    setCustom(newC)
-    setNewCustom('')
-    setShowAddCustom(false)
-    save(counts, newC)
-  }
-
-  function removeCustom(id) {
-    const newC = custom.filter(c => c.id !== id)
-    const newCounts = { ...counts }
-    delete newCounts[id]
-    setCustom(newC)
-    setCounts(newCounts)
-    save(newCounts, newC)
-  }
-
-  function resetAll() {
-    if (!confirm('Alle Zähler auf 0 zurücksetzen?')) return
-    const newCounts = {}
-    setCounts(newCounts)
-    save(newCounts, custom)
-  }
-
-  const total = Object.values(counts).reduce((a, b) => a + b, 0)
-  const aktiveBaustellen = baustellen.filter(b => b.status === 'aktiv')
-
-  return (
-    <div className="page-content">
-      <div className="section-header" style={{marginBottom:'1rem'}}>
-        <span className="section-title">Material-Counter</span>
-        {selectedBs && total > 0 && (
-          <button className="btn btn-outline btn-sm" onClick={resetAll} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
-        )}
-      </div>
-
-      <div className="form-group" style={{marginBottom:'1rem'}}>
-        <label>Baustelle auswählen</label>
-        <select value={selectedBs} onChange={e => setSelectedBs(e.target.value)}>
-          <option value="">— Bitte auswählen —</option>
-          {aktiveBaustellen.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-      </div>
-
-      {!selectedBs && (
-        <div className="empty-state">
-          <div className="empty-icon"><IconCounter/></div>
-          <div className="empty-title">Baustelle auswählen</div>
-          <div className="empty-sub">Wähle eine Baustelle um den Counter zu starten.</div>
-        </div>
-      )}
-
-      {selectedBs && (
-        <>
-
-
-          {/* Standard Material */}
-          <div className="card" style={{padding:'0.75rem'}}>
-            {MATERIALS.map(m => (
-              <div key={m.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 0.5rem',borderBottom:'1px solid var(--border)'}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'var(--blue-pale)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  {ElektroIcons[m.icon]}
-                </div>
-                <span style={{flex:1,fontSize:'0.87rem',fontWeight:500,color:'var(--dark)'}}>{m.label}</span>
-                <div style={{display:'flex',alignItems:'center',gap:0}}>
-                  <button onClick={() => change(m.id, -1)} style={{width:36,height:36,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>−</button>
-                  <span style={{width:44,textAlign:'center',fontSize:'1.1rem',fontWeight:700,color:'var(--dark)',fontFamily:'DM Mono,monospace'}}>{counts[m.id]||0}</span>
-                  <button onClick={() => change(m.id, 1)} style={{width:36,height:36,borderRadius:'50%',border:'none',background:'var(--blue)',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'white',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>+</button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Benutzerdefiniert */}
-          <div className="card" style={{marginTop:'0.875rem'}}>
-            <div className="card-title" style={{marginBottom:'0.75rem'}}>
-              🔧 Benutzerdefiniert
-            </div>
-            {custom.map(c => (
-              <div key={c.id} style={{display:'flex',alignItems:'center',gap:'0.75rem',padding:'0.75rem 0',borderBottom:'1px solid var(--border)'}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:'var(--bg)',border:'1.5px solid var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.75rem',fontWeight:700,color:'var(--text3)',flexShrink:0}}>▪</div>
-                <span style={{flex:1,fontSize:'0.87rem',fontWeight:500,color:'var(--dark)'}}>{c.label}</span>
-                <div style={{display:'flex',alignItems:'center',gap:0}}>
-                  <button onClick={() => change(c.id, -1)} style={{width:36,height:36,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center'}}>−</button>
-                  <span style={{width:44,textAlign:'center',fontSize:'1.1rem',fontWeight:700,color:'var(--dark)',fontFamily:'DM Mono,monospace'}}>{counts[c.id]||0}</span>
-                  <button onClick={() => change(c.id, 1)} style={{width:36,height:36,borderRadius:'50%',border:'none',background:'var(--blue)',fontSize:'1.2rem',fontWeight:700,cursor:'pointer',color:'white',display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
-                </div>
-                <button onClick={() => removeCustom(c.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:'1rem',padding:'4px',marginLeft:2}}>✕</button>
-              </div>
-            ))}
-
-            {showAddCustom ? (
-              <div style={{paddingTop:'0.75rem',display:'flex',gap:'0.5rem'}}>
-                <input value={newCustom} onChange={e => setNewCustom(e.target.value)} onKeyDown={e => e.key==='Enter'&&addCustom()} placeholder="z.B. Außensteckdose..." style={{flex:1,padding:'0.6rem 0.875rem',border:'1.5px solid var(--blue)',borderRadius:'var(--r-sm)',fontSize:'0.87rem',fontFamily:'inherit'}} autoFocus/>
-                <button onClick={addCustom} style={{padding:'0.6rem 1rem',background:'var(--blue)',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:600,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>+ Hinzufügen</button>
-              </div>
-            ) : (
-              <button onClick={() => setShowAddCustom(true)} className="btn btn-outline" style={{marginTop:'0.75rem',marginBottom:0}}>
-                + Eigene Position hinzufügen
-              </button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
@@ -1092,7 +820,7 @@ export default function App() {
       )}
       <div className="top-bar">
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <img src="/logo.png" alt="Elektro Pees" style={{height:'36px',width:'auto'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
+          <img src="/logo.png" alt="Elektro Pees" style={{height:'44px',width:'auto',maxWidth:'140px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div class="top-logo">EP</div>'}}/>
           <div><div className="top-title">Elektro Pees</div><div className="top-user">{user.profile?.name||user.email}</div></div>
         </div>
         <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
@@ -1104,14 +832,12 @@ export default function App() {
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
-      {page==='counter'&&<CounterPage baustellen={baustellen}/>}
       {page==='admin'&&isAdmin&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
         <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
         <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
         <button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>
-        <button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>
         <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
         {isAdmin&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
