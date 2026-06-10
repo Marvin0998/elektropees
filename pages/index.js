@@ -491,6 +491,7 @@ function ProfilPage({user,stunden,baustellen}) {
 function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
   const [tab,setTab]=useState('freigabe')
   const [showNewUser,setShowNewUser]=useState(false)
+  const [selectedMitarbeiter,setSelectedMitarbeiter]=useState(null)
   const [newUser,setNewUser]=useState({name:'',email:'',password:'',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const mitarbeiter=allUsers.filter(u=>u.role!=='admin')
