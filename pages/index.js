@@ -1077,22 +1077,27 @@ export default function App() {
         </div>
       )}
       <div style={{background:'var(--dark)'}}>
-        {/* Logo zentriert oben */}
-        <div style={{padding:'14px 20px 10px',display:'flex',flexDirection:'column',alignItems:'center',gap:4,borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
-          <img src="/logo.png" alt="Elektro Pees" style={{height:'52px',width:'auto',maxWidth:'180px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div style="color:white;font-size:1.2rem;font-weight:700">Elektro Pees</div>'}}/>
-          <div style={{color:'rgba(255,255,255,0.4)',fontSize:'0.68rem',letterSpacing:'0.1em',textTransform:'uppercase'}}>Stundenerfassung</div>
+        {/* Logo + App label + User row */}
+        <div style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <img src="/logo.png" alt="Elektro Pees" style={{height:'72px',width:'auto',maxWidth:'240px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div style="color:white;font-size:1.1rem;font-weight:700">Elektro Pees</div>'}}/>
+            <span style={{color:'rgba(255,255,255,0.25)',fontSize:'0.65rem',letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:400}}>App</span>
+          </div>
         </div>
-        {/* User + Buttons unten */}
-        <div style={{padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        {/* User + Buttons */}
+        <div style={{padding:'7px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <div style={{width:28,height:28,borderRadius:'50%',background:'linear-gradient(135deg,var(--blue),var(--blue-light))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.7rem',fontWeight:700,color:'white',flexShrink:0}}>
+            <div style={{width:26,height:26,borderRadius:'50%',background:'linear-gradient(135deg,var(--blue),var(--blue-light))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.68rem',fontWeight:700,color:'white',flexShrink:0}}>
               {(user.profile?.name||user.email).split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)}
             </div>
-            <span style={{color:'rgba(255,255,255,0.8)',fontSize:'0.82rem',fontWeight:500}}>{user.profile?.name||user.email}</span>
+            <div>
+              <span style={{color:'rgba(255,255,255,0.85)',fontSize:'0.82rem',fontWeight:500}}>{user.profile?.name||user.email}</span>
+              <span style={{color:'rgba(255,255,255,0.35)',fontSize:'0.68rem',marginLeft:6}}>{user.profile?.role==='admin'?'Admin':'Mitarbeiter'}</span>
+            </div>
           </div>
           <div style={{display:'flex',gap:6}}>
-            <button onClick={loadData} style={{width:30,height:30,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.6)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:'0.9rem',display:'flex',alignItems:'center',justifyContent:'center'}}>↻</button>
-            <button className="top-logout" onClick={handleLogout} style={{height:30,padding:'0 12px',fontSize:'0.78rem'}}>Abmelden</button>
+            <button onClick={loadData} style={{width:28,height:28,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.6)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:'0.85rem',display:'flex',alignItems:'center',justifyContent:'center'}}>↻</button>
+            <button className="top-logout" onClick={handleLogout} style={{height:28,padding:'0 10px',fontSize:'0.75rem'}}>Abmelden</button>
           </div>
         </div>
       </div>
