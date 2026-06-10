@@ -650,25 +650,67 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                       </div>
                     </div>
 
-                    {/* Einträge nach Datum */}
+                    {/* Einträge gegliedert nach Kalenderwochen + Tagen */}
                     <div style={{padding:'0.75rem 1rem'}}>
-                      <div style={{fontSize:'0.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'0.5rem'}}>Alle Einträge</div>
                       {myStunden.length===0
                         ?<p style={{fontSize:'0.82rem',color:'var(--text3)'}}>Noch keine Einträge.</p>
-                        :myStunden.map(s=>{
-                          const b=baustellen.find(b=>b.id===s.baustelle_id)
-                          const statusColor=s.freigabe_status==='freigegeben'?'var(--green)':s.freigabe_status==='abgelehnt'?'var(--red)':'#d69e2e'
-                          return (
-                            <div key={s.id} style={{display:'flex',alignItems:'center',gap:'0.5rem',padding:'0.5rem 0',borderBottom:'1px solid var(--border)'}}>
-                              <div style={{width:6,height:6,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:'0.82rem',fontWeight:500,color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b?.name||'—'}</div>
-                                <div style={{fontSize:'0.68rem',color:'var(--text3)'}}>{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}</div>
+                        :(() => {
+                          // Gruppiere nach Kalenderwoche
+                          const byWeek = {}
+                          myStunden.forEach(s => {
+                            const d = new Date(s.datum)
+                            const ws = getWeekStart(d)
+                            const we = new Date(ws); we.setDate(we.getDate()+6)
+                            const key = ws.toISOString().split('T')[0]
+                            if(!byWeek[key]) byWeek[key] = {start:ws,end:we,days:{}}
+                            const dayKey = s.datum
+                            if(!byWeek[key].days[dayKey]) byWeek[key].days[dayKey] = []
+                            byWeek[key].days[dayKey].push(s)
+                          })
+                          return Object.keys(byWeek).sort((a,b)=>b.localeCompare(a)).map(wk => {
+                            const week = byWeek[wk]
+                            const weekTotal = Object.values(week.days).flat().reduce((a,s)=>a+s.dauer,0)
+                            const isCurrentWeek = getWeekStart(new Date()).toISOString().split('T')[0]===wk
+                            return (
+                              <div key={wk} style={{marginBottom:'1rem'}}>
+                                {/* Wochen-Header */}
+                                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:isCurrentWeek?'var(--blue-pale)':'var(--bg)',borderRadius:'var(--r-sm)',padding:'6px 10px',marginBottom:'0.5rem',border:isCurrentWeek?'1px solid rgba(27,82,221,0.15)':'1px solid var(--border)'}}>
+                                  <span style={{fontSize:'0.72rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                                    {isCurrentWeek?'📅 Aktuelle Woche':'KW '+(()=>{const d=new Date(wk);const y=d.getFullYear();const s=new Date(y,0,1);return Math.ceil((((d-s)/86400000)+s.getDay()+1)/7)})()}  {formatDate(wk)} – {formatDate(new Date(new Date(wk).setDate(new Date(wk).getDate()+6)).toISOString().split('T')[0])}
+                                  </span>
+                                  <span style={{fontSize:'0.78rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{weekTotal.toFixed(1)}h</span>
+                                </div>
+                                {/* Tage */}
+                                {Object.keys(week.days).sort((a,b)=>b.localeCompare(a)).map(dayKey => {
+                                  const dayEntries = week.days[dayKey]
+                                  const dayTotal = dayEntries.reduce((a,s)=>a+s.dauer,0)
+                                  return (
+                                    <div key={dayKey} style={{marginBottom:'0.5rem'}}>
+                                      <div style={{fontSize:'0.72rem',fontWeight:600,color:'var(--text2)',padding:'4px 0',borderBottom:'1px solid var(--border2)',marginBottom:'4px',display:'flex',justifyContent:'space-between'}}>
+                                        <span>{getDayName(dayKey)}, {formatDate(dayKey)}</span>
+                                        <span style={{color:'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{dayTotal.toFixed(1)}h</span>
+                                      </div>
+                                      {dayEntries.map(s=>{
+                                        const b=baustellen.find(b=>b.id===s.baustelle_id)
+                                        const statusColor=s.freigabe_status==='freigegeben'?'var(--green)':s.freigabe_status==='abgelehnt'?'var(--red)':'#d69e2e'
+                                        return (
+                                          <div key={s.id} style={{display:'flex',alignItems:'center',gap:'0.5rem',padding:'4px 0 4px 8px'}}>
+                                            <div style={{width:5,height:5,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
+                                            <div style={{flex:1,minWidth:0}}>
+                                              <div style={{fontSize:'0.8rem',fontWeight:500,color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b?.name||'—'}</div>
+                                              <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{s.start_zeit}–{s.end_zeit}</div>
+                                            </div>
+                                            <span style={{fontSize:'0.8rem',fontWeight:600,color:'var(--dark)',fontFamily:"'DM Mono',monospace",flexShrink:0}}>{s.dauer.toFixed(1)}h</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )
+                                })}
                               </div>
-                              <span style={{fontSize:'0.85rem',fontWeight:700,color:'var(--dark)',fontFamily:"'DM Mono',monospace",flexShrink:0}}>{s.dauer.toFixed(1)}h</span>
-                            </div>
-                          )
-                        })
+                            )
+                          })
+                        })()
                       }
                     </div>
                   </div>
