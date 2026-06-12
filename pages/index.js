@@ -215,15 +215,15 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
   )
 }
 
-function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
+function BaustellenPage({baustellen,stunden,isAdmin,onRefresh,user,allUsers}) {
   const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
   const [showVerschieben,setShowVerschieben]=useState(false); const [verschiebeZiel,setVerschiebeZiel]=useState(''); const [verschiebing,setVerschiebing]=useState(false)
-  const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); const [saving,setSaving]=useState(false)
+  const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:'',foto_link:''}); const [saving,setSaving]=useState(false)
   const list=baustellen.filter(b=>b.status===filter)
   async function handleSave() {
     if(!form.name||!form.kunde){alert('Name und Kunde sind Pflichtfelder!');return}
-    setSaving(true); await supabase.from('baustellen').insert([{...form,status:'aktiv'}]); await onRefresh()
+    setSaving(true); await supabase.from('baustellen').insert([{...form,status:'aktiv',erstellt_von:user?.id}]); await onRefresh()
     setForm({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); setShowNew(false); setSaving(false)
   }
   async function handleAbschliessen(id) {
@@ -231,7 +231,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
     await onRefresh(); setShowDetail(null)
   }
   async function handleEdit(id) {
-    await supabase.from('baustellen').update({name:editForm.name,kunde:editForm.kunde,adresse:editForm.adresse,beschreibung:editForm.beschreibung,kontakt:editForm.kontakt,telefon:editForm.telefon}).eq('id',id)
+    await supabase.from('baustellen').update({name:editForm.name,kunde:editForm.kunde,adresse:editForm.adresse,beschreibung:editForm.beschreibung,kontakt:editForm.kontakt,telefon:editForm.telefon,foto_link:editForm.foto_link||''}).eq('id',id)
     await onRefresh(); setEditMode(false)
   }
   async function handleLoeschen(id) {
@@ -257,7 +257,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
       {list.length===0?<p className="text-muted text-sm">Keine Baustellen.</p>:list.map(b=>{
         const hours=stunden.filter(s=>s.baustelle_id===b.id&&s.freigabe_status==='freigegeben').reduce((a,s)=>a+s.dauer,0)
         return (
-          <div key={b.id} className="card" onClick={()=>{setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||''})}} style={{cursor:'pointer'}}>
+          <div key={b.id} className="card" onClick={()=>{setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||'',foto_link:b.foto_link||''})}} style={{cursor:'pointer'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><div className="font-bold" style={{color:'#0A0A44'}}>{b.name}</div><div className="text-xs text-muted" style={{marginTop:3}}>{b.kunde} · {b.adresse}</div></div>
               <span className={`badge ${b.status==='aktiv'?'badge-active':'badge-done'}`}>{b.status==='aktiv'?'Aktiv':'Fertig'}</span>
@@ -276,6 +276,8 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
             <div>👤 <strong>Kunde:</strong> {detailBs.kunde}</div><div>📍 <strong>Adresse:</strong> {detailBs.adresse}</div>
             {detailBs.kontakt&&<div>📞 <strong>Kontakt:</strong> {detailBs.kontakt} {detailBs.telefon&&`· ${detailBs.telefon}`}</div>}
             {detailBs.beschreibung&&<div>📝 {detailBs.beschreibung}</div>}
+            {detailBs.erstellt_von&&<div>🧑‍💼 <strong>Erstellt von:</strong> {allUsers.find(u=>u.id===detailBs.erstellt_von)?.name||'—'}</div>}
+            {detailBs.foto_link&&<div style={{marginTop:4}}><a href={detailBs.foto_link} target="_blank" rel="noreferrer" style={{color:'var(--blue)',fontWeight:600,fontSize:'0.82rem',display:'inline-flex',alignItems:'center',gap:4}}>📷 Fotogalerie öffnen</a></div>}
           </div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.75rem'}}>
             <span className="text-sm text-muted">Freigegebene Stunden</span><span style={{fontSize:'1.3rem',fontWeight:800,color:'#1B52DD'}}>{detailTotal.toFixed(1)} Std</span>
@@ -298,9 +300,9 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
           {editMode&&(
             <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'1rem',marginBottom:'0.75rem',border:'1px solid var(--border2)'}}>
               <div style={{fontWeight:600,color:'var(--dark)',marginBottom:'0.75rem',fontSize:'0.9rem'}}>✏️ Bearbeiten</div>
-              {['name','kunde','adresse','beschreibung','kontakt','telefon'].map(field=>(
+              {['name','kunde','adresse','beschreibung','kontakt','telefon','foto_link'].map(field=>(
                 <div key={field} className="form-group" style={{marginBottom:'0.5rem'}}>
-                  <label style={{fontSize:'0.68rem',fontWeight:600,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:3}}>{field==='name'?'Name':field==='kunde'?'Kunde':field==='adresse'?'Adresse':field==='beschreibung'?'Beschreibung':field==='kontakt'?'Kontakt':'Telefon'}</label>
+                  <label style={{fontSize:'0.68rem',fontWeight:600,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:3}}>{field==='name'?'Name':field==='kunde'?'Kunde':field==='adresse'?'Adresse':field==='beschreibung'?'Beschreibung':field==='kontakt'?'Kontakt':field==='telefon'?'Telefon':'Foto-Link (URL)'}</label>
                   <input style={{width:'100%',padding:'0.5rem 0.75rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}} value={editForm[field]||''} onChange={e=>setEditForm(f=>({...f,[field]:e.target.value}))}/>
                 </div>
               ))}
@@ -348,10 +350,10 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
       {showNew&&(
         <div className="modal-overlay open"><div className="modal-sheet">
           <div className="modal-handle"/><div className="modal-title">🏗️ Neue Baustelle</div>
-          {['name','kunde','adresse','beschreibung','kontakt','telefon'].map(field=>(
+          {['name','kunde','adresse','beschreibung','kontakt','telefon','foto_link'].map(field=>(
             <div key={field} className="form-group">
-              <label>{field==='name'?'Baustellenname *':field==='kunde'?'Kunde *':field.charAt(0).toUpperCase()+field.slice(1)}</label>
-              {field==='beschreibung'?<textarea value={form[field]} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))} placeholder="Beschreibung..."/>:<input type={field==='telefon'?'tel':'text'} value={form[field]} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))}/>}
+              <label>{field==='name'?'Baustellenname *':field==='kunde'?'Kunde *':field==='foto_link'?'Foto-Link (URL)':field.charAt(0).toUpperCase()+field.slice(1)}</label>
+              {field==='beschreibung'?<textarea value={form[field]} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))} placeholder="Beschreibung..."/>:<input type={field==='telefon'?'tel':field==='foto_link'?'url':'text'} value={form[field]} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))} placeholder={field==='foto_link'?'https://...':''}/>}
             </div>
           ))}
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Baustelle speichern'}</button>
@@ -1018,7 +1020,7 @@ const MATERIALS_WAERMEPUMPE = [
   { id: 'k510', label: 'Kabel 5×10 mm²', icon: 'kabel', unit: 'm' },
 ]
 
-function CounterPage({ baustellen }) {
+function CounterPage({ baustellen, user }) {
   const [mode, setMode] = useState('baustelle')
   const [selectedBs, setSelectedBs] = useState('')
   const [counts, setCounts] = useState({})
@@ -1026,29 +1028,69 @@ function CounterPage({ baustellen }) {
   const [newCustom, setNewCustom] = useState('')
   const [showAddCustom, setShowAddCustom] = useState(false)
 
+  const [cloudSaving, setCloudSaving] = useState(false)
+  const [cloudStatus, setCloudStatus] = useState('') // 'saved' | 'error' | ''
+
   const materials = mode === 'baustelle' ? MATERIALS_BAUSTELLE : MATERIALS_WAERMEPUMPE
   const storageKey = 'counter_' + mode + '_' + selectedBs
 
+  // Laden: erst Supabase, dann localStorage als Fallback
   useEffect(() => {
-    if (!selectedBs || typeof window === 'undefined') return
-    try {
-      const saved = window.localStorage.getItem(storageKey)
-      if (saved) { const d = JSON.parse(saved); setCounts(d.counts||{}); setCustom(d.custom||[]) }
-      else { setCounts({}); setCustom([]) }
-    } catch(e) { setCounts({}); setCustom([]) }
+    if (!selectedBs) return
+    async function loadCounter() {
+      setCloudStatus('')
+      // Supabase versuchen
+      if (user?.id) {
+        const { data } = await supabase.from('counter_saves')
+          .select('counts,custom')
+          .eq('user_id', user.id)
+          .eq('baustelle_id', selectedBs)
+          .eq('mode', mode)
+          .single()
+        if (data) { setCounts(data.counts||{}); setCustom(data.custom||[]); return }
+      }
+      // localStorage Fallback
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = window.localStorage.getItem(storageKey)
+          if (saved) { const d = JSON.parse(saved); setCounts(d.counts||{}); setCustom(d.custom||[]) }
+          else { setCounts({}); setCustom([]) }
+        } catch(e) { setCounts({}); setCustom([]) }
+      }
+    }
+    loadCounter()
   }, [selectedBs, mode])
 
-  function save(nc, ncu) {
+  function saveLocal(nc, ncu) {
     if (!selectedBs || typeof window === 'undefined') return
     try { window.localStorage.setItem(storageKey, JSON.stringify({counts:nc,custom:ncu})) } catch(e) {}
   }
-  function change(id, delta) { const nc={...counts,[id]:Math.max(0,(counts[id]||0)+delta)}; setCounts(nc); save(nc,custom) }
+
+  async function saveCloud(nc, ncu) {
+    if (!user?.id || !selectedBs) return
+    setCloudSaving(true); setCloudStatus('')
+    const { error } = await supabase.from('counter_saves').upsert(
+      { user_id: user.id, baustelle_id: selectedBs, mode, counts: nc, custom: ncu, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,baustelle_id,mode' }
+    )
+    setCloudSaving(false)
+    if (error) { setCloudStatus('error') } else { setCloudStatus('saved') }
+    setTimeout(() => setCloudStatus(''), 3000)
+  }
+
+  function change(id, delta) {
+    const nc={...counts,[id]:Math.max(0,(counts[id]||0)+delta)}
+    setCounts(nc); saveLocal(nc,custom)
+  }
   function addCustom() {
     if (!newCustom.trim()) return
     const ncu=[...custom,{id:'c'+Date.now(),label:newCustom.trim()}]
-    setCustom(ncu); setNewCustom(''); setShowAddCustom(false); save(counts,ncu)
+    setCustom(ncu); setNewCustom(''); setShowAddCustom(false); saveLocal(counts,ncu)
   }
-  function removeCustom(id) { const ncu=custom.filter(c=>c.id!==id); const nc={...counts}; delete nc[id]; setCustom(ncu); setCounts(nc); save(nc,ncu) }
+  function removeCustom(id) {
+    const ncu=custom.filter(c=>c.id!==id); const nc={...counts}; delete nc[id]
+    setCustom(ncu); setCounts(nc); saveLocal(nc,ncu)
+  }
 
   const aktiveBaustellen = baustellen.filter(b => b.status === 'aktiv')
 
@@ -1076,7 +1118,12 @@ function CounterPage({ baustellen }) {
         <>
           <div className="section-header" style={{marginBottom:'0.75rem'}}>
             <span className="section-title">{mode==='baustelle'?'Elektro-Material':'Wärmepumpen-Material'}</span>
-            <button className="btn btn-outline btn-sm" onClick={()=>{setCounts({});save({},custom)}} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
+            <div style={{display:'flex',gap:6}}>
+              <button className="btn btn-outline btn-sm" onClick={()=>{setCounts({});saveLocal({},custom)}} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
+              <button onClick={()=>saveCloud(counts,custom)} disabled={cloudSaving} style={{padding:'5px 12px',background:cloudStatus==='saved'?'var(--green)':cloudStatus==='error'?'var(--red)':'var(--blue)',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:600,fontSize:'0.78rem',cursor:'pointer',fontFamily:'inherit',minHeight:32,transition:'background 0.2s'}}>
+                {cloudSaving?'⏳ Speichern...':cloudStatus==='saved'?'✓ Gespeichert':cloudStatus==='error'?'✗ Fehler':'☁️ Speichern'}
+              </button>
+            </div>
           </div>
           <div className="card" style={{padding:'0.5rem 0.75rem'}}>
             {materials.map(m=>(
@@ -1208,9 +1255,9 @@ export default function App() {
         </div>
       </div>
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin}/>}
-      {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData}/>}
+      {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData} user={user} allUsers={allUsers}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
-      {page==='counter'&&<CounterPage baustellen={baustellen}/>}
+      {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
       {page==='admin'&&isAdmin&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData}/>}
