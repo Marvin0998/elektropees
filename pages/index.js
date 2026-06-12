@@ -218,6 +218,7 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
 function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
   const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
+  const [showVerschieben,setShowVerschieben]=useState(false); const [verschiebeZiel,setVerschiebeZiel]=useState(''); const [verschiebing,setVerschiebing]=useState(false)
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:''}); const [saving,setSaving]=useState(false)
   const list=baustellen.filter(b=>b.status===filter)
   async function handleSave() {
@@ -237,6 +238,14 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
     setBsDeleteConfirm(false)
     await supabase.from('baustellen').delete().eq('id',id)
     await onRefresh(); setShowDetail(null)
+  }
+  async function handleVerschieben(vonId, nachId) {
+    if(!nachId){alert('Bitte eine Ziel-Baustelle auswaehlen!');return}
+    setVerschiebing(true)
+    await supabase.from('stunden').update({baustelle_id:nachId}).eq('baustelle_id',vonId)
+    await onRefresh()
+    setShowVerschieben(false); setVerschiebeZiel(''); setVerschiebing(false)
+    alert('Stunden wurden verschoben! Duplikat kann jetzt geloescht werden.')
   }
   const detailBs=baustellen.find(b=>b.id===showDetail)
   const detailStunden=stunden.filter(s=>s.baustelle_id===showDetail&&s.freigabe_status==='freigegeben')
@@ -316,7 +325,24 @@ function BaustellenPage({baustellen,stunden,isAdmin,onRefresh}) {
               </div>
             </div>
           )}
-          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false);setEditMode(false)}}>Schließen</button>
+          {isAdmin&&!editMode&&!showVerschieben&&(
+            <button className="btn btn-outline btn-sm" style={{marginBottom:'0.5rem',width:'100%',padding:'0.75rem',fontSize:'0.85rem',color:'var(--blue)',borderColor:'var(--blue)'}} onClick={()=>{setShowVerschieben(true);setVerschiebeZiel('')}}>🔀 Stunden verschieben (Duplikat)</button>
+          )}
+          {isAdmin&&showVerschieben&&(
+            <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:'var(--r-md)',padding:'1rem',marginBottom:'0.5rem'}}>
+              <div style={{fontWeight:600,color:'#2b6cb0',marginBottom:'0.5rem',fontSize:'0.88rem'}}>🔀 Alle Stunden verschieben nach:</div>
+              <div style={{fontSize:'0.78rem',color:'#4a5568',marginBottom:'0.75rem'}}>Alle {stunden.filter(s=>s.baustelle_id===detailBs.id).length} Einträge dieser Baustelle werden auf die Ziel-Baustelle umgehängt.</div>
+              <select value={verschiebeZiel} onChange={e=>setVerschiebeZiel(e.target.value)} style={{width:'100%',padding:'0.6rem 0.75rem',border:'1.5px solid #bee3f8',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit',marginBottom:'0.75rem',background:'white'}}>
+                <option value="">— Ziel-Baustelle auswählen —</option>
+                {baustellen.filter(b=>b.id!==detailBs.id).map(b=><option key={b.id} value={b.id}>{b.name} {b.status!=='aktiv'?'(Archiv)':''}</option>)}
+              </select>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+                <button onClick={()=>handleVerschieben(detailBs.id,verschiebeZiel)} disabled={!verschiebeZiel||verschiebing} style={{padding:'0.6rem',background:'var(--blue)',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:600,cursor:'pointer',fontFamily:'inherit',fontSize:'0.85rem',opacity:(!verschiebeZiel||verschiebing)?0.5:1}}>{verschiebing?'Wird verschoben...':'✓ Verschieben'}</button>
+                <button onClick={()=>{setShowVerschieben(false);setVerschiebeZiel('')}} style={{padding:'0.6rem',background:'white',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:'var(--r-sm)',cursor:'pointer',fontFamily:'inherit',fontSize:'0.85rem'}}>Abbrechen</button>
+              </div>
+            </div>
+          )}
+          <button className="btn btn-secondary" onClick={()=>{setShowDetail(null);setBsDeleteConfirm(false);setEditMode(false);setShowVerschieben(false);setVerschiebeZiel('')}}>Schließen</button>
         </div></div>
       )}
       {showNew&&(
