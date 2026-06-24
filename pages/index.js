@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const IconHome = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -1028,28 +1028,28 @@ function CounterPage({ baustellen, user }) {
   const [newCustom, setNewCustom] = useState('')
   const [showAddCustom, setShowAddCustom] = useState(false)
 
-  const [cloudSaving, setCloudSaving] = useState(false)
-  const [cloudStatus, setCloudStatus] = useState('') // 'saved' | 'error' | ''
+  const [cloudStatus, setCloudStatus] = useState('') // 'saved' | 'error' | 'saving'
+  const saveTimerRef = useRef(null)
 
   const materials = mode === 'baustelle' ? MATERIALS_BAUSTELLE : MATERIALS_WAERMEPUMPE
   const storageKey = 'counter_' + mode + '_' + selectedBs
 
-  // Laden: erst Supabase, dann localStorage als Fallback
+  // Laden: gemeinsamer Eintrag pro Baustelle+Mode (neuester Stand, egal wer gespeichert hat)
   useEffect(() => {
     if (!selectedBs) return
     async function loadCounter() {
       setCloudStatus('')
-      // Supabase versuchen
-      if (user?.id) {
-        const { data } = await supabase.from('counter_saves')
-          .select('counts,custom')
-          .eq('user_id', user.id)
-          .eq('baustelle_id', selectedBs)
-          .eq('mode', mode)
-          .single()
-        if (data) { setCounts(data.counts||{}); setCustom(data.custom||[]); return }
+      // Neuesten Eintrag fuer diese Baustelle laden (egal von welchem User)
+      const { data: rows } = await supabase.from('counter_saves')
+        .select('counts,custom,updated_at,user_id')
+        .eq('baustelle_id', selectedBs)
+        .eq('mode', mode)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+      if (rows && rows.length > 0) {
+        setCounts(rows[0].counts||{}); setCustom(rows[0].custom||[]); return
       }
-      // localStorage Fallback
+      // localStorage Fallback wenn gar nichts in Supabase
       if (typeof window !== 'undefined') {
         try {
           const saved = window.localStorage.getItem(storageKey)
@@ -1068,28 +1068,35 @@ function CounterPage({ baustellen, user }) {
 
   async function saveCloud(nc, ncu) {
     if (!user?.id || !selectedBs) return
-    setCloudSaving(true); setCloudStatus('')
+    setCloudStatus('saving')
     const { error } = await supabase.from('counter_saves').upsert(
       { user_id: user.id, baustelle_id: selectedBs, mode, counts: nc, custom: ncu, updated_at: new Date().toISOString() },
       { onConflict: 'user_id,baustelle_id,mode' }
     )
-    setCloudSaving(false)
     if (error) { setCloudStatus('error') } else { setCloudStatus('saved') }
     setTimeout(() => setCloudStatus(''), 3000)
   }
 
+  function autoSave(nc, ncu) {
+    // localStorage sofort
+    saveLocal(nc, ncu)
+    // Supabase mit 800ms Debounce (wartet auf letzten Klick)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => saveCloud(nc, ncu), 800)
+  }
+
   function change(id, delta) {
     const nc={...counts,[id]:Math.max(0,(counts[id]||0)+delta)}
-    setCounts(nc); saveLocal(nc,custom)
+    setCounts(nc); autoSave(nc,custom)
   }
   function addCustom() {
     if (!newCustom.trim()) return
     const ncu=[...custom,{id:'c'+Date.now(),label:newCustom.trim()}]
-    setCustom(ncu); setNewCustom(''); setShowAddCustom(false); saveLocal(counts,ncu)
+    setCustom(ncu); setNewCustom(''); setShowAddCustom(false); autoSave(counts,ncu)
   }
   function removeCustom(id) {
     const ncu=custom.filter(c=>c.id!==id); const nc={...counts}; delete nc[id]
-    setCustom(ncu); setCounts(nc); saveLocal(nc,ncu)
+    setCustom(ncu); setCounts(nc); autoSave(nc,ncu)
   }
 
   const aktiveBaustellen = baustellen.filter(b => b.status === 'aktiv')
@@ -1119,10 +1126,12 @@ function CounterPage({ baustellen, user }) {
           <div className="section-header" style={{marginBottom:'0.75rem'}}>
             <span className="section-title">{mode==='baustelle'?'Elektro-Material':'Wärmepumpen-Material'}</span>
             <div style={{display:'flex',gap:6}}>
-              <button className="btn btn-outline btn-sm" onClick={()=>{setCounts({});saveLocal({},custom)}} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
-              <button onClick={()=>saveCloud(counts,custom)} disabled={cloudSaving} style={{padding:'5px 12px',background:cloudStatus==='saved'?'var(--green)':cloudStatus==='error'?'var(--red)':'var(--blue)',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:600,fontSize:'0.78rem',cursor:'pointer',fontFamily:'inherit',minHeight:32,transition:'background 0.2s'}}>
-                {cloudSaving?'⏳ Speichern...':cloudStatus==='saved'?'✓ Gespeichert':cloudStatus==='error'?'✗ Fehler':'☁️ Speichern'}
-              </button>
+              <button className="btn btn-outline btn-sm" onClick={()=>{setCounts({});autoSave({},custom)}} style={{color:'var(--red)',borderColor:'var(--red)'}}>Reset</button>
+              <span style={{fontSize:'0.72rem',fontWeight:600,padding:'4px 10px',borderRadius:20,transition:'all 0.3s',
+                background:cloudStatus==='saved'?'#c6f6d5':cloudStatus==='error'?'#fed7d7':cloudStatus==='saving'?'#ebf8ff':'#f0f0f0',
+                color:cloudStatus==='saved'?'#276749':cloudStatus==='error'?'#9b2c2c':cloudStatus==='saving'?'#2b6cb0':'#999'}}>
+                {cloudStatus==='saved'?'☁️ Gespeichert':cloudStatus==='error'?'✗ Sync-Fehler':cloudStatus==='saving'?'⏳ Sync...':'☁️ Auto-Sync'}
+              </span>
             </div>
           </div>
           <div className="card" style={{padding:'0.5rem 0.75rem'}}>
