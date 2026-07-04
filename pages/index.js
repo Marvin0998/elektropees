@@ -215,12 +215,13 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
   )
 }
 
-function BaustellenPage({baustellen,stunden,isAdmin,onRefresh,user,allUsers}) {
+function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUsers}) {
   const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
   const [showVerschieben,setShowVerschieben]=useState(false); const [verschiebeZiel,setVerschiebeZiel]=useState(''); const [verschiebing,setVerschiebing]=useState(false)
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:'',foto_link:''}); const [saving,setSaving]=useState(false)
-  const list=baustellen.filter(b=>b.status===filter)
+  const kannBueroBaustelle=isAdmin||isBuero
+  const list=baustellen.filter(b=>b.status===filter&&(kannBueroBaustelle||b.name!=='Büro'))
   async function handleSave() {
     if(!form.name||!form.kunde){alert('Name und Kunde sind Pflichtfelder!');return}
     setSaving(true); await supabase.from('baustellen').insert([{...form,status:'aktiv',erstellt_von:user?.id}]); await onRefresh()
@@ -549,7 +550,7 @@ function ProfilPage({user,stunden,baustellen,isBuero}) {
       </div>
 
       {/* ── STUNDENKONTO ── */}
-      {(()=>{
+      {!isBuero&&(()=>{
         const { saldo, verlauf } = berechneStundenkonto(myStunden)
         const positiv = saldo >= 0
         return (
@@ -591,6 +592,18 @@ function ProfilPage({user,stunden,baustellen,isBuero}) {
         )
       })()}
 
+      {/* Büro: Tätigkeitsprotokoll */}
+      {isBuero&&(
+        <div className="card" style={{background:'#ebf8ff',border:'1px solid #bee3f8'}}>
+          <div className="card-title">📋 Tätigkeitsprotokoll</div>
+          <div style={{fontSize:'0.78rem',color:'#4a5568',marginBottom:8}}>Alle deine Einträge werden mit Tätigkeit gespeichert und sind für Betriebsprüfungen nachvollziehbar.</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,textAlign:'center',padding:'8px 0'}}>
+            <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'var(--blue)'}}>{myStunden.filter(s=>s.freigabe_status==='freigegeben').length}</div><div style={{fontSize:'0.7rem',color:'#888'}}>Freigegebene Einträge</div></div>
+            <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'var(--dark)'}}>{myStunden.filter(s=>s.freigabe_status==='ausstehend').length}</div><div style={{fontSize:'0.7rem',color:'#888'}}>Ausstehend</div></div>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-title">📋 Meine Einträge</div>
         {recent.length===0?<p className="text-muted text-sm">Noch keine Einträge.</p>:recent.map(s=>{
@@ -612,7 +625,7 @@ function ProfilPage({user,stunden,baustellen,isBuero}) {
   )
 }
 
-function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
+function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) {
   const [tab,setTab]=useState('freigabe')
   const [showNewUser,setShowNewUser]=useState(false)
   const [selectedMitarbeiter,setSelectedMitarbeiter]=useState(null)
@@ -620,7 +633,14 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
   const [newUser,setNewUser]=useState({name:'',email:'',password:'',rolle:'mitarbeiter',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const mitarbeiter=allUsers.filter(u=>u.role!=='admin')
-  const ausstehend=stunden.filter(s=>s.freigabe_status==='ausstehend')
+  const bueroUserId=allUsers.find(u=>u.role==='buero')?.id
+  const ausstehend=stunden.filter(s=>{
+    if(s.freigabe_status!=='ausstehend') return false
+    // Büro-User darf keine eigenen Stunden freigeben, Admin darf alles
+    const istBueroStunde=allUsers.find(u=>u.id===s.user_id)?.role==='buero'
+    if(!isAdmin&&istBueroStunde) return false
+    return true
+  })
 
   async function handleFreigabe(id,entscheidung) {
     await supabase.from('stunden').update({freigabe_status:entscheidung}).eq('id',id)
@@ -628,7 +648,16 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
     await onRefresh(); setTimeout(()=>setMsg(''),3000)
   }
   async function handleAlleFreigeben() {
-    await supabase.from('stunden').update({freigabe_status:'freigegeben'}).eq('freigabe_status','ausstehend')
+    if(isAdmin) {
+      // Admin gibt alles frei
+      await supabase.from('stunden').update({freigabe_status:'freigegeben'}).eq('freigabe_status','ausstehend')
+    } else {
+      // Büro gibt nur Monteur-Stunden frei (nicht Büro-Stunden)
+      const monteurIds=allUsers.filter(u=>u.role==='mitarbeiter').map(u=>u.id)
+      for(const id of monteurIds) {
+        await supabase.from('stunden').update({freigabe_status:'freigegeben'}).eq('freigabe_status','ausstehend').eq('user_id',id)
+      }
+    }
     setMsg(`✓ ${ausstehend.length} Einträge freigegeben!`); await onRefresh(); setTimeout(()=>setMsg(''),3000)
   }
   async function handleNewUser() {
@@ -710,7 +739,9 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
                         <span style={{fontSize:'0.65rem',background:freigegeben?'var(--green-pale)':'var(--red-pale)',color:freigegeben?'var(--green)':'var(--red)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>
                           {freigegeben?'✓ Freigegeben':'✗ Abgelehnt'}
                         </span>
-                        <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>onRefresh()) }} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'5px 10px',fontFamily:'inherit',fontWeight:600,minHeight:32,minWidth:70}}>🗑️ Löschen</button>
+                        {(isAdmin||(currentUser?.profile?.role==='buero'&&allUsers.find(u=>u.id===s.user_id)?.role!=='buero'))&&(
+                          <button onClick={()=>{ supabase.from('stunden').delete().eq('id',s.id).then(()=>onRefresh()) }} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'5px 10px',fontFamily:'inherit',fontWeight:600,minHeight:32,minWidth:70}}>🗑️ Löschen</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -723,7 +754,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
 
       {tab==='mitarbeiter'&&(
         <>
-          <div style={{marginBottom:'0.75rem',textAlign:'right'}}><button className="btn btn-outline btn-sm" onClick={()=>setShowNewUser(true)}>+ Mitarbeiter anlegen</button></div>
+          {isAdmin&&<div style={{marginBottom:'0.75rem',textAlign:'right'}}><button className="btn btn-outline btn-sm" onClick={()=>setShowNewUser(true)}>+ Mitarbeiter anlegen</button></div>}
           {mitarbeiter.map(u=>{
             const myH=stunden.filter(s=>s.user_id===u.id&&s.freigabe_status==='freigegeben').reduce((a,s)=>a+s.dauer,0)
             const now=new Date(); const ws=getWeekStart(now); const we=new Date(ws); we.setDate(we.getDate()+6)
@@ -1288,11 +1319,11 @@ export default function App() {
         </div>
       </div>
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero}/>}
-      {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData} user={user} allUsers={allUsers}/>}
+      {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
       {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
-      {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
+      {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       <nav className="bottom-nav">
         <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
