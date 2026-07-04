@@ -365,7 +365,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
   )
 }
 
-function UrlaubPage({user,isAdmin,allUsers}) {
+function UrlaubPage({user,isAdmin,isBuero,allUsers}) {
   const [antraege,setAntraege]=useState([])
   const [showNew,setShowNew]=useState(false)
   const [form,setForm]=useState({von:'',bis:'',notiz:''})
@@ -399,7 +399,7 @@ function UrlaubPage({user,isAdmin,allUsers}) {
   return (
     <div className="page-content">
       {msg.text&&<div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-      {!isAdmin&&(
+      {!(isAdmin||isBuero)&&(
         <>
           <div className="section-header"><span className="section-title">Mein Urlaub</span><button className="btn btn-outline btn-sm" onClick={()=>setShowNew(true)}>+ Beantragen</button></div>
           <div className="card">
@@ -433,7 +433,7 @@ function UrlaubPage({user,isAdmin,allUsers}) {
           </div>
         </>
       )}
-      {isAdmin&&(
+      {(isAdmin||isBuero)&&(
         <>
           <div className="section-header"><span className="section-title">Urlaubsanträge</span></div>
           {antraege.filter(a=>a.status==='ausstehend').length===0
@@ -1320,7 +1320,7 @@ export default function App() {
       </div>
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
-      {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
+      {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} isBuero={isBuero} allUsers={allUsers}/>}
       {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
