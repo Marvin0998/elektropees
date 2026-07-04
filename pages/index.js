@@ -503,7 +503,7 @@ function UrlaubPage({user,isAdmin,allUsers}) {
   )
 }
 
-function ProfilPage({user,stunden,baustellen}) {
+function ProfilPage({user,stunden,baustellen,isBuero}) {
   const profile=user.profile||{}
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const freigegebene=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -522,18 +522,19 @@ function ProfilPage({user,stunden,baustellen}) {
           <div className="employee-avatar" style={{width:56,height:56,fontSize:'1.1rem'}}>{initials(profile.name||user.email)}</div>
           <div>
             <div className="font-bold" style={{fontSize:'1.1rem',color:'#0A0A44'}}>{profile.name||user.email}</div>
-            <div className="text-xs text-muted">{profile.role==='admin'?'Administrator':'Mitarbeiter'}</div>
+            <div className="text-xs text-muted">{profile.role==='admin'?'Administrator':profile.role==='buero'?'Büro / Minijob':'Mitarbeiter'}</div>
             <div className="text-xs text-muted">{user.email}</div>
           </div>
         </div>
         <div className="stats-row" style={{marginBottom:0}}>
           <div className="stat-card"><div className="stat-num">{total.toFixed(1)}</div><div className="stat-label">Freigegebene Std.</div></div>
           <div className="stat-card"><div className="stat-num">{woche.toFixed(1)}</div><div className="stat-label">Std. diese Woche</div></div>
-          <div className={`stat-card ${diff>=0?'success':'danger'}`}>
+          {!isBuero&&<div className={`stat-card ${diff>=0?'success':'danger'}`}>
             <div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div>
             <div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
-          </div>
-          <div className="stat-card"><div className="stat-num">{regelStunden}</div><div className="stat-label">Regelstunden/Wo</div></div>
+          </div>}
+          {!isBuero&&<div className="stat-card"><div className="stat-num">{regelStunden}</div><div className="stat-label">Regelstunden/Wo</div></div>}
+          {isBuero&&<div className="stat-card"><div className="stat-num" style={{fontSize:'0.85rem',color:'var(--blue)'}}>Minijob</div><div className="stat-label">Flex-Arbeitszeit</div></div>}
         </div>
       </div>
       <div className="card">
@@ -616,7 +617,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
   const [showNewUser,setShowNewUser]=useState(false)
   const [selectedMitarbeiter,setSelectedMitarbeiter]=useState(null)
   const [weekOffsets,setWeekOffsets]=useState({})
-  const [newUser,setNewUser]=useState({name:'',email:'',password:'',regel_stunden:38,urlaub_gesamt:24})
+  const [newUser,setNewUser]=useState({name:'',email:'',password:'',rolle:'mitarbeiter',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const mitarbeiter=allUsers.filter(u=>u.role!=='admin')
   const ausstehend=stunden.filter(s=>s.freigabe_status==='ausstehend')
@@ -639,7 +640,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
     const {data,error}=await supabase.auth.signUp({email:autoEmail,password:newUser.password})
     if(error){alert('Fehler: '+error.message);setSaving(false);return}
     if(data.user){
-      await supabase.from('profiles').upsert({id:data.user.id,name:newUser.name,email:autoEmail,role:'mitarbeiter',regel_stunden:newUser.regel_stunden,urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0})
+      await supabase.from('profiles').upsert({id:data.user.id,name:newUser.name,email:autoEmail,role:newUser.rolle||'mitarbeiter',regel_stunden:newUser.regel_stunden,urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0})
     }
     setMsg('✓ Mitarbeiter "'+newUser.name+'" wurde angelegt!')
     setNewUser({name:'',password:'',regel_stunden:38,urlaub_gesamt:24})
@@ -870,6 +871,14 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
           <div className="modal-handle"/><div className="modal-title">👤 Mitarbeiter anlegen</div>
           <div className="form-group"><label>Name *</label><input value={newUser.name} onChange={e=>setNewUser(u=>({...u,name:e.target.value}))} placeholder="Max Mustermann"/></div>
           <div className="form-group"><label>Passwort *</label><input type="password" value={newUser.password} onChange={e=>setNewUser(u=>({...u,password:e.target.value}))} placeholder="Mindestens 6 Zeichen"/></div>
+          <div className="form-group">
+            <label>Rolle</label>
+            <select value={newUser.rolle} onChange={e=>setNewUser(u=>({...u,rolle:e.target.value}))}>
+              <option value="mitarbeiter">Mitarbeiter (Elektriker)</option>
+              <option value="buero">Büro (Minijob / Flex)</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
           <div style={{background:'#f7fafc',borderRadius:8,padding:'0.6rem 0.8rem',fontSize:'0.78rem',color:'#718096',marginBottom:'0.75rem'}}>
             💡 Der Mitarbeiter meldet sich mit seinem Namen und diesem Passwort an.
           </div>
@@ -885,8 +894,9 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh}) {
   )
 }
 
-function StundenModal({user,baustellen,onClose,onSaved}) {
-  const [form,setForm]=useState({datum:today(),start:'07:30',end:'17:00',baustelle_id:'',notiz:''})
+function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
+  const bueroBaustelle=baustellen.find(b=>b.name==='Büro'&&b.status==='aktiv')
+  const [form,setForm]=useState({datum:today(),start:'08:00',end:'12:00',baustelle_id:isBuero&&bueroBaustelle?bueroBaustelle.id:'',notiz:'',taetigkeit:''})
   const [saving,setSaving]=useState(false); const [showNewBs,setShowNewBs]=useState(false)
   const [newBs,setNewBs]=useState({name:'',kunde:'',adresse:'',beschreibung:''})
   const aktiveBaustellen=baustellen.filter(b=>b.status==='aktiv')
@@ -895,6 +905,7 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
   async function handleSave() {
     if(!form.baustelle_id){alert('Bitte eine Baustelle auswählen!');return}
     if(dauer<=0){alert('Endzeit muss nach der Startzeit liegen!');return}
+    if(isBuero&&!form.taetigkeit.trim()){alert('Bitte Tätigkeit beschreiben!');return}
     setSaving(true)
     const {data:existing}=await supabase.from('stunden').select('start_zeit,end_zeit,baustellen(name)').eq('user_id',user.id).eq('datum',form.datum)
     if(existing&&existing.length>0) {
@@ -910,7 +921,8 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
         return
       }
     }
-    await supabase.from('stunden').insert([{user_id:user.id,baustelle_id:form.baustelle_id,datum:form.datum,start_zeit:form.start,end_zeit:form.end,pause_min:45,dauer,notiz:form.notiz,freigabe_status:'ausstehend'}])
+    const notizFinal=isBuero?form.taetigkeit:(form.notiz||'')
+    await supabase.from('stunden').insert([{user_id:user.id,baustelle_id:form.baustelle_id,datum:form.datum,start_zeit:form.start,end_zeit:form.end,pause_min:isBuero?0:45,dauer,notiz:notizFinal,freigabe_status:'ausstehend'}])
     await onSaved(); onClose(); setSaving(false)
   }
   async function handleNewBs() {
@@ -920,8 +932,9 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
   }
   return (
     <div className="modal-overlay open"><div className="modal-sheet">
-      <div className="modal-handle"/><div className="modal-title">⏱️ Stunden erfassen</div>
-      {isFriday&&<div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:10,padding:'0.6rem 1rem',marginBottom:'1rem',fontSize:'0.82rem',color:'#92400e'}}>🟡 <strong>Freitag</strong> — wird als Überstunden gewertet</div>}
+      <div className="modal-handle"/><div className="modal-title">{isBuero?'📋 Bürostunden erfassen':'⏱️ Stunden erfassen'}</div>
+      {isBuero&&<div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:10,padding:'0.6rem 1rem',marginBottom:'1rem',fontSize:'0.82rem',color:'#2b6cb0'}}>📋 <strong>Büro-Modus</strong> — Tätigkeit wird als Pflichtfeld erfasst</div>}
+      {!isBuero&&isFriday&&<div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:10,padding:'0.6rem 1rem',marginBottom:'1rem',fontSize:'0.82rem',color:'#92400e'}}>🟡 <strong>Freitag</strong> — wird als Überstunden gewertet</div>}
       <div className="form-group"><label>Mitarbeiter</label><input value={user.profile?.name||user.email} readOnly style={{background:'#f7fafc',color:'#718096'}}/></div>
       <div className="form-group"><label>Datum</label><input type="date" value={form.datum} onChange={e=>setForm(f=>({...f,datum:e.target.value}))}/></div>
       <div className="form-row">
@@ -930,20 +943,30 @@ function StundenModal({user,baustellen,onClose,onSaved}) {
       </div>
       <div className="calc-box">
         <div>
-          <div className="calc-label">Arbeitszeit (inkl. 45 Min Pause)</div>
-          <div className="calc-note">✓ Pause ist bezahlt · Freigabe durch Chef erforderlich</div>
+          <div className="calc-label">Arbeitszeit{isBuero?' (ohne Pausenabzug)':' (inkl. 45 Min Pause)'}</div>
+          <div className="calc-note">{isBuero?'📋 Büro-Zeiterfassung · Freigabe erforderlich':'✓ Pause ist bezahlt · Freigabe durch Chef erforderlich'}</div>
         </div>
         <div className="calc-value">{dauer.toFixed(2)} Std</div>
       </div>
-      <div className="form-group">
-        <label>Baustelle</label>
-        <select value={form.baustelle_id} onChange={e=>setForm(f=>({...f,baustelle_id:e.target.value}))}>
-          <option value="">— Bitte auswählen —</option>
-          {aktiveBaustellen.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-      </div>
-      <div style={{marginBottom:'1rem'}}><button className="btn btn-outline btn-sm" onClick={()=>setShowNewBs(true)}>+ Neue Baustelle anlegen</button></div>
-      <div className="form-group"><label>Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Kabelverlegung EG..."/></div>
+      {isBuero?(
+        <div className="form-group">
+          <label>Was wurde getan? *</label>
+          <textarea value={form.taetigkeit} onChange={e=>setForm(f=>({...f,taetigkeit:e.target.value}))} placeholder="z.B. Rechnungen bearbeitet, Angebote geschrieben, Telefonate, Buchhaltung..." style={{minHeight:90,border:!form.taetigkeit.trim()?'1.5px solid #fc8181':'1.5px solid var(--green)'}}/>
+          {!form.taetigkeit.trim()&&<div style={{fontSize:'0.72rem',color:'var(--red)',marginTop:3}}>Pflichtfeld — bitte ausfüllen</div>}
+        </div>
+      ):(
+        <>
+          <div className="form-group">
+            <label>Baustelle</label>
+            <select value={form.baustelle_id} onChange={e=>setForm(f=>({...f,baustelle_id:e.target.value}))}>
+              <option value="">— Bitte auswählen —</option>
+              {aktiveBaustellen.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:'1rem'}}><button className="btn btn-outline btn-sm" onClick={()=>setShowNewBs(true)}>+ Neue Baustelle anlegen</button></div>
+          <div className="form-group"><label>Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Kabelverlegung EG..."/></div>
+        </>
+      )}
       <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Stunden einreichen'}</button>
       <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
       {showNewBs&&(
@@ -1228,6 +1251,7 @@ export default function App() {
   if(loading)return <div className="loading">App wird geladen...</div>
   if(!user)return <LoginPage onLogin={u=>{setUser(u)}}/>
   const isAdmin=user.profile?.role==='admin'
+  const isBuero=user.profile?.role==='buero'
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   return (
     <div className="app-container">
@@ -1254,7 +1278,7 @@ export default function App() {
             </div>
             <div>
               <span style={{color:'rgba(255,255,255,0.85)',fontSize:'0.82rem',fontWeight:500}}>{user.profile?.name||user.email}</span>
-              <span style={{color:'rgba(255,255,255,0.35)',fontSize:'0.68rem',marginLeft:6}}>{user.profile?.role==='admin'?'Admin':'Mitarbeiter'}</span>
+              <span style={{color:'rgba(255,255,255,0.35)',fontSize:'0.68rem',marginLeft:6}}>{user.profile?.role==='admin'?'Admin':user.profile?.role==='buero'?'Büro':'Mitarbeiter'}</span>
             </div>
           </div>
           <div style={{display:'flex',gap:6}}>
@@ -1263,20 +1287,20 @@ export default function App() {
           </div>
         </div>
       </div>
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} onRefresh={loadData} user={user} allUsers={allUsers}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} allUsers={allUsers}/>}
       {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
-      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen}/>}
-      {page==='admin'&&isAdmin&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
-      {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData}/>}
+      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
+      {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData}/>}
+      {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       <nav className="bottom-nav">
         <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
         <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
         <button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>
         <button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>
         <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
-        {isAdmin&&(
+        {(isAdmin||isBuero)&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
             <IconStar/>
             {ausstehendCount>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#e53e3e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{ausstehendCount}</span>}
