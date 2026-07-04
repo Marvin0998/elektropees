@@ -118,7 +118,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
+function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,onKrank}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -141,8 +141,11 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
       <div key={s.id} className="entry-item">
         <div className={`entry-dot ${dotClass}`}/>
         <div className="entry-info">
-          <div className="entry-site">{b?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}</div>
-          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&` · ${s.notiz}`}</div>
+          <div className="entry-site">
+            {s.notiz==='🤒 Krank'?<span style={{color:'#c53030',fontWeight:700}}>🤒 Krankmeldung</span>:(b?.name||'—')}
+            {isFri&&s.notiz!=='🤒 Krank'&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}
+          </div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&s.notiz!=='🤒 Krank'?` · ${s.notiz}`:''}</div>
         </div>
         <div className="entry-right">
           <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
@@ -185,6 +188,15 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin}) {
         </div>
         <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
       </button>
+      {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'1rem',background:'#fff5f5',border:'1.5px solid #feb2b2',borderRadius:'var(--r-xl)',padding:'0.875rem 1.25rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
+        <div style={{width:44,height:44,borderRadius:'50%',background:'#fed7d7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.4rem',flexShrink:0}}>🤒</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:'0.7rem',fontWeight:600,color:'#c53030',textTransform:'uppercase',letterSpacing:'0.05em'}}>Krankmeldung</div>
+          <div style={{fontSize:'1rem',fontWeight:700,color:'#742a2a'}}>Krank melden</div>
+          <div style={{fontSize:'0.78rem',color:'#c53030'}}>9,5h werden gutgeschrieben</div>
+        </div>
+        <div style={{color:'#feb2b2',fontSize:'1.2rem'}}>→</div>
+      </button>}
       {ausstehend>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
           <span style={{fontSize:'0.85rem',color:'#92400e'}}>⏳ {ausstehend} Eintrag{ausstehend>1?'e':''} wartet auf Freigabe</span>
@@ -704,7 +716,11 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
                   <div key={s.id} className="freigabe-card">
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                       <div>
-                        <div className="freigabe-name">{s.profiles?.name||'—'}{isFri&&<span className="badge badge-pending" style={{marginLeft:6}}>Freitag</span>}</div>
+                        <div className="freigabe-name">
+                          {s.profiles?.name||'—'}
+                          {s.notiz==='🤒 Krank'&&<span style={{marginLeft:6,fontSize:'0.72rem',background:'#fed7d7',color:'#c53030',padding:'1px 8px',borderRadius:10,fontWeight:700}}>🤒 Krank</span>}
+                          {isFri&&s.notiz!=='🤒 Krank'&&<span className="badge badge-pending" style={{marginLeft:6}}>Freitag</span>}
+                        </div>
                         <div className="freigabe-meta">{getDayName(s.datum)}, {formatDate(s.datum)}</div>
                         <div className="freigabe-meta">🏗️ {b?.name||'—'} · {s.start_zeit}–{s.end_zeit}</div>
                         {s.notiz&&<div className="freigabe-meta">📝 {s.notiz}</div>}
@@ -852,7 +868,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
                                       <div key={s.id} style={{display:'flex',alignItems:'center',gap:'0.5rem',padding:'4px 0 4px 8px'}}>
                                         <div style={{width:5,height:5,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
                                         <div style={{flex:1,minWidth:0}}>
-                                          <div style={{fontSize:'0.8rem',fontWeight:500,color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b?.name||'—'}</div>
+                                          <div style={{fontSize:'0.8rem',fontWeight:500,color:s.notiz==='🤒 Krank'?'#c53030':'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.notiz==='🤒 Krank'?'🤒 Kranktag':(b?.name||'—')}</div>
                                           <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{s.start_zeit}–{s.end_zeit}</div>
                                         </div>
                                         <span style={{fontSize:'0.8rem',fontWeight:600,color:'var(--dark)',fontFamily:"'DM Mono',monospace",flexShrink:0}}>{s.dauer.toFixed(1)}h</span>
@@ -922,6 +938,73 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
         </div></div>
       )}
     </div>
+  )
+}
+
+
+function KrankModal({user,baustellen,onClose,onSaved}) {
+  const [datum,setDatum]=useState(today())
+  const [saving,setSaving]=useState(false)
+  const [confirm,setConfirm]=useState(false)
+  const tagName=getDayName(datum)
+  const dow=new Date(datum).getDay()
+  const istWerktag=dow>=1&&dow<=4 // Mo=1 bis Do=4
+  const krankBaustelle=baustellen.find(b=>b.name==='Büro')||baustellen.find(b=>b.status==='aktiv')
+
+  async function handleSave() {
+    if(!istWerktag){alert('Krank kann nur Mo–Do eingetragen werden!');return}
+    // Prüfen ob schon ein Eintrag für diesen Tag existiert
+    const {data:existing}=await supabase.from('stunden').select('id').eq('user_id',user.id).eq('datum',datum)
+    if(existing&&existing.length>0){alert('Für diesen Tag gibt es bereits einen Eintrag!');return}
+    setSaving(true)
+    await supabase.from('stunden').insert([{
+      user_id:user.id,
+      baustelle_id:krankBaustelle?.id||null,
+      datum,
+      start_zeit:'07:30',
+      end_zeit:'17:00',
+      pause_min:45,
+      dauer:9.5,
+      notiz:'🤒 Krank',
+      freigabe_status:'ausstehend'
+    }])
+    await onSaved(); onClose(); setSaving(false)
+  }
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet">
+      <div className="modal-handle"/>
+      <div className="modal-title">🤒 Krank melden</div>
+      <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:'#c53030'}}>
+        Es werden automatisch <strong>9,5 Stunden</strong> als Kranktag eingetragen und müssen vom Admin freigegeben werden.
+      </div>
+      <div className="form-group">
+        <label>Datum des Kranktages</label>
+        <input type="date" value={datum} onChange={e=>{setDatum(e.target.value);setConfirm(false)}}/>
+      </div>
+      {datum&&(
+        <div style={{background:istWerktag?'#f0fff4':'#fff5f5',border:`1px solid ${istWerktag?'#9ae6b4':'#feb2b2'}`,borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:istWerktag?'#276749':'#c53030',textAlign:'center',fontWeight:600}}>
+          {istWerktag?`✓ ${tagName}, ${formatDate(datum)} — Werktag`:`✗ ${tagName} — nur Mo–Do möglich`}
+        </div>
+      )}
+      {istWerktag&&!confirm&&(
+        <button className="btn btn-primary" style={{background:'#c53030',marginBottom:'0.5rem'}} onClick={()=>setConfirm(true)}>
+          🤒 Kranktag eintragen
+        </button>
+      )}
+      {istWerktag&&confirm&&(
+        <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:10,padding:'1rem',marginBottom:'0.75rem'}}>
+          <div style={{fontWeight:600,color:'#742a2a',marginBottom:'0.5rem',fontSize:'0.9rem'}}>Wirklich für {formatDate(datum)} krank melden?</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+            <button onClick={handleSave} disabled={saving} style={{padding:'0.6rem',background:'#c53030',color:'white',border:'none',borderRadius:'var(--r-sm)',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              {saving?'Wird gespeichert...':'✓ Ja, bestätigen'}
+            </button>
+            <button onClick={()=>setConfirm(false)} style={{padding:'0.6rem',background:'white',border:'1px solid var(--border2)',borderRadius:'var(--r-sm)',cursor:'pointer',fontFamily:'inherit'}}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+      <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
+    </div></div>
   )
 }
 
@@ -1237,6 +1320,7 @@ export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
   const [showStunden,setShowStunden]=useState(false)
+  const [showKrank,setShowKrank]=useState(false)
   const [installPrompt,setInstallPrompt]=useState(null)
   const [showInstallBanner,setShowInstallBanner]=useState(false)
 
@@ -1318,13 +1402,14 @@ export default function App() {
           </div>
         </div>
       </div>
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} isBuero={isBuero} allUsers={allUsers}/>}
       {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
+      {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
         <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
         <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
