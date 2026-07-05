@@ -1345,8 +1345,8 @@ export default function App() {
 
   async function loadData() {
     const [{data:bs},{data:st},{data:users}]=await Promise.all([
-      supabase.from('baustellen').select('*').order('created_at',{ascending:false}),
-      supabase.from('stunden').select('*, profiles(name), baustellen(name)').order('datum',{ascending:false}),
+      supabase.from('baustellen').select('*').order('created_at',{ascending:false}).limit(1000),
+      supabase.from('stunden').select('*, profiles(name), baustellen(name)').order('datum',{ascending:false}).limit(2000),
       supabase.from('profiles').select('*')
     ])
     setBaustellen(bs||[]); setStunden(st||[]); setAllUsers(users||[])
