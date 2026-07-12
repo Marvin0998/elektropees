@@ -536,7 +536,7 @@ function ProfilPage({user,stunden,baustellen,isBuero}) {
           <div className="employee-avatar" style={{width:56,height:56,fontSize:'1.1rem'}}>{initials(profile.name||user.email)}</div>
           <div>
             <div className="font-bold" style={{fontSize:'1.1rem',color:'#0A0A44'}}>{profile.name||user.email}</div>
-            <div className="text-xs text-muted">{profile.role==='admin'?'Administrator':profile.role==='buero'?'Büro / Minijob':'Mitarbeiter'}</div>
+            <div className="text-xs text-muted">{profile.role==='admin'?'Administrator':profile.role==='buero'?'Büro / Minijob':profile.role==='azubi'?'Azubi':'Mitarbeiter'}</div>
             <div className="text-xs text-muted">{user.email}</div>
           </div>
         </div>
@@ -678,7 +678,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
     if(newUser.password.length<6){alert('Passwort muss mindestens 6 Zeichen haben!');return}
     setSaving(true)
     const cleanName=newUser.name.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z.]/g,'')
-    const autoEmail=cleanName+'@elektropees.intern'
+    const autoEmail=cleanName+'@elektropees.de'
     const {data,error}=await supabase.auth.signUp({email:autoEmail,password:newUser.password})
     if(error){alert('Fehler: '+error.message);setSaving(false);return}
     if(data.user){
@@ -923,6 +923,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
             <label>Rolle</label>
             <select value={newUser.rolle} onChange={e=>setNewUser(u=>({...u,rolle:e.target.value}))}>
               <option value="mitarbeiter">Mitarbeiter (Elektriker)</option>
+              <option value="azubi">Azubi</option>
               <option value="buero">Büro (Minijob / Flex)</option>
               <option value="admin">Admin</option>
             </select>
@@ -1689,7 +1690,7 @@ export default function App() {
             </div>
             <div>
               <span style={{color:'rgba(255,255,255,0.85)',fontSize:'0.82rem',fontWeight:500}}>{user.profile?.name||user.email}</span>
-              <span style={{color:'rgba(255,255,255,0.35)',fontSize:'0.68rem',marginLeft:6}}>{user.profile?.role==='admin'?'Admin':user.profile?.role==='buero'?'Büro':'Mitarbeiter'}</span>
+              <span style={{color:'rgba(255,255,255,0.35)',fontSize:'0.68rem',marginLeft:6}}>{user.profile?.role==='admin'?'Admin':user.profile?.role==='buero'?'Büro':user.profile?.role==='azubi'?'Azubi':'Mitarbeiter'}</span>
             </div>
           </div>
           <div style={{display:'flex',gap:6}}>
