@@ -7,6 +7,7 @@ const IconUser = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const IconStar = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
 const IconClock = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
 const IconCounter = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><circle cx="8" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="16" cy="10" r="1" fill="currentColor"/></svg>
+const IconKalender = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
 const IconSun = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
 
 function formatDate(d) { if(!d)return'—'; const [y,m,day]=d.split('-'); return `${day}.${m}.${y}` }
@@ -1316,9 +1317,313 @@ function CounterPage({ baustellen, user }) {
   )
 }
 
+const IconKalender = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+
+const TYP_CONFIG = {
+  termin:   { label: 'Termin',   farbe: '#1B52DD', emoji: '📅' },
+  deadline: { label: 'Deadline', farbe: '#D63E3E', emoji: '🔴' },
+  baustelle:{ label: 'Baustelle',farbe: '#d69e2e', emoji: '🏗️' },
+}
+
+function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
+  const [termine,setTermine]=useState([])
+  const [ansicht,setAnsicht]=useState('monat') // 'monat'|'woche'|'liste'
+  const [heute]=useState(new Date())
+  const [ankerDatum,setAnkerDatum]=useState(new Date())
+  const [showNeu,setShowNeu]=useState(false)
+  const [showDetail,setShowDetail]=useState(null)
+  const [form,setForm]=useState({titel:'',beschreibung:'',datum:today(),uhrzeit:'',bis_datum:'',bis_uhrzeit:'',typ:'termin',baustelle_id:'',zugewiesen_an:[],farbe:'#1B52DD'})
+  const [saving,setSaving]=useState(false)
+  const kannBearbeiten=isAdmin||isBuero
+
+  useEffect(()=>{loadTermine()},[])
+  async function loadTermine() {
+    const {data}=await supabase.from('termine').select('*').order('datum',{ascending:true}).limit(500)
+    setTermine(data||[])
+  }
+  async function handleSave() {
+    if(!form.titel.trim()){alert('Bitte Titel eingeben!');return}
+    if(!form.datum){alert('Bitte Datum angeben!');return}
+    setSaving(true)
+    await supabase.from('termine').insert([{...form,erstellt_von:user.id,zugewiesen_an:form.zugewiesen_an}])
+    await loadTermine()
+    setShowNeu(false); setForm({titel:'',beschreibung:'',datum:today(),uhrzeit:'',bis_datum:'',bis_uhrzeit:'',typ:'termin',baustelle_id:'',zugewiesen_an:[],farbe:'#1B52DD'})
+    setSaving(false)
+  }
+  async function handleDelete(id) {
+    await supabase.from('termine').delete().eq('id',id)
+    await loadTermine(); setShowDetail(null)
+  }
+
+  function toggleZuweisung(uid) {
+    setForm(f=>({...f,zugewiesen_an:f.zugewiesen_an.includes(uid)?f.zugewiesen_an.filter(x=>x!==uid):[...f.zugewiesen_an,uid]}))
+  }
+
+  // Badge: meine ungesehenen/zukünftigen Termine
+  const meineTermine=termine.filter(t=>t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)
+  const baldFaellig=meineTermine.filter(t=>{
+    const d=new Date(t.datum); const diff=(d-heute)/(1000*60*60*24)
+    return diff>=0&&diff<=7
+  }).length
+
+  // ── MONATSANSICHT ──────────────────────────────────────────────────────────
+  function MonatsAnsicht() {
+    const jahr=ankerDatum.getFullYear(); const monat=ankerDatum.getMonth()
+    const ersterTag=new Date(jahr,monat,1); const letzterTag=new Date(jahr,monat+1,0)
+    const startDow=ersterTag.getDay()===0?6:ersterTag.getDay()-1 // Mo=0
+    const tage=[]
+    for(let i=0;i<startDow;i++) tage.push(null)
+    for(let d=1;d<=letzterTag.getDate();d++) tage.push(new Date(jahr,monat,d))
+    const monatNamen=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+
+    return (
+      <div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <button onClick={()=>setAnkerDatum(new Date(ankerDatum.getFullYear(),ankerDatum.getMonth()-1,1))} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+          <span style={{fontWeight:700,color:'var(--dark)',fontSize:'1rem'}}>{monatNamen[monat]} {jahr}</span>
+          <button onClick={()=>setAnkerDatum(new Date(ankerDatum.getFullYear(),ankerDatum.getMonth()+1,1))} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
+          {['Mo','Di','Mi','Do','Fr','Sa','So'].map(d=><div key={d} style={{textAlign:'center',fontSize:'0.65rem',fontWeight:700,color:'var(--text3)',padding:'4px 0'}}>{d}</div>)}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
+          {tage.map((tag,i)=>{
+            if(!tag) return <div key={i}/>
+            const tagStr=tag.toISOString().split('T')[0]
+            const tagTermine=termine.filter(t=>t.datum===tagStr)
+            const istHeute=tagStr===heute.toISOString().split('T')[0]
+            const istWE=tag.getDay()===0||tag.getDay()===6
+            return (
+              <div key={i} onClick={()=>{if(tagTermine.length>0)setShowDetail(tagTermine)}} style={{minHeight:52,padding:3,borderRadius:6,background:istHeute?'var(--blue)':istWE?'#f7f7f7':'white',border:istHeute?'none':'1px solid #eee',cursor:tagTermine.length>0?'pointer':'default',position:'relative'}}>
+                <div style={{fontSize:'0.72rem',fontWeight:istHeute?700:400,color:istHeute?'white':istWE?'#aaa':'var(--dark)',textAlign:'center'}}>{tag.getDate()}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:1,marginTop:2}}>
+                  {tagTermine.slice(0,2).map(t=>(
+                    <div key={t.id} style={{fontSize:'0.55rem',background:TYP_CONFIG[t.typ]?.farbe||'var(--blue)',color:'white',borderRadius:3,padding:'1px 3px',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',fontWeight:600}}>
+                      {TYP_CONFIG[t.typ]?.emoji} {t.titel}
+                    </div>
+                  ))}
+                  {tagTermine.length>2&&<div style={{fontSize:'0.55rem',color:'var(--text3)',textAlign:'center'}}>+{tagTermine.length-2}</div>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── WOCHENANSICHT ──────────────────────────────────────────────────────────
+  function WochenAnsicht() {
+    const wochenStart=getWeekStart(new Date(ankerDatum))
+    const tage=[]
+    for(let i=0;i<7;i++){const d=new Date(wochenStart);d.setDate(d.getDate()+i);tage.push(d)}
+    const tagNamen=['Mo','Di','Mi','Do','Fr','Sa','So']
+    const wochenEnd=new Date(wochenStart);wochenEnd.setDate(wochenStart.getDate()+6)
+
+    return (
+      <div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()-7);setAnkerDatum(d)}} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+          <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.9rem'}}>{formatDate(wochenStart.toISOString().split('T')[0])} – {formatDate(wochenEnd.toISOString().split('T')[0])}</span>
+          <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()+7);setAnkerDatum(d)}} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+          {tage.map((tag,i)=>{
+            const tagStr=tag.toISOString().split('T')[0]
+            const tagTermine=termine.filter(t=>t.datum===tagStr)
+            const istHeute=tagStr===heute.toISOString().split('T')[0]
+            const istWE=i>=5
+            return (
+              <div key={i} style={{background:istHeute?'#ebf8ff':istWE?'#fafafa':'white',borderRadius:10,padding:'6px 4px',border:`1.5px solid ${istHeute?'var(--blue)':'#eee'}`,minHeight:80}}>
+                <div style={{textAlign:'center',marginBottom:4}}>
+                  <div style={{fontSize:'0.6rem',color:istWE?'#aaa':'var(--text3)',fontWeight:600}}>{tagNamen[i]}</div>
+                  <div style={{fontSize:'0.85rem',fontWeight:700,color:istHeute?'var(--blue)':istWE?'#bbb':'var(--dark)',width:24,height:24,borderRadius:'50%',background:istHeute?'var(--blue)':'transparent',color:istHeute?'white':'inherit',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto'}}>{tag.getDate()}</div>
+                </div>
+                {tagTermine.map(t=>(
+                  <div key={t.id} onClick={()=>setShowDetail([t])} style={{fontSize:'0.6rem',background:TYP_CONFIG[t.typ]?.farbe||'var(--blue)',color:'white',borderRadius:4,padding:'2px 4px',marginBottom:2,cursor:'pointer',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {TYP_CONFIG[t.typ]?.emoji} {t.titel}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── LISTENANSICHT ──────────────────────────────────────────────────────────
+  function ListenAnsicht() {
+    const kommend=termine.filter(t=>t.datum>=heute.toISOString().split('T')[0]).slice(0,50)
+    const vergangen=termine.filter(t=>t.datum<heute.toISOString().split('T')[0]).sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,20)
+    const TerminItem=({t})=>{
+      const bs=baustellen.find(b=>b.id===t.baustelle_id)
+      const ersteller=allUsers.find(u=>u.id===t.erstellt_von)
+      const zugewiesen=allUsers.filter(u=>t.zugewiesen_an?.includes(u.id))
+      const cfg=TYP_CONFIG[t.typ]||TYP_CONFIG.termin
+      const istMeiner=t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id
+      return (
+        <div onClick={()=>setShowDetail([t])} style={{display:'flex',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)',cursor:'pointer',opacity:t.datum<heute.toISOString().split('T')[0]?0.6:1}}>
+          <div style={{width:40,flexShrink:0,textAlign:'center'}}>
+            <div style={{fontSize:'1.3rem'}}>{cfg.emoji}</div>
+            <div style={{fontSize:'0.55rem',background:cfg.farbe,color:'white',borderRadius:4,padding:'1px 3px',fontWeight:700,marginTop:2}}>{cfg.label}</div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:'0.9rem',color:'var(--dark)',display:'flex',alignItems:'center',gap:6}}>
+              {t.titel}
+              {istMeiner&&<span style={{fontSize:'0.6rem',background:'var(--blue-pale)',color:'var(--blue)',padding:'1px 6px',borderRadius:10,fontWeight:600}}>Mein Termin</span>}
+            </div>
+            <div style={{fontSize:'0.75rem',color:'var(--text3)',marginTop:2}}>
+              📅 {formatDate(t.datum)}{t.uhrzeit&&` · ${t.uhrzeit.slice(0,5)} Uhr`}
+              {t.bis_datum&&t.bis_datum!==t.datum&&` – ${formatDate(t.bis_datum)}`}
+            </div>
+            {bs&&<div style={{fontSize:'0.72rem',color:'var(--blue)',marginTop:2}}>🏗️ {bs.name}</div>}
+            {zugewiesen.length>0&&<div style={{fontSize:'0.7rem',color:'var(--text3)',marginTop:2}}>👷 {zugewiesen.map(u=>u.name).join(', ')}</div>}
+            {t.beschreibung&&<div style={{fontSize:'0.72rem',color:'#666',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.beschreibung}</div>}
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div>
+        {kommend.length===0&&vergangen.length===0&&<p className="text-muted text-sm">Noch keine Termine.</p>}
+        {kommend.length>0&&(
+          <div className="card" style={{marginBottom:12}}>
+            <div className="card-title">📅 Kommende Termine ({kommend.length})</div>
+            {kommend.map(t=><TerminItem key={t.id} t={t}/>)}
+          </div>
+        )}
+        {vergangen.length>0&&(
+          <div className="card">
+            <div className="card-title" style={{color:'var(--text3)'}}>✓ Vergangene Termine</div>
+            {vergangen.map(t=><TerminItem key={t.id} t={t}/>)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── DETAIL MODAL ────────────────────────────────────────────────────────────
+  const DetailModal=()=>{
+    if(!showDetail) return null
+    const liste=Array.isArray(showDetail)?showDetail:[showDetail]
+    return (
+      <div className="modal-overlay open"><div className="modal-sheet">
+        <div className="modal-handle"/>
+        <div className="modal-title">📅 {liste.length>1?`${liste.length} Termine`:'Termin'}</div>
+        {liste.map(t=>{
+          const cfg=TYP_CONFIG[t.typ]||TYP_CONFIG.termin
+          const bs=baustellen.find(b=>b.id===t.baustelle_id)
+          const ersteller=allUsers.find(u=>u.id===t.erstellt_von)
+          const zugewiesen=allUsers.filter(u=>t.zugewiesen_an?.includes(u.id))
+          return (
+            <div key={t.id} style={{background:'var(--bg)',borderRadius:12,padding:'1rem',marginBottom:12,border:`2px solid ${cfg.farbe}22`}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                <span style={{fontSize:'1.5rem'}}>{cfg.emoji}</span>
+                <div>
+                  <div style={{fontWeight:700,fontSize:'1rem',color:'var(--dark)'}}>{t.titel}</div>
+                  <span style={{fontSize:'0.68rem',background:cfg.farbe,color:'white',padding:'1px 8px',borderRadius:10,fontWeight:600}}>{cfg.label}</span>
+                </div>
+              </div>
+              <div style={{fontSize:'0.82rem',color:'var(--text3)',lineHeight:1.9}}>
+                <div>📅 {formatDate(t.datum)}{t.uhrzeit&&` · ${t.uhrzeit.slice(0,5)} Uhr`}{t.bis_datum&&t.bis_datum!==t.datum&&` bis ${formatDate(t.bis_datum)}`}{t.bis_uhrzeit&&` ${t.bis_uhrzeit.slice(0,5)} Uhr`}</div>
+                {bs&&<div>🏗️ Baustelle: <strong>{bs.name}</strong></div>}
+                {zugewiesen.length>0&&<div>👷 Zugewiesen: <strong>{zugewiesen.map(u=>u.name).join(', ')}</strong></div>}
+                {ersteller&&<div>✍️ Erstellt von: {ersteller.name}</div>}
+                {t.beschreibung&&<div style={{marginTop:4,color:'var(--text)',background:'white',borderRadius:8,padding:'6px 10px',fontSize:'0.82rem'}}>📝 {t.beschreibung}</div>}
+              </div>
+              {kannBearbeiten&&(
+                <button onClick={()=>handleDelete(t.id)} style={{marginTop:8,width:'100%',padding:'6px',background:'var(--red-pale)',color:'var(--red)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontWeight:600,fontSize:'0.78rem'}}>🗑️ Termin löschen</button>
+              )}
+            </div>
+          )
+        })}
+        <button className="btn btn-secondary" onClick={()=>setShowDetail(null)}>Schließen</button>
+      </div></div>
+    )
+  }
+
+  // ── NEU MODAL ───────────────────────────────────────────────────────────────
+  const NeuModal=()=>(
+    <div className="modal-overlay open"><div className="modal-sheet" style={{maxHeight:'90vh',overflowY:'auto'}}>
+      <div className="modal-handle"/>
+      <div className="modal-title">📅 Neuer Termin</div>
+      <div className="form-group">
+        <label>Typ</label>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:4}}>
+          {Object.entries(TYP_CONFIG).map(([key,cfg])=>(
+            <button key={key} onClick={()=>setForm(f=>({...f,typ:key,farbe:cfg.farbe}))} style={{padding:'8px 4px',borderRadius:8,border:`2px solid ${form.typ===key?cfg.farbe:'var(--border2)'}`,background:form.typ===key?cfg.farbe+'22':'white',cursor:'pointer',fontFamily:'inherit',fontSize:'0.78rem',fontWeight:600,color:form.typ===key?cfg.farbe:'var(--text2)',textAlign:'center'}}>
+              {cfg.emoji}<br/>{cfg.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="form-group"><label>Titel *</label><input value={form.titel} onChange={e=>setForm(f=>({...f,titel:e.target.value}))} placeholder="z.B. Abnahme Heusenstamm"/></div>
+      <div className="form-group"><label>Beschreibung</label><textarea value={form.beschreibung} onChange={e=>setForm(f=>({...f,beschreibung:e.target.value}))} placeholder="Details..."/></div>
+      <div className="form-row">
+        <div className="form-group"><label>Datum *</label><input type="date" value={form.datum} onChange={e=>setForm(f=>({...f,datum:e.target.value}))}/></div>
+        <div className="form-group"><label>Uhrzeit</label><input type="time" value={form.uhrzeit} onChange={e=>setForm(f=>({...f,uhrzeit:e.target.value}))}/></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>Bis Datum</label><input type="date" value={form.bis_datum} onChange={e=>setForm(f=>({...f,bis_datum:e.target.value}))}/></div>
+        <div className="form-group"><label>Bis Uhrzeit</label><input type="time" value={form.bis_uhrzeit} onChange={e=>setForm(f=>({...f,bis_uhrzeit:e.target.value}))}/></div>
+      </div>
+      <div className="form-group">
+        <label>Baustelle (optional)</label>
+        <select value={form.baustelle_id} onChange={e=>setForm(f=>({...f,baustelle_id:e.target.value}))}>
+          <option value="">— Keine —</option>
+          {baustellen.filter(b=>b.status==='aktiv'&&b.name!=='Büro').map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+      <div className="form-group">
+        <label>Mitarbeiter zuweisen</label>
+        <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
+          {allUsers.filter(u=>u.role!=='admin').map(u=>(
+            <label key={u.id} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'6px 10px',borderRadius:8,background:form.zugewiesen_an.includes(u.id)?'var(--blue-pale)':'var(--bg)',border:`1px solid ${form.zugewiesen_an.includes(u.id)?'var(--blue)':'var(--border2)'}`}}>
+              <input type="checkbox" checked={form.zugewiesen_an.includes(u.id)} onChange={()=>toggleZuweisung(u.id)} style={{accentColor:'var(--blue)'}}/>
+              <div className="employee-avatar" style={{width:24,height:24,fontSize:'0.6rem'}}>{initials(u.name)}</div>
+              <span style={{fontSize:'0.85rem',fontWeight:500}}>{u.name}</span>
+              <span style={{fontSize:'0.7rem',color:'var(--text3)',marginLeft:'auto'}}>{u.role==='buero'?'Büro':'Monteur'}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Termin speichern'}</button>
+      <button className="btn btn-secondary" onClick={()=>setShowNeu(false)}>Abbrechen</button>
+    </div></div>
+  )
+
+  return (
+    <div className="page-content">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <span className="section-title">Kalender</span>
+        {kannBearbeiten&&<button className="btn btn-outline btn-sm" onClick={()=>setShowNeu(true)}>+ Termin</button>}
+      </div>
+      {baldFaellig>0&&(
+        <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:10,padding:'8px 14px',marginBottom:12,fontSize:'0.82rem',color:'#92400e'}}>
+          📅 {baldFaellig} Termin{baldFaellig>1?'e':''} in den nächsten 7 Tagen
+        </div>
+      )}
+      <div style={{display:'flex',background:'white',borderRadius:'var(--r-xl)',padding:3,marginBottom:12,boxShadow:'var(--shadow-sm)',border:'1px solid var(--border)'}}>
+        {[['monat','📆 Monat'],['woche','📅 Woche'],['liste','📋 Liste']].map(([key,label])=>(
+          <button key={key} onClick={()=>setAnsicht(key)} style={{flex:1,padding:'0.5rem 4px',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.75rem',fontWeight:600,background:ansicht===key?'var(--dark)':'transparent',color:ansicht===key?'white':'var(--text2)',transition:'all 0.2s'}}>{label}</button>
+        ))}
+      </div>
+      <div className="card">
+        {ansicht==='monat'&&<MonatsAnsicht/>}
+        {ansicht==='woche'&&<WochenAnsicht/>}
+        {ansicht==='liste'&&<ListenAnsicht/>}
+      </div>
+      {showDetail&&<DetailModal/>}
+      {showNeu&&kannBearbeiten&&<NeuModal/>}
+    </div>
+  )
+}
+
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
+  const [termine,setTermine]=useState([])
   const [showStunden,setShowStunden]=useState(false)
   const [showKrank,setShowKrank]=useState(false)
   const [installPrompt,setInstallPrompt]=useState(null)
@@ -1344,12 +1649,13 @@ export default function App() {
   },[user])
 
   async function loadData() {
-    const [{data:bs},{data:st},{data:users}]=await Promise.all([
+    const [{data:bs},{data:st},{data:users},{data:term}]=await Promise.all([
       supabase.from('baustellen').select('*').order('created_at',{ascending:false}).limit(1000),
       supabase.from('stunden').select('*, profiles(name), baustellen(name)').order('datum',{ascending:false}).limit(2000),
-      supabase.from('profiles').select('*')
+      supabase.from('profiles').select('*'),
+      supabase.from('termine').select('*').order('datum',{ascending:true}).limit(500)
     ])
-    setBaustellen(bs||[]); setStunden(st||[]); setAllUsers(users||[])
+    setBaustellen(bs||[]); setStunden(st||[]); setAllUsers(users||[]); setTermine(term||[])
   }
   async function handleLogout(){await supabase.auth.signOut(); setUser(null); setPage('home')}
   async function handleDelete(id) {
@@ -1368,6 +1674,7 @@ export default function App() {
   const isAdmin=user.profile?.role==='admin'
   const isBuero=user.profile?.role==='buero'
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
+  const kalenderBadge=termine.filter(t=>{const d=new Date(t.datum);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<=2&&(t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)}).length
   return (
     <div className="app-container">
       {showInstallBanner&&(
@@ -1407,6 +1714,7 @@ export default function App() {
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} isBuero={isBuero} allUsers={allUsers}/>}
       {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
+      {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
@@ -1415,6 +1723,11 @@ export default function App() {
         <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
         <button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>
         <button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>
+        <button className={`nav-item ${page==='kalender'?'active':''}`} onClick={()=>setPage('kalender')} style={{position:'relative'}}>
+          <IconKalender/>
+          {kalenderBadge>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#d69e2e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{kalenderBadge}</span>}
+          <span>Kalender</span>
+        </button>
         <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
         {(isAdmin||isBuero)&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
