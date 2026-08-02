@@ -1012,7 +1012,7 @@ function KrankModal({user,baustellen,onClose,onSaved}) {
 
 function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
   const bueroBaustelle=baustellen.find(b=>b.name==='Büro'&&b.status==='aktiv')
-  const [form,setForm]=useState({datum:today(),start:'08:00',end:'12:00',baustelle_id:isBuero&&bueroBaustelle?bueroBaustelle.id:'',notiz:'',taetigkeit:''})
+  const [form,setForm]=useState({datum:today(),start:'07:30',end:'17:00',baustelle_id:isBuero&&bueroBaustelle?bueroBaustelle.id:'',notiz:'',taetigkeit:'',arbeiten:''})
   const [saving,setSaving]=useState(false); const [showNewBs,setShowNewBs]=useState(false)
   const [newBs,setNewBs]=useState({name:'',kunde:'',adresse:'',beschreibung:''})
   const aktiveBaustellen=baustellen.filter(b=>b.status==='aktiv')
@@ -1022,6 +1022,7 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
     if(!form.baustelle_id){alert('Bitte eine Baustelle auswählen!');return}
     if(dauer<=0){alert('Endzeit muss nach der Startzeit liegen!');return}
     if(isBuero&&!form.taetigkeit.trim()){alert('Bitte Tätigkeit beschreiben!');return}
+    if(!isBuero&&!form.arbeiten.trim()){alert('Bitte ausgeführte Arbeiten beschreiben!');return}
     setSaving(true)
     const {data:existing}=await supabase.from('stunden').select('start_zeit,end_zeit,baustellen(name)').eq('user_id',user.id).eq('datum',form.datum)
     if(existing&&existing.length>0) {
@@ -1037,7 +1038,7 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
         return
       }
     }
-    const notizFinal=isBuero?form.taetigkeit:(form.notiz||'')
+    const notizFinal=isBuero?form.taetigkeit:(form.arbeiten+(form.notiz?(' | '+form.notiz):''))
     await supabase.from('stunden').insert([{user_id:user.id,baustelle_id:form.baustelle_id,datum:form.datum,start_zeit:form.start,end_zeit:form.end,pause_min:isBuero?0:45,dauer,notiz:notizFinal,freigabe_status:'ausstehend'}])
     await onSaved(); onClose(); setSaving(false)
   }
@@ -1080,7 +1081,12 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
             </select>
           </div>
           <div style={{marginBottom:'1rem'}}><button className="btn btn-outline btn-sm" onClick={()=>setShowNewBs(true)}>+ Neue Baustelle anlegen</button></div>
-          <div className="form-group"><label>Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Kabelverlegung EG..."/></div>
+          <div className="form-group">
+            <label>Ausgeführte Arbeiten *</label>
+            <textarea value={form.arbeiten} onChange={e=>setForm(f=>({...f,arbeiten:e.target.value}))} placeholder="Kurze Beschreibung reicht, z.B. Kabelverlegung EG, Steckdosen montiert, Verteilung verdrahtet..." style={{minHeight:80,border:!form.arbeiten.trim()?'1.5px solid #fc8181':'1.5px solid var(--green)'}}/>
+            {!form.arbeiten.trim()&&<div style={{fontSize:'0.72rem',color:'var(--red)',marginTop:3}}>Pflichtfeld — eine kurze Beschreibung reicht</div>}
+          </div>
+          <div className="form-group"><label>Zusätzliche Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Material fehlt, nächste Schritte..."/></div>
         </>
       )}
       <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Stunden einreichen'}</button>
