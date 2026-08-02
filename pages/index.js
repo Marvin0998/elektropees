@@ -645,6 +645,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
   const [weekOffsets,setWeekOffsets]=useState({})
   const [newUser,setNewUser]=useState({name:'',email:'',password:'',rolle:'mitarbeiter',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
+  const [stundenDetail,setStundenDetail]=useState(null)
   const mitarbeiter=allUsers.filter(u=>u.role!=='admin')
   const bueroUserId=allUsers.find(u=>u.role==='buero')?.id
   const ausstehend=stunden.filter(s=>{
@@ -714,7 +715,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
                 const b=baustellen.find(b=>b.id===s.baustelle_id)
                 const isFri=new Date(s.datum).getDay()===5
                 return (
-                  <div key={s.id} className="freigabe-card">
+                  <div key={s.id} className="freigabe-card" style={{cursor:'pointer'}} onClick={()=>setStundenDetail(s)}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                       <div>
                         <div className="freigabe-name">
@@ -724,11 +725,14 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
                         </div>
                         <div className="freigabe-meta">{getDayName(s.datum)}, {formatDate(s.datum)}</div>
                         <div className="freigabe-meta">🏗️ {b?.name||'—'} · {s.start_zeit}–{s.end_zeit}</div>
-                        {s.notiz&&<div className="freigabe-meta">📝 {s.notiz}</div>}
+                        {s.notiz&&s.notiz!=='🤒 Krank'&&<div className="freigabe-meta" style={{color:'var(--blue)',fontWeight:500}}>📋 {s.notiz.length>60?s.notiz.slice(0,60)+'…':s.notiz}</div>}
                       </div>
-                      <div className="freigabe-hours">{s.dauer.toFixed(1)}h</div>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+                        <div className="freigabe-hours">{s.dauer.toFixed(1)}h</div>
+                        <span style={{fontSize:'0.65rem',color:'var(--blue)',fontWeight:600}}>📄 Details</span>
+                      </div>
                     </div>
-                    <div className="freigabe-actions">
+                    <div className="freigabe-actions" onClick={e=>e.stopPropagation()}>
                       <button className="btn-approve" onClick={()=>handleFreigabe(s.id,'freigegeben')}>✓ Freigeben</button>
                       <button className="btn-reject" onClick={()=>handleFreigabe(s.id,'abgelehnt')}>✗ Ablehnen</button>
                     </div>
@@ -744,12 +748,13 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
                 const b=baustellen.find(b=>b.id===s.baustelle_id)
                 const freigegeben=s.freigabe_status==='freigegeben'
                 return (
-                  <div key={s.id} style={{padding:'0.75rem 0',borderBottom:'1px solid var(--border)',opacity:0.8}}>
+                  <div key={s.id} style={{padding:'0.75rem 0',borderBottom:'1px solid var(--border)',opacity:0.8,cursor:'pointer'}} onClick={()=>setStundenDetail(s)}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
                       <div>
                         <div style={{fontWeight:500,fontSize:'0.87rem',color:'var(--dark)'}}>{s.profiles?.name||'—'}</div>
                         <div style={{fontSize:'0.72rem',color:'var(--text3)',marginTop:2}}>{getDayName(s.datum)}, {formatDate(s.datum)} · {b?.name||'—'}</div>
                         <div style={{fontSize:'0.72rem',color:'var(--text3)'}}>{s.start_zeit} – {s.end_zeit}</div>
+                        {s.notiz&&s.notiz!=='🤒 Krank'&&<div style={{fontSize:'0.72rem',color:'var(--blue)',marginTop:2,fontWeight:500}}>📋 {s.notiz.length>50?s.notiz.slice(0,50)+'…':s.notiz}</div>}
                       </div>
                       <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5,flexShrink:0}}>
                         <span style={{fontWeight:700,color:freigegeben?'var(--blue)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>{s.dauer.toFixed(1)}h</span>
@@ -914,6 +919,60 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
         </>
       )}
 
+      {stundenDetail&&(
+        <div className="modal-overlay open"><div className="modal-sheet">
+          <div className="modal-handle"/>
+          <div className="modal-title">📋 Stunden-Detail</div>
+          {(()=>{
+            const s=stundenDetail
+            const b=baustellen.find(b=>b.id===s.baustelle_id)
+            const isFri=new Date(s.datum).getDay()===5
+            const istKrank=s.notiz==='🤒 Krank'
+            const freigegeben=s.freigabe_status==='freigegeben'
+            const abgelehnt=s.freigabe_status==='abgelehnt'
+            return (
+              <div>
+                <div style={{background:'var(--bg)',borderRadius:12,padding:'1rem',marginBottom:12}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:'1rem',color:'var(--dark)'}}>{s.profiles?.name||'—'}</div>
+                      <div style={{fontSize:'0.82rem',color:'var(--text3)',marginTop:2}}>{getDayName(s.datum)}, {formatDate(s.datum)}{isFri&&<span style={{marginLeft:6,fontSize:'0.72rem',background:'#fef3c7',color:'#92400e',padding:'1px 6px',borderRadius:8}}>Freitag</span>}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontSize:'1.5rem',fontWeight:800,color:'var(--blue)',fontFamily:"'DM Mono',monospace"}}>{s.dauer.toFixed(1)}h</div>
+                      <span style={{fontSize:'0.65rem',background:freigegeben?'var(--green-pale)':abgelehnt?'var(--red-pale)':'#fef3c7',color:freigegeben?'var(--green)':abgelehnt?'var(--red)':'#92400e',padding:'2px 8px',borderRadius:20,fontWeight:600}}>
+                        {freigegeben?'✓ Freigegeben':abgelehnt?'✗ Abgelehnt':'⏳ Ausstehend'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{fontSize:'0.82rem',color:'var(--text3)',lineHeight:1.9}}>
+                    <div>🏗️ <strong>Baustelle:</strong> {b?.name||'—'}</div>
+                    <div>⏰ <strong>Zeit:</strong> {s.start_zeit} – {s.end_zeit} · {s.pause_min||0} Min Pause</div>
+                  </div>
+                </div>
+                {istKrank?(
+                  <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:12,padding:'1rem',marginBottom:12,textAlign:'center'}}>
+                    <div style={{fontSize:'2rem',marginBottom:4}}>🤒</div>
+                    <div style={{fontWeight:700,color:'#c53030'}}>Krankmeldung</div>
+                  </div>
+                ):(
+                  <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:12,padding:'1rem',marginBottom:12}}>
+                    <div style={{fontSize:'0.72rem',fontWeight:700,color:'#2b6cb0',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6}}>📋 Ausgeführte Arbeiten</div>
+                    <div style={{fontSize:'0.9rem',color:'var(--dark)',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{s.notiz||'—'}</div>
+                  </div>
+                )}
+                {s.freigabe_status==='ausstehend'&&(
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem',marginBottom:'0.5rem'}}>
+                    <button className="btn btn-success" style={{marginBottom:0}} onClick={()=>{handleFreigabe(s.id,'freigegeben');setStundenDetail(null)}}>✓ Freigeben</button>
+                    <button className="btn btn-danger" style={{marginBottom:0}} onClick={()=>{handleFreigabe(s.id,'abgelehnt');setStundenDetail(null)}}>✗ Ablehnen</button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+          <button className="btn btn-secondary" onClick={()=>setStundenDetail(null)}>Schließen</button>
+        </div></div>
+      )}
       {showNewUser&&(
         <div className="modal-overlay open"><div className="modal-sheet">
           <div className="modal-handle"/><div className="modal-title">👤 Mitarbeiter anlegen</div>
