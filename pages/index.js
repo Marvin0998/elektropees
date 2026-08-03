@@ -518,7 +518,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers}) {
   )
 }
 
-function ProfilPage({user,stunden,baustellen,isBuero}) {
+function ProfilPage({user,stunden,baustellen,isBuero,setPage}) {
   const profile=user.profile||{}
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const freigegebene=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -553,7 +553,10 @@ function ProfilPage({user,stunden,baustellen,isBuero}) {
         </div>
       </div>
       <div className="card">
-        <div className="card-title">🏖️ Urlaub {new Date().getFullYear()}</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <div className="card-title" style={{marginBottom:0}}>🏖️ Urlaub {new Date().getFullYear()}</div>
+          {!isBuero&&<button onClick={()=>setPage('urlaub')} style={{fontSize:'0.75rem',padding:'4px 12px',background:'var(--blue)',color:'white',border:'none',borderRadius:20,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>+ Beantragen</button>}
+        </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{urlaubGesamt}</div><div className="text-xs text-muted">Gesamt</div></div>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{urlaubGenommen}</div><div className="text-xs text-muted">Genommen</div></div>
@@ -2036,10 +2039,7 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
         </div>
       ))}
 
-      <div className="card" style={{padding:'0.75rem 1rem',marginBottom:8,background:'#f0fff4',border:'1px solid #9ae6b4'}}>
-        <div style={{fontWeight:700,fontSize:'0.85rem',color:'#276749',marginBottom:6}}>🎓 Schulung / Berufsschule (optional)</div>
-        <textarea value={form.schulung} onChange={e=>setForm(f=>({...f,schulung:e.target.value}))} placeholder="Berufsschulthemen, interne Schulungen..." style={{width:'100%',minHeight:60,padding:'8px',border:'1.5px solid #9ae6b4',borderRadius:8,fontSize:'0.85rem',fontFamily:'inherit',resize:'vertical',boxSizing:'border-box'}}/>
-      </div>
+
 
       <div className="card" style={{padding:'0.75rem 1rem',marginBottom:16}}>
         <div style={{fontWeight:700,fontSize:'0.85rem',color:'var(--dark)',marginBottom:6}}>📝 Bemerkungen (optional)</div>
@@ -2054,11 +2054,21 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
         <SignaturCanvas
           title="Azubi-Unterschrift"
           onSave={async (dataUrl) => {
-            await supabase.from('berichtshefte').update({...form}).eq('id', aktuellesHeft.id)
-            await handleSignatur(dataUrl)
-            setAnsicht('detail')
+            // Erst Textinhalte speichern, dann Signatur in einem kombinierten Update
+            setSaving(true)
+            await supabase.from('berichtshefte').update({
+              ...form,
+              azubi_signatur: dataUrl,
+              azubi_signiert_am: new Date().toISOString(),
+              status: 'eingereicht',
+              updated_at: new Date().toISOString()
+            }).eq('id', aktuellesHeft.id)
             const {data} = await supabase.from('berichtshefte').select('*').eq('id', aktuellesHeft.id).single()
             setAktuellesHeft(data)
+            await loadHefte()
+            setShowSignatur(false)
+            setSaving(false)
+            setAnsicht('detail')
           }}
           onCancel={() => setShowSignatur(false)}
         />
@@ -2101,7 +2111,7 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
             <div style={{fontSize:'0.85rem',color:'var(--text)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{text}</div>
           </div>
         ))}
-        {h.schulung&&<div className="card" style={{marginBottom:8,background:'#f0fff4',border:'1px solid #9ae6b4'}}><div style={{fontWeight:700,fontSize:'0.82rem',color:'#276749',marginBottom:6}}>🎓 Schulung</div><div style={{fontSize:'0.85rem',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{h.schulung}</div></div>}
+
         {h.bemerkungen&&<div className="card" style={{marginBottom:8}}><div style={{fontWeight:700,fontSize:'0.82rem',color:'var(--dark)',marginBottom:6}}>📝 Bemerkungen</div><div style={{fontSize:'0.85rem',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{h.bemerkungen}</div></div>}
 
         {/* Signaturen */}
@@ -2246,7 +2256,7 @@ export default function App() {
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
       {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} isBuero={isBuero} allUsers={allUsers}/>}
       {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
-      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
+      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero} setPage={setPage}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {page==='berichtsheft'&&<BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
@@ -2255,15 +2265,15 @@ export default function App() {
       <nav className="bottom-nav">
         <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
         <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
-        <button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>
-        <button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>
+        {!isAdmin&&!isBuero&&<button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>}
         <button className={`nav-item ${page==='kalender'?'active':''}`} onClick={()=>setPage('kalender')} style={{position:'relative'}}>
           <IconKalender/>
           {kalenderBadge>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#d69e2e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{kalenderBadge}</span>}
           <span>Kalender</span>
         </button>
         <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
-        {(isAzubi||isAdmin||isBuero)&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
+        {isAzubi&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
+        {(isAdmin||isBuero)&&<button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>}
         {(isAdmin||isBuero)&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
             <IconStar/>
