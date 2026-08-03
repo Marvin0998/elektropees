@@ -2027,6 +2027,34 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
 
   const azubis = allUsers.filter(u => u.role === 'azubi')
 
+  // ── NACHTRAG MODAL ─────────────────────────────────────────────────────────
+  if (showNachtrag) return (
+    <div className="page-content">
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+        <button onClick={()=>setShowNachtrag(false)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--blue)',fontSize:'1.2rem',padding:0}}>‹</button>
+        <span className="section-title" style={{margin:0}}>📋 Nachtrag anlegen</span>
+      </div>
+      <div className="card">
+        <div style={{fontSize:'0.82rem',color:'var(--text3)',marginBottom:12}}>
+          Wähle ein beliebiges Datum aus der Woche für die du einen Nachtrag erstellen möchtest.
+        </div>
+        <div className="form-group">
+          <label>Datum in der gewünschten Woche</label>
+          <input type="date" value={nachtragDatum} onChange={e=>setNachtragDatum(e.target.value)} style={{width:'100%'}}/>
+        </div>
+        {nachtragDatum&&(
+          <div style={{background:'var(--blue-pale)',borderRadius:8,padding:'8px 12px',fontSize:'0.82rem',color:'var(--blue)',marginBottom:12}}>
+            📅 Woche: {formatDate(getWochenMontagVon(nachtragDatum))} – {(()=>{const d=new Date(getWochenMontagVon(nachtragDatum));d.setDate(d.getDate()+4);return formatDate(d.toISOString().split('T')[0])})()}
+          </div>
+        )}
+        <button className="btn btn-primary" disabled={!nachtragDatum||saving} onClick={async()=>{const ws=getWochenMontagVon(nachtragDatum);setShowNachtrag(false);setNachtragDatum('');await neuesHeft(ws)}}>
+          ✓ Nachtrag anlegen
+        </button>
+        <button className="btn btn-secondary" onClick={()=>setShowNachtrag(false)}>Abbrechen</button>
+      </div>
+    </div>
+  )
+
   // ── LISTENANSICHT ───────────────────────────────────────────────────────────
   if (ansicht === 'liste') return (
     <div className="page-content">
@@ -2034,7 +2062,7 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
         <span className="section-title">📋 Berichtshefte</span>
         {isAzubi && <div style={{display:'flex',gap:6}}>
           <button className="btn btn-outline btn-sm" onClick={()=>neuesHeft()}>+ Aktuelle Woche</button>
-          <button className="btn btn-outline btn-sm" onClick={()=>setShowNachtrag(true)} style={{color:'var(--text2)'}}>+ Nachtrag</button>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowNachtrag(true)}>+ Nachtrag</button>
         </div>}
       </div>
 
@@ -2075,43 +2103,6 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
           )
         })
       })()}
-    </div>
-  )
-
-  // ── NACHTRAG MODAL ─────────────────────────────────────────────────────────
-  if (showNachtrag && ansicht === 'liste') return (
-    <div className="page-content">
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
-        <button onClick={()=>setShowNachtrag(false)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--blue)',fontSize:'1.2rem',padding:0}}>‹</button>
-        <span className="section-title" style={{margin:0}}>📋 Nachtrag anlegen</span>
-      </div>
-      <div className="card">
-        <div style={{fontSize:'0.82rem',color:'var(--text3)',marginBottom:12}}>
-          Wähle ein beliebiges Datum aus der Woche für die du einen Nachtrag erstellen möchtest. Es wird automatisch die ganze Woche (Mo–Fr) als Heft angelegt.
-        </div>
-        <div className="form-group">
-          <label>Datum in der gewünschten Woche</label>
-          <input type="date" value={nachtragDatum} onChange={e=>setNachtragDatum(e.target.value)} style={{width:'100%'}}/>
-        </div>
-        {nachtragDatum&&(
-          <div style={{background:'var(--blue-pale)',borderRadius:8,padding:'8px 12px',fontSize:'0.82rem',color:'var(--blue)',marginBottom:12}}>
-            📅 Woche: {formatDate(getWochenMontagVon(nachtragDatum))} – {(()=>{const d=new Date(getWochenMontagVon(nachtragDatum));d.setDate(d.getDate()+4);return formatDate(d.toISOString().split('T')[0])})()}
-          </div>
-        )}
-        <button
-          className="btn btn-primary"
-          disabled={!nachtragDatum || saving}
-          onClick={async()=>{
-            const ws = getWochenMontagVon(nachtragDatum)
-            setShowNachtrag(false)
-            setNachtragDatum('')
-            await neuesHeft(ws)
-          }}
-        >
-          ✓ Nachtrag anlegen
-        </button>
-        <button className="btn btn-secondary" onClick={()=>setShowNachtrag(false)}>Abbrechen</button>
-      </div>
     </div>
   )
 
