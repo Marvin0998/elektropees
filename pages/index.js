@@ -1948,8 +1948,10 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
 
   function exportPDF(heft) {
     const azubiName = allUsers.find(u => u.id === heft.user_id)?.name || 'Azubi'
-    const ausbilderName = allUsers.find(u => u.id === heft.ausbilder_id)?.name || '—'
+    const ausbilderName = allUsers.find(u => u.id === heft.ausbilder_id)?.name || 'Marvin Pees'
     const wocheLabel = `${formatDate(heft.woche_start)} – ${formatDate(heft.woche_end)}`
+    const jahr = new Date(heft.woche_start).getFullYear()
+    const istSigniert = heft.status === 'signiert'
 
     const tage = [
       {tag: 'Montag', text: heft.montag},
@@ -1959,64 +1961,413 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
       {tag: 'Freitag', text: heft.freitag},
     ]
 
-    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
-<title>Berichtsheft ${wocheLabel} – ${azubiName}</title>
-<style>
-  @media print {
-    body { margin: 0; }
-    @page { margin: 15mm; size: A4; }
-  }
-  body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #222; font-size: 13px; }
-  h1 { color: #0A0A44; border-bottom: 3px solid #1B52DD; padding-bottom: 8px; font-size: 18px; }
-  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 13px; }
-  .tag { margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }
-  .tag-header { background: #0A0A44; color: white; padding: 7px 12px; font-weight: bold; font-size: 13px; }
-  .tag-body { padding: 10px 12px; min-height: 50px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
-  .signaturen { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; padding-top: 16px; border-top: 2px solid #ddd; page-break-inside: avoid; }
-  .signatur-box { text-align: center; }
-  .signatur-label { font-size: 11px; color: #666; margin-bottom: 8px; font-weight: bold; text-transform: uppercase; }
-  .signatur-img { max-width: 180px; max-height: 70px; border-bottom: 1px solid #333; padding-bottom: 4px; }
-  .signatur-datum { font-size: 10px; color: #999; margin-top: 4px; }
-  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-left: 10px; }
-  .status-signiert { background: #c6f6d5; color: #276749; }
-  .status-eingereicht { background: #fef3c7; color: #92400e; }
-  .no-print { display: none; }
-</style></head><body>
-<h1>📋 Berichtsheft <span class="status-badge status-${heft.status}">${heft.status === 'signiert' ? '✓ Signiert' : '⏳ Eingereicht'}</span></h1>
-<div class="meta">
-  <div><strong>Azubi:</strong> ${azubiName}</div>
-  <div><strong>Ausbilder:</strong> ${ausbilderName}</div>
-  <div><strong>Woche:</strong> ${wocheLabel}</div>
-  <div><strong>Ausbildungsbetrieb:</strong> Elektro Pees</div>
-</div>
-${tage.filter(t=>t.text).map(({tag, text}) => `
-<div class="tag">
-  <div class="tag-header">${tag}</div>
-  <div class="tag-body">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-</div>`).join('')}
-${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen</div><div class="tag-body">${heft.bemerkungen}</div></div>` : ''}
-<div class="signaturen">
-  <div class="signatur-box">
-    <div class="signatur-label">Unterschrift Azubi</div>
-    ${heft.azubi_signatur ? `<img class="signatur-img" src="${heft.azubi_signatur}" alt="Unterschrift Azubi"/>
-    <div class="signatur-datum">${heft.azubi_signiert_am ? new Date(heft.azubi_signiert_am).toLocaleDateString('de-DE') : ''}</div>` : '<div style="height:60px;border-bottom:1px solid #333;"></div><div class="signatur-datum">nicht signiert</div>'}
-  </div>
-  <div class="signatur-box">
-    <div class="signatur-label">Unterschrift Ausbilder</div>
-    ${heft.ausbilder_signatur ? `<img class="signatur-img" src="${heft.ausbilder_signatur}" alt="Unterschrift Ausbilder"/>
-    <div class="signatur-datum">${heft.ausbilder_signiert_am ? new Date(heft.ausbilder_signiert_am).toLocaleDateString('de-DE') : ''}</div>` : '<div style="height:60px;border-bottom:1px solid #333;"></div><div class="signatur-datum">nicht signiert</div>'}
-  </div>
-</div>
-</body></html>`
+    function esc(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
-    // Neues Fenster öffnen und direkt Druckdialog öffnen → als PDF speichern
+    const tageHtml = tage.map(({tag, text}) => `
+<div class="tag-block">
+  <div class="tag-header">
+    <span class="tag-dot"></span>
+    <span class="tag-name">${tag}</span>
+  </div>
+  <div class="tag-body">${text ? esc(text) : '<span class="kein-eintrag">Kein Eintrag</span>'}</div>
+</div>`).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Ausbildungsnachweis – ${azubiName} – ${wocheLabel}</title>
+<style>
+  /* ── RESET & BROWSER-PRINT ── */
+  @page {
+    size: A4 portrait;
+    margin: 14mm 16mm 18mm 16mm;
+    /* Browser-Kopf/Fußzeilen unterdrücken */
+  }
+  @media print {
+    html, body { margin: 0 !important; padding: 0 !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+    .page-footer { position: running(footer); }
+    .tag-block { page-break-inside: avoid; break-inside: avoid; }
+    .sig-section { page-break-inside: avoid; break-inside: avoid; }
+  }
+
+  /* ── BASE ── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+    color: #1a1a2e;
+    background: #fff;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 0;
+    line-height: 1.5;
+  }
+
+  /* ── HEADER ── */
+  .doc-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #1B52DD;
+    margin-bottom: 14px;
+  }
+  .logo-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-placeholder {
+    width: 44px;
+    height: 44px;
+    background: #0A0A44;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo-placeholder svg {
+    width: 28px;
+    height: 28px;
+    fill: #fff;
+  }
+  .logo-text {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #0A0A44;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+  .logo-sub {
+    font-size: 7.5pt;
+    color: #6b7280;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+  }
+  .header-title {
+    text-align: right;
+  }
+  .header-title h1 {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #0A0A44;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+  }
+  .header-title .doc-sub {
+    font-size: 9pt;
+    color: #4b5563;
+    margin-top: 3px;
+  }
+  .status-pill {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 8pt;
+    font-weight: 700;
+    background: ${istSigniert ? '#dcfce7' : '#fef9c3'};
+    color: ${istSigniert ? '#166534' : '#854d0e'};
+    border: 1px solid ${istSigniert ? '#86efac' : '#fde047'};
+  }
+
+  /* ── STAMMDATEN ── */
+  .stammdaten {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    font-size: 9.5pt;
+  }
+  .sd-row {
+    display: contents;
+  }
+  .sd-label {
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+  }
+  .sd-val {
+    background: #fff;
+    color: #111827;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .sd-label:last-of-type, .sd-val:last-of-type { border-bottom: none; }
+
+  /* ── WOCHEN-ABSCHNITT ── */
+  .woche-titel {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #1B52DD;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1.5px solid #e5e7eb;
+  }
+
+  .tag-block {
+    display: flex;
+    margin-bottom: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .tag-header {
+    width: 90px;
+    min-width: 90px;
+    background: #0A0A44;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 10px 6px 10px 8px;
+    gap: 5px;
+  }
+  .tag-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #1B52DD;
+    margin-top: 2px;
+  }
+  .tag-name {
+    color: #fff;
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    white-space: nowrap;
+  }
+  .tag-body {
+    flex: 1;
+    padding: 9px 12px;
+    font-size: 10pt;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: #1f2937;
+    background: #fff;
+  }
+  .kein-eintrag {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 9pt;
+  }
+
+  /* ── BEMERKUNGEN ── */
+  .bemerkungen-block {
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+    page-break-inside: avoid;
+  }
+  .bem-header {
+    background: #374151;
+    color: #fff;
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 6px 12px;
+  }
+  .bem-body {
+    padding: 9px 12px;
+    font-size: 10pt;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: #1f2937;
+  }
+
+  /* ── SIGNATUREN ── */
+  .sig-section {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 2px solid #1B52DD;
+  }
+  .sig-titel {
+    font-size: 8pt;
+    font-weight: 700;
+    color: #1B52DD;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  .sig-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .sig-box {
+    text-align: center;
+  }
+  .sig-label {
+    font-size: 8pt;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 8px;
+  }
+  .sig-img-wrap {
+    height: 68px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+  .sig-img {
+    max-width: 200px;
+    max-height: 64px;
+    object-fit: contain;
+  }
+  .sig-line {
+    border-bottom: 1.5px solid #374151;
+    margin-bottom: 4px;
+    height: 68px;
+  }
+  .sig-datum {
+    font-size: 8pt;
+    color: #6b7280;
+    margin-top: 3px;
+  }
+  .sig-hinweis {
+    font-size: 7.5pt;
+    color: #9ca3af;
+    margin-top: 2px;
+  }
+  .sig-leer {
+    font-size: 8.5pt;
+    color: #d1d5db;
+    font-style: italic;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px dashed #e5e7eb;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  /* ── FUSSZEILE ── */
+  .doc-footer {
+    margin-top: 18px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 7.5pt;
+    color: #9ca3af;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="doc-header">
+  <div class="logo-block">
+    <div class="logo-placeholder">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Elektro Pees</div>
+      <div class="logo-sub">Elektroinstallation &amp; Gebäudetechnik</div>
+    </div>
+  </div>
+  <div class="header-title">
+    <h1>Ausbildungsnachweis</h1>
+    <div class="doc-sub">Wöchentliches Berichtsheft</div>
+    <div class="status-pill">${istSigniert ? '&#10003; Digital signiert' : '&#9998; Eingereicht'}</div>
+  </div>
+</div>
+
+<!-- STAMMDATEN -->
+<div class="stammdaten">
+  <div class="sd-label">Auszubildender</div>
+  <div class="sd-val">${esc(azubiName)}</div>
+  <div class="sd-label">Ausbildungsbetrieb</div>
+  <div class="sd-val">Elektro Pees</div>
+  <div class="sd-label">Ausbilder</div>
+  <div class="sd-val">${esc(ausbilderName)}</div>
+  <div class="sd-label">Ausbildungswoche</div>
+  <div class="sd-val">${wocheLabel}</div>
+  <div class="sd-label">Ausbildungsjahr</div>
+  <div class="sd-val">${jahr}</div>
+  <div class="sd-label">Ausbildungsberuf</div>
+  <div class="sd-val">Elektroniker/in für Energie- und Gebäudetechnik</div>
+</div>
+
+<!-- WOCHENUEBERSICHT -->
+<div class="woche-titel">Wochenuebersicht – Taetigkeiten</div>
+${tageHtml}
+
+${heft.bemerkungen ? `<div class="bemerkungen-block"><div class="bem-header">Bemerkungen</div><div class="bem-body">${esc(heft.bemerkungen)}</div></div>` : ''}
+
+<!-- SIGNATUREN -->
+<div class="sig-section">
+  <div class="sig-titel">Unterschriften</div>
+  <div class="sig-grid">
+    <div class="sig-box">
+      <div class="sig-label">Auszubildender/e</div>
+      ${heft.azubi_signatur
+        ? `<div class="sig-img-wrap"><img class="sig-img" src="${heft.azubi_signatur}" alt="Unterschrift Azubi"/></div>
+           <div style="border-bottom:1.5px solid #374151;margin-bottom:4px;"></div>
+           <div class="sig-datum">${heft.azubi_signiert_am ? new Date(heft.azubi_signiert_am).toLocaleDateString('de-DE') : ''}</div>
+           <div class="sig-hinweis">Digital unterzeichnet</div>`
+        : `<div class="sig-leer">Nicht unterzeichnet</div>
+           <div style="border-bottom:1.5px solid #d1d5db;margin-bottom:4px;"></div>`
+      }
+      <div style="margin-top:4px;font-size:8.5pt;color:#374151;">${esc(azubiName)}</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-label">Ausbilder/in</div>
+      ${heft.ausbilder_signatur
+        ? `<div class="sig-img-wrap"><img class="sig-img" src="${heft.ausbilder_signatur}" alt="Unterschrift Ausbilder"/></div>
+           <div style="border-bottom:1.5px solid #374151;margin-bottom:4px;"></div>
+           <div class="sig-datum">${heft.ausbilder_signiert_am ? new Date(heft.ausbilder_signiert_am).toLocaleDateString('de-DE') : ''}</div>
+           <div class="sig-hinweis">Digital unterzeichnet</div>`
+        : `<div class="sig-leer">Nicht unterzeichnet</div>
+           <div style="border-bottom:1.5px solid #d1d5db;margin-bottom:4px;"></div>`
+      }
+      <div style="margin-top:4px;font-size:8.5pt;color:#374151;">${esc(ausbilderName)}</div>
+    </div>
+  </div>
+</div>
+
+<!-- FUSSZEILE -->
+<div class="doc-footer">
+  <span>Elektro Pees &middot; Digitaler Ausbildungsnachweis</span>
+  <span>${wocheLabel}</span>
+</div>
+
+</body>
+</html>`
+
     const printWindow = window.open('', '_blank')
     printWindow.document.write(html)
     printWindow.document.close()
     printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-    }, 500)
+    setTimeout(() => { printWindow.print() }, 600)
   }
 
   const statusConfig = {
