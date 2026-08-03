@@ -7,6 +7,7 @@ const IconUser = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const IconStar = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
 const IconClock = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
 const IconCounter = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><circle cx="8" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="16" cy="10" r="1" fill="currentColor"/></svg>
+const IconBuch = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/></svg>
 const IconKalender = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
 const IconSun = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
 
@@ -1675,6 +1676,482 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   )
 }
 
+// ─── BERICHTSHEFT KOMPONENTE ──────────────────────────────────────────────────
+
+function getWochenMontagVon(datum) {
+  const d = new Date(datum)
+  const dow = d.getDay()
+  const diff = dow === 0 ? -6 : 1 - dow
+  d.setDate(d.getDate() + diff)
+  d.setHours(0,0,0,0)
+  return d.toISOString().split('T')[0]
+}
+
+function SignaturCanvas({onSave, onCancel, title}) {
+  const canvasRef = useRef(null)
+  const [drawing, setDrawing] = useState(false)
+  const [hasDrawn, setHasDrawn] = useState(false)
+
+  function getPos(e, canvas) {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if (e.touches) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY
+      }
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    }
+  }
+
+  function startDraw(e) {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+    setDrawing(true)
+    setHasDrawn(true)
+  }
+
+  function draw(e) {
+    e.preventDefault()
+    if (!drawing) return
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const pos = getPos(e, canvas)
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#0A0A44'
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+  }
+
+  function stopDraw(e) {
+    e.preventDefault()
+    setDrawing(false)
+  }
+
+  function clear() {
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasDrawn(false)
+  }
+
+  function save() {
+    const canvas = canvasRef.current
+    onSave(canvas.toDataURL('image/png'))
+  }
+
+  return (
+    <div className="modal-overlay open" style={{zIndex:400}}>
+      <div className="modal-sheet">
+        <div className="modal-handle"/>
+        <div className="modal-title">✍️ {title}</div>
+        <div style={{fontSize:'0.82rem',color:'var(--text3)',marginBottom:12,textAlign:'center'}}>
+          Bitte hier unterschreiben
+        </div>
+        <div style={{border:'2px solid var(--border2)',borderRadius:12,overflow:'hidden',background:'white',touchAction:'none',userSelect:'none'}}>
+          <canvas
+            ref={canvasRef}
+            width={600}
+            height={200}
+            style={{width:'100%',height:160,display:'block',cursor:'crosshair'}}
+            onMouseDown={startDraw}
+            onMouseMove={draw}
+            onMouseUp={stopDraw}
+            onMouseLeave={stopDraw}
+            onTouchStart={startDraw}
+            onTouchMove={draw}
+            onTouchEnd={stopDraw}
+          />
+        </div>
+        <div style={{display:'flex',gap:8,marginTop:12}}>
+          <button onClick={clear} className="btn btn-secondary" style={{flex:1,marginBottom:0,padding:'0.6rem'}}>🗑️ Löschen</button>
+          <button onClick={save} disabled={!hasDrawn} className="btn btn-primary" style={{flex:2,marginBottom:0,padding:'0.6rem',opacity:hasDrawn?1:0.5}}>✓ Unterschrift speichern</button>
+        </div>
+        <button onClick={onCancel} className="btn btn-secondary" style={{marginTop:8}}>Abbrechen</button>
+      </div>
+    </div>
+  )
+}
+
+function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
+  const isAzubi = user.profile?.role === 'azubi'
+  const kannSignieren = isAdmin || isBuero
+  const [hefte, setHefte] = useState([])
+  const [ansicht, setAnsicht] = useState('liste') // 'liste'|'bearbeiten'|'detail'
+  const [aktuellesHeft, setAktuellesHeft] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [showSignatur, setShowSignatur] = useState(false) // 'azubi'|'ausbilder'|false
+  const [filterUser, setFilterUser] = useState(isAzubi ? user.id : 'alle')
+  const [form, setForm] = useState({
+    montag:'', dienstag:'', mittwoch:'', donnerstag:'', freitag:'', schulung:'', bemerkungen:''
+  })
+
+  const heute = new Date()
+  const aktuelleWoche = getWochenMontagVon(heute)
+
+  useEffect(() => { loadHefte() }, [filterUser])
+
+  async function loadHefte() {
+    let q = supabase.from('berichtshefte').select('*, profiles(name)').order('woche_start', {ascending: false}).limit(100)
+    if (filterUser !== 'alle') q = q.eq('user_id', filterUser)
+    const {data} = await q
+    setHefte(data || [])
+  }
+
+  async function neuesHeft() {
+    // Prüfen ob Heft für diese Woche schon existiert
+    const {data: exists} = await supabase.from('berichtshefte')
+      .select('id').eq('user_id', user.id).eq('woche_start', aktuelleWoche).single()
+    if (exists) {
+      // Existierendes öffnen
+      const {data} = await supabase.from('berichtshefte').select('*').eq('id', exists.id).single()
+      setAktuellesHeft(data)
+      setForm({
+        montag: data.montag||'', dienstag: data.dienstag||'', mittwoch: data.mittwoch||'',
+        donnerstag: data.donnerstag||'', freitag: data.freitag||'',
+        schulung: data.schulung||'', bemerkungen: data.bemerkungen||''
+      })
+      setAnsicht('bearbeiten')
+      return
+    }
+    // Neues anlegen
+    const wocheEnd = new Date(aktuelleWoche)
+    wocheEnd.setDate(wocheEnd.getDate() + 4)
+    const {data} = await supabase.from('berichtshefte').insert([{
+      user_id: user.id,
+      woche_start: aktuelleWoche,
+      woche_end: wocheEnd.toISOString().split('T')[0],
+      status: 'entwurf'
+    }]).select().single()
+    setAktuellesHeft(data)
+    setForm({montag:'', dienstag:'', mittwoch:'', donnerstag:'', freitag:'', schulung:'', bemerkungen:''})
+    setAnsicht('bearbeiten')
+  }
+
+  async function heftOeffnen(heft) {
+    setAktuellesHeft(heft)
+    setForm({
+      montag: heft.montag||'', dienstag: heft.dienstag||'', mittwoch: heft.mittwoch||'',
+      donnerstag: heft.donnerstag||'', freitag: heft.freitag||'',
+      schulung: heft.schulung||'', bemerkungen: heft.bemerkungen||''
+    })
+    if (kannSignieren || heft.status === 'eingereicht') {
+      setAnsicht('detail')
+    } else {
+      setAnsicht('bearbeiten')
+    }
+  }
+
+  async function handleSave(einreichen = false) {
+    if (!aktuellesHeft) return
+    setSaving(true)
+    const update = {
+      ...form,
+      status: einreichen ? 'eingereicht' : 'entwurf',
+      updated_at: new Date().toISOString()
+    }
+    await supabase.from('berichtshefte').update(update).eq('id', aktuellesHeft.id)
+    await loadHefte()
+    setSaving(false)
+    if (einreichen) {
+      setAnsicht('detail')
+      const {data} = await supabase.from('berichtshefte').select('*').eq('id', aktuellesHeft.id).single()
+      setAktuellesHeft(data)
+    }
+  }
+
+  async function handleSignatur(dataUrl) {
+    if (!aktuellesHeft) return
+    setSaving(true)
+    const update = showSignatur === 'azubi'
+      ? { azubi_signatur: dataUrl, azubi_signiert_am: new Date().toISOString(), status: 'eingereicht' }
+      : { ausbilder_signatur: dataUrl, ausbilder_signiert_am: new Date().toISOString(), ausbilder_id: user.id, status: 'signiert' }
+    await supabase.from('berichtshefte').update(update).eq('id', aktuellesHeft.id)
+    const {data} = await supabase.from('berichtshefte').select('*').eq('id', aktuellesHeft.id).single()
+    setAktuellesHeft(data)
+    await loadHefte()
+    setShowSignatur(false)
+    setSaving(false)
+  }
+
+  function exportPDF(heft) {
+    const azubiName = allUsers.find(u => u.id === heft.user_id)?.name || 'Azubi'
+    const ausbilderName = allUsers.find(u => u.id === heft.ausbilder_id)?.name || '—'
+    const wocheLabel = `${formatDate(heft.woche_start)} – ${formatDate(heft.woche_end)}`
+
+    const tage = [
+      {tag: 'Montag', text: heft.montag},
+      {tag: 'Dienstag', text: heft.dienstag},
+      {tag: 'Mittwoch', text: heft.mittwoch},
+      {tag: 'Donnerstag', text: heft.donnerstag},
+      {tag: 'Freitag', text: heft.freitag},
+    ]
+
+    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
+<title>Berichtsheft ${wocheLabel}</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #222; }
+  h1 { color: #0A0A44; border-bottom: 3px solid #1B52DD; padding-bottom: 8px; }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 14px; }
+  .tag { margin: 12px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+  .tag-header { background: #0A0A44; color: white; padding: 8px 14px; font-weight: bold; font-size: 14px; }
+  .tag-body { padding: 12px 14px; min-height: 60px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+  .schulung { background: #ebf8ff; border-color: #bee3f8; }
+  .schulung .tag-header { background: #2b6cb0; }
+  .signaturen { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; padding-top: 16px; border-top: 2px solid #ddd; }
+  .signatur-box { text-align: center; }
+  .signatur-label { font-size: 12px; color: #666; margin-bottom: 8px; }
+  .signatur-img { max-width: 200px; max-height: 80px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  .signatur-datum { font-size: 11px; color: #999; margin-top: 4px; }
+  .status-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-left: 12px; }
+  .status-signiert { background: #c6f6d5; color: #276749; }
+  .status-eingereicht { background: #fef3c7; color: #92400e; }
+  .status-entwurf { background: #e2e8f0; color: #4a5568; }
+</style></head><body>
+<h1>📋 Berichtsheft <span class="status-badge status-${heft.status}">${heft.status === 'signiert' ? '✓ Signiert' : heft.status === 'eingereicht' ? '⏳ Eingereicht' : 'Entwurf'}</span></h1>
+<div class="meta">
+  <div><strong>Azubi:</strong> ${azubiName}</div>
+  <div><strong>Ausbilder:</strong> ${ausbilderName}</div>
+  <div><strong>Woche:</strong> ${wocheLabel}</div>
+  <div><strong>Ausbildungsbetrieb:</strong> Elektro Pees</div>
+</div>
+${tage.map(({tag, text}) => `
+<div class="tag">
+  <div class="tag-header">${tag}</div>
+  <div class="tag-body">${text || '—'}</div>
+</div>`).join('')}
+${heft.schulung ? `<div class="tag schulung"><div class="tag-header">🎓 Schulung / Berufsschule</div><div class="tag-body">${heft.schulung}</div></div>` : ''}
+${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen</div><div class="tag-body">${heft.bemerkungen}</div></div>` : ''}
+<div class="signaturen">
+  <div class="signatur-box">
+    <div class="signatur-label">Unterschrift Azubi</div>
+    ${heft.azubi_signatur ? `<img class="signatur-img" src="${heft.azubi_signatur}" alt="Unterschrift Azubi"/>
+    <div class="signatur-datum">${heft.azubi_signiert_am ? new Date(heft.azubi_signiert_am).toLocaleDateString('de-DE') : ''}</div>` : '<div style="height:60px;border-bottom:1px solid #333;"></div><div class="signatur-datum">nicht signiert</div>'}
+  </div>
+  <div class="signatur-box">
+    <div class="signatur-label">Unterschrift Ausbilder</div>
+    ${heft.ausbilder_signatur ? `<img class="signatur-img" src="${heft.ausbilder_signatur}" alt="Unterschrift Ausbilder"/>
+    <div class="signatur-datum">${heft.ausbilder_signiert_am ? new Date(heft.ausbilder_signiert_am).toLocaleDateString('de-DE') : ''}</div>` : '<div style="height:60px;border-bottom:1px solid #333;"></div><div class="signatur-datum">nicht signiert</div>'}
+  </div>
+</div>
+</body></html>`
+
+    const blob = new Blob([html], {type: 'text/html'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Berichtsheft_${azubiName.replace(' ','_')}_${heft.woche_start}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const statusConfig = {
+    entwurf: { label: 'Entwurf', bg: '#e2e8f0', color: '#4a5568' },
+    eingereicht: { label: '⏳ Eingereicht', bg: '#fef3c7', color: '#92400e' },
+    signiert: { label: '✓ Signiert', bg: '#c6f6d5', color: '#276749' },
+  }
+
+  const azubis = allUsers.filter(u => u.role === 'azubi')
+
+  // ── LISTENANSICHT ───────────────────────────────────────────────────────────
+  if (ansicht === 'liste') return (
+    <div className="page-content">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <span className="section-title">📋 Berichtshefte</span>
+        {isAzubi && <button className="btn btn-outline btn-sm" onClick={neuesHeft}>+ Aktuelle Woche</button>}
+      </div>
+
+      {(isAdmin || isBuero) && azubis.length > 1 && (
+        <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+          <button onClick={()=>setFilterUser('alle')} style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid var(--border2)',background:filterUser==='alle'?'var(--dark)':'white',color:filterUser==='alle'?'white':'var(--text2)',fontSize:'0.78rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Alle</button>
+          {azubis.map(a=>(
+            <button key={a.id} onClick={()=>setFilterUser(a.id)} style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid var(--border2)',background:filterUser===a.id?'var(--dark)':'white',color:filterUser===a.id?'white':'var(--text2)',fontSize:'0.78rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{a.name}</button>
+          ))}
+        </div>
+      )}
+
+      {hefte.length === 0 ? (
+        <div className="empty-state">
+          <div style={{fontSize:'3rem',marginBottom:12}}>📋</div>
+          <div className="empty-title">Noch keine Berichtshefte</div>
+          <div className="empty-sub">{isAzubi ? 'Klicke auf "+ Aktuelle Woche" um dein erstes Berichtsheft anzulegen.' : 'Noch keine Berichtshefte vorhanden.'}</div>
+        </div>
+      ) : hefte.map(h => {
+        const cfg = statusConfig[h.status] || statusConfig.entwurf
+        const azubiName = allUsers.find(u => u.id === h.user_id)?.name || '—'
+        return (
+          <div key={h.id} className="card" style={{cursor:'pointer'}} onClick={()=>heftOeffnen(h)}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                {(isAdmin||isBuero) && <div style={{fontSize:'0.75rem',color:'var(--blue)',fontWeight:600,marginBottom:2}}>👤 {azubiName}</div>}
+                <div style={{fontWeight:700,color:'var(--dark)'}}>KW {formatDate(h.woche_start)} – {formatDate(h.woche_end)}</div>
+                <div style={{fontSize:'0.75rem',color:'var(--text3)',marginTop:2}}>
+                  {h.azubi_signatur ? '✍️ Azubi signiert' : '○ Azubi nicht signiert'} · {h.ausbilder_signatur ? '✍️ Ausbilder signiert' : '○ Ausbilder nicht signiert'}
+                </div>
+              </div>
+              <span style={{fontSize:'0.72rem',fontWeight:700,padding:'3px 10px',borderRadius:20,background:cfg.bg,color:cfg.color}}>{cfg.label}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  // ── BEARBEITEN ──────────────────────────────────────────────────────────────
+  if (ansicht === 'bearbeiten' && aktuellesHeft) return (
+    <div className="page-content">
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+        <button onClick={()=>setAnsicht('liste')} style={{background:'none',border:'none',cursor:'pointer',color:'var(--blue)',fontSize:'1.2rem',padding:0}}>‹</button>
+        <span className="section-title" style={{margin:0}}>Berichtsheft {formatDate(aktuellesHeft.woche_start)} – {formatDate(aktuellesHeft.woche_end)}</span>
+      </div>
+
+      <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:10,padding:'8px 14px',marginBottom:16,fontSize:'0.78rem',color:'#2b6cb0'}}>
+        💡 Beschreibe kurz was du an jedem Tag gemacht hast. Stichpunkte reichen.
+      </div>
+
+      {[
+        {key:'montag', label:'Montag'},
+        {key:'dienstag', label:'Dienstag'},
+        {key:'mittwoch', label:'Mittwoch'},
+        {key:'donnerstag', label:'Donnerstag'},
+        {key:'freitag', label:'Freitag (optional)'},
+      ].map(({key, label}) => (
+        <div key={key} className="card" style={{padding:'0.75rem 1rem',marginBottom:8}}>
+          <div style={{fontWeight:700,fontSize:'0.85rem',color:'var(--dark)',marginBottom:6}}>📅 {label}</div>
+          <textarea
+            value={form[key]}
+            onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}
+            placeholder={`Was hast du am ${label} gemacht?`}
+            style={{width:'100%',minHeight:70,padding:'8px',border:'1.5px solid var(--border2)',borderRadius:8,fontSize:'0.85rem',fontFamily:'inherit',resize:'vertical',boxSizing:'border-box'}}
+          />
+        </div>
+      ))}
+
+      <div className="card" style={{padding:'0.75rem 1rem',marginBottom:8,background:'#f0fff4',border:'1px solid #9ae6b4'}}>
+        <div style={{fontWeight:700,fontSize:'0.85rem',color:'#276749',marginBottom:6}}>🎓 Schulung / Berufsschule (optional)</div>
+        <textarea value={form.schulung} onChange={e=>setForm(f=>({...f,schulung:e.target.value}))} placeholder="Berufsschulthemen, interne Schulungen..." style={{width:'100%',minHeight:60,padding:'8px',border:'1.5px solid #9ae6b4',borderRadius:8,fontSize:'0.85rem',fontFamily:'inherit',resize:'vertical',boxSizing:'border-box'}}/>
+      </div>
+
+      <div className="card" style={{padding:'0.75rem 1rem',marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:'0.85rem',color:'var(--dark)',marginBottom:6}}>📝 Bemerkungen (optional)</div>
+        <textarea value={form.bemerkungen} onChange={e=>setForm(f=>({...f,bemerkungen:e.target.value}))} placeholder="Sonstiges..." style={{width:'100%',minHeight:60,padding:'8px',border:'1.5px solid var(--border2)',borderRadius:8,fontSize:'0.85rem',fontFamily:'inherit',resize:'vertical',boxSizing:'border-box'}}/>
+      </div>
+
+      <button className="btn btn-secondary" onClick={()=>handleSave(false)} disabled={saving} style={{marginBottom:8}}>{saving?'Speichert...':'💾 Entwurf speichern'}</button>
+      <button className="btn btn-primary" onClick={()=>setShowSignatur('azubi')} style={{marginBottom:8}}>✍️ Unterschreiben & Einreichen</button>
+      <button className="btn btn-secondary" onClick={()=>setAnsicht('liste')}>Zurück</button>
+
+      {showSignatur==='azubi' && (
+        <SignaturCanvas
+          title="Azubi-Unterschrift"
+          onSave={async (dataUrl) => {
+            await supabase.from('berichtshefte').update({...form}).eq('id', aktuellesHeft.id)
+            await handleSignatur(dataUrl)
+            setAnsicht('detail')
+            const {data} = await supabase.from('berichtshefte').select('*').eq('id', aktuellesHeft.id).single()
+            setAktuellesHeft(data)
+          }}
+          onCancel={() => setShowSignatur(false)}
+        />
+      )}
+    </div>
+  )
+
+  // ── DETAILANSICHT ───────────────────────────────────────────────────────────
+  if (ansicht === 'detail' && aktuellesHeft) {
+    const h = aktuellesHeft
+    const azubiName = allUsers.find(u => u.id === h.user_id)?.name || '—'
+    const ausbilderName = allUsers.find(u => u.id === h.ausbilder_id)?.name || '—'
+    const cfg = statusConfig[h.status] || statusConfig.entwurf
+    const tage = [
+      {label:'Montag', text: h.montag},
+      {label:'Dienstag', text: h.dienstag},
+      {label:'Mittwoch', text: h.mittwoch},
+      {label:'Donnerstag', text: h.donnerstag},
+      {label:'Freitag', text: h.freitag},
+    ]
+    return (
+      <div className="page-content">
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+          <button onClick={()=>setAnsicht('liste')} style={{background:'none',border:'none',cursor:'pointer',color:'var(--blue)',fontSize:'1.2rem',padding:0}}>‹</button>
+          <span className="section-title" style={{margin:0}}>Berichtsheft</span>
+          <span style={{fontSize:'0.72rem',fontWeight:700,padding:'3px 10px',borderRadius:20,background:cfg.bg,color:cfg.color,marginLeft:'auto'}}>{cfg.label}</span>
+        </div>
+
+        <div className="card" style={{marginBottom:8}}>
+          <div style={{fontSize:'0.78rem',color:'var(--text3)',lineHeight:2}}>
+            <div>👤 <strong>Azubi:</strong> {azubiName}</div>
+            <div>📅 <strong>Woche:</strong> {formatDate(h.woche_start)} – {formatDate(h.woche_end)}</div>
+            <div>🏢 <strong>Betrieb:</strong> Elektro Pees</div>
+          </div>
+        </div>
+
+        {tage.filter(t=>t.text).map(({label,text})=>(
+          <div key={label} className="card" style={{marginBottom:8}}>
+            <div style={{fontWeight:700,fontSize:'0.82rem',color:'var(--dark)',marginBottom:6}}>📅 {label}</div>
+            <div style={{fontSize:'0.85rem',color:'var(--text)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{text}</div>
+          </div>
+        ))}
+        {h.schulung&&<div className="card" style={{marginBottom:8,background:'#f0fff4',border:'1px solid #9ae6b4'}}><div style={{fontWeight:700,fontSize:'0.82rem',color:'#276749',marginBottom:6}}>🎓 Schulung</div><div style={{fontSize:'0.85rem',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{h.schulung}</div></div>}
+        {h.bemerkungen&&<div className="card" style={{marginBottom:8}}><div style={{fontWeight:700,fontSize:'0.82rem',color:'var(--dark)',marginBottom:6}}>📝 Bemerkungen</div><div style={{fontSize:'0.85rem',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{h.bemerkungen}</div></div>}
+
+        {/* Signaturen */}
+        <div className="card" style={{marginBottom:8}}>
+          <div style={{fontWeight:700,fontSize:'0.85rem',color:'var(--dark)',marginBottom:12}}>✍️ Signaturen</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:'0.72rem',color:'var(--text3)',marginBottom:6,fontWeight:600}}>AZUBI</div>
+              {h.azubi_signatur
+                ? <><img src={h.azubi_signatur} alt="Azubi" style={{maxWidth:'100%',maxHeight:70,borderBottom:'1px solid #333',padding:'0 0 4px'}}/><div style={{fontSize:'0.65rem',color:'var(--text3)',marginTop:4}}>{new Date(h.azubi_signiert_am).toLocaleDateString('de-DE')}</div></>
+                : <div style={{height:60,borderBottom:'1px solid #ccc',display:'flex',alignItems:'center',justifyContent:'center',color:'#ccc',fontSize:'0.72rem'}}>Nicht signiert</div>
+              }
+            </div>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:'0.72rem',color:'var(--text3)',marginBottom:6,fontWeight:600}}>AUSBILDER</div>
+              {h.ausbilder_signatur
+                ? <><img src={h.ausbilder_signatur} alt="Ausbilder" style={{maxWidth:'100%',maxHeight:70,borderBottom:'1px solid #333',padding:'0 0 4px'}}/><div style={{fontSize:'0.65rem',color:'var(--text3)',marginTop:4}}>{new Date(h.ausbilder_signiert_am).toLocaleDateString('de-DE')} · {ausbilderName}</div></>
+                : <div style={{height:60,borderBottom:'1px solid #ccc',display:'flex',alignItems:'center',justifyContent:'center',color:'#ccc',fontSize:'0.72rem'}}>Nicht signiert</div>
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* Aktionen */}
+        {isAzubi && h.status==='entwurf' && (
+          <button className="btn btn-primary" onClick={()=>setAnsicht('bearbeiten')} style={{marginBottom:8}}>✏️ Bearbeiten</button>
+        )}
+        {isAzubi && !h.azubi_signatur && (
+          <button className="btn btn-primary" style={{background:'#276749',marginBottom:8}} onClick={()=>setShowSignatur('azubi')}>✍️ Als Azubi unterschreiben</button>
+        )}
+        {kannSignieren && h.azubi_signatur && !h.ausbilder_signatur && (
+          <button className="btn btn-primary" style={{marginBottom:8}} onClick={()=>setShowSignatur('ausbilder')}>✍️ Als Ausbilder signieren</button>
+        )}
+        <button className="btn btn-secondary" style={{marginBottom:8}} onClick={()=>exportPDF(h)}>📄 Als PDF exportieren</button>
+        <button className="btn btn-secondary" onClick={()=>setAnsicht('liste')}>Zurück zur Liste</button>
+
+        {showSignatur && (
+          <SignaturCanvas
+            title={showSignatur==='azubi'?'Azubi-Unterschrift':'Ausbilder-Signatur'}
+            onSave={handleSignatur}
+            onCancel={()=>setShowSignatur(false)}
+          />
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
@@ -1728,6 +2205,7 @@ export default function App() {
   if(!user)return <LoginPage onLogin={u=>{setUser(u)}}/>
   const isAdmin=user.profile?.role==='admin'
   const isBuero=user.profile?.role==='buero'
+  const isAzubi=user.profile?.role==='azubi'
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   const kalenderBadge=termine.filter(t=>{const d=new Date(t.datum);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<=2&&(t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)}).length
   return (
@@ -1771,6 +2249,7 @@ export default function App() {
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
+      {page==='berichtsheft'&&<BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
@@ -1784,6 +2263,7 @@ export default function App() {
           <span>Kalender</span>
         </button>
         <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
+        {(isAzubi||isAdmin||isBuero)&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
         {(isAdmin||isBuero)&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
             <IconStar/>
