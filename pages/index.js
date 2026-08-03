@@ -1847,7 +1847,7 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   const heute = new Date()
   const aktuelleWoche = getWochenMontagVon(heute)
 
-  useEffect(() => { loadHefte() }, [filterUser])
+  useEffect(() => { loadHefte() }, [])
   // Neu laden wenn Tab wieder aktiv wird (Fenster-Fokus)
   useEffect(() => {
     function onFocus() { loadHefte() }
@@ -1856,9 +1856,11 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   }, [aktuellesHeft])
 
   async function loadHefte() {
-    let q = supabase.from('berichtshefte').select('*, profiles(name)').order('woche_start', {ascending: false}).limit(100)
-    if (filterUser !== 'alle') q = q.eq('user_id', filterUser)
-    const {data} = await q
+    // Immer ALLE laden (RLS filtert nach Rolle), dann im Frontend filtern
+    const {data} = await supabase.from('berichtshefte')
+      .select('*, profiles(name)')
+      .order('woche_start', {ascending: false})
+      .limit(500)
     setHefte(data || [])
     // Aktives Heft auch aktualisieren damit Signatur nicht verloren geht
     if (aktuellesHeft) {
@@ -2044,13 +2046,13 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
         </div>
       )}
 
-      {hefte.length === 0 ? (
+      {(()=>{ const gefilterteHefte = filterUser==='alle' ? hefte : hefte.filter(h=>h.user_id===filterUser); return gefilterteHefte.length === 0 ? (
         <div className="empty-state">
           <div style={{fontSize:'3rem',marginBottom:12}}>📋</div>
           <div className="empty-title">Noch keine Berichtshefte</div>
           <div className="empty-sub">{isAzubi ? 'Klicke auf "+ Aktuelle Woche" um dein erstes Berichtsheft anzulegen.' : 'Noch keine Berichtshefte vorhanden.'}</div>
         </div>
-      ) : hefte.map(h => {
+      ) : gefilterteHefte.map(h => {
         const cfg = statusConfig[h.status] || statusConfig.entwurf
         const azubiName = allUsers.find(u => u.id === h.user_id)?.name || '—'
         return (
