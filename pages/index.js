@@ -1848,12 +1848,23 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   const aktuelleWoche = getWochenMontagVon(heute)
 
   useEffect(() => { loadHefte() }, [filterUser])
+  // Neu laden wenn Tab wieder aktiv wird (Fenster-Fokus)
+  useEffect(() => {
+    function onFocus() { loadHefte() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [aktuellesHeft])
 
   async function loadHefte() {
     let q = supabase.from('berichtshefte').select('*, profiles(name)').order('woche_start', {ascending: false}).limit(100)
     if (filterUser !== 'alle') q = q.eq('user_id', filterUser)
     const {data} = await q
     setHefte(data || [])
+    // Aktives Heft auch aktualisieren damit Signatur nicht verloren geht
+    if (aktuellesHeft) {
+      const aktuell = (data||[]).find(h => h.id === aktuellesHeft.id)
+      if (aktuell) setAktuellesHeft(aktuell)
+    }
   }
 
   async function neuesHeft() {
@@ -1861,7 +1872,7 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     const {data: exists} = await supabase.from('berichtshefte')
       .select('id').eq('user_id', user.id).eq('woche_start', aktuelleWoche).single()
     if (exists) {
-      // Existierendes öffnen
+      // Existierendes öffnen - frisch aus Supabase laden
       const {data} = await supabase.from('berichtshefte').select('*').eq('id', exists.id).single()
       setAktuellesHeft(data)
       setForm({
@@ -1869,7 +1880,8 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
         donnerstag: data.donnerstag||'', freitag: data.freitag||'',
         schulung: data.schulung||'', bemerkungen: data.bemerkungen||''
       })
-      setAnsicht('bearbeiten')
+      // Signiertes/Eingereichtes Heft -> Detailansicht, Entwurf -> Bearbeiten
+      setAnsicht(data.status === 'entwurf' ? 'bearbeiten' : 'detail')
       return
     }
     // Neues anlegen
@@ -1887,16 +1899,20 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   }
 
   async function heftOeffnen(heft) {
-    setAktuellesHeft(heft)
+    // Immer frisch aus Supabase laden damit Signatur aktuell ist
+    const {data} = await supabase.from('berichtshefte').select('*').eq('id', heft.id).single()
+    const h = data || heft
+    setAktuellesHeft(h)
     setForm({
-      montag: heft.montag||'', dienstag: heft.dienstag||'', mittwoch: heft.mittwoch||'',
-      donnerstag: heft.donnerstag||'', freitag: heft.freitag||'',
-      schulung: heft.schulung||'', bemerkungen: heft.bemerkungen||''
+      montag: h.montag||'', dienstag: h.dienstag||'', mittwoch: h.mittwoch||'',
+      donnerstag: h.donnerstag||'', freitag: h.freitag||'',
+      schulung: h.schulung||'', bemerkungen: h.bemerkungen||''
     })
-    if (kannSignieren || heft.status === 'eingereicht') {
-      setAnsicht('detail')
-    } else {
+    // Ansicht nach Status wählen
+    if (h.status === 'entwurf' && !kannSignieren) {
       setAnsicht('bearbeiten')
+    } else {
+      setAnsicht('detail')
     }
   }
 
@@ -2305,7 +2321,7 @@ export default function App() {
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero} setPage={setPage}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
-      {page==='berichtsheft'&&<BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
+      <div style={{display:page==='berichtsheft'?'block':'none'}}><BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/></div>
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
