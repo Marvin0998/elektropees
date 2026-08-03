@@ -2098,8 +2098,8 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     padding: 6px 10px;
     border-bottom: 1px solid #e5e7eb;
   }
-  .sd-label:last-of-type, .sd-val:last-of-type { border-bottom: none; }
-  .sd-divider { border-bottom: 2px solid #1B52DD !important; }
+  .sd-label, .sd-val { border-bottom: 1px solid #bfdbfe; }
+  .sd-label:nth-last-child(2), .sd-val:last-child { border-bottom: none; }
 
   /* ── WOCHEN-ABSCHNITT ── */
   .woche-titel {
@@ -2276,7 +2276,7 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
 <!-- HEADER -->
 <div class="doc-header">
   <div class="logo-block">
-    <img class="logo-img" src="https://elektropees.vercel.app/logo.png" alt="Elektro Pees"/>
+    <img class="logo-img" src="https://elektropees.vercel.app/logo_dunkel.png" alt="Elektro Pees"/>
     <div>
       <div class="logo-text">Elektro Pees</div>
       <div class="logo-sub">Elektroinstallation &amp; Gebäudetechnik</div>
@@ -2293,10 +2293,10 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
 <div class="stammdaten">
   <div class="sd-label">Auszubildender</div>
   <div class="sd-val">${esc(azubiName)}</div>
-  <div class="sd-label sd-divider">Ausbilder</div>
-  <div class="sd-val sd-divider">${esc(ausbilderName)}</div>
-  <div class="sd-label sd-divider">Ausbildungsjahr</div>
-  <div class="sd-val sd-divider">${jahr}</div>
+  <div class="sd-label">Ausbilder</div>
+  <div class="sd-val">${esc(ausbilderName)}</div>
+  <div class="sd-label">Ausbildungsjahr</div>
+  <div class="sd-val">${jahr}</div>
   <div class="sd-label">Ausbildungsbetrieb</div>
   <div class="sd-val">Elektro Pees</div>
   <div class="sd-label">Ausbildungswoche</div>
