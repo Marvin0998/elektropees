@@ -1831,7 +1831,7 @@ function SignaturCanvas({onSave, onCancel, title}) {
   )
 }
 
-function BerichtsheftPage({user, allUsers, isAdmin, isBuero, aktiv}) {
+function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   const isAzubi = user.profile?.role === 'azubi'
   const kannSignieren = isAdmin || isBuero
   const [hefte, setHefte] = useState([])
@@ -1847,14 +1847,14 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero, aktiv}) {
   const heute = new Date()
   const aktuelleWoche = getWochenMontagVon(heute)
 
-  useEffect(() => { if(aktiv) loadHefte() }, [aktiv])
+  useEffect(() => { loadHefte() }, [])
 
   async function loadHefte() {
-    // Immer ALLE laden (RLS filtert nach Rolle), dann im Frontend filtern
-    const {data} = await supabase.from('berichtshefte')
-      .select('*, profiles(name)')
+    const {data, error} = await supabase.from('berichtshefte')
+      .select('*')
       .order('woche_start', {ascending: false})
       .limit(500)
+    if(error) console.error('Berichtshefte Fehler:', error.message)
     setHefte(data || [])
     // Aktives Heft auch aktualisieren damit Signatur nicht verloren geht
     if (aktuellesHeft) {
@@ -2321,7 +2321,7 @@ export default function App() {
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero} setPage={setPage}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
-      <div style={{display:page==='berichtsheft'?'block':'none'}}><BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} aktiv={page==='berichtsheft'}/></div>
+      {page==='berichtsheft'&&<BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
