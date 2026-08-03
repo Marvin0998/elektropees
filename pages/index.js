@@ -2046,30 +2046,34 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
         </div>
       )}
 
-      {(()=>{ const gefilterteHefte = filterUser==='alle' ? hefte : hefte.filter(h=>h.user_id===filterUser); return gefilterteHefte.length === 0 ? (
-        <div className="empty-state">
-          <div style={{fontSize:'3rem',marginBottom:12}}>📋</div>
-          <div className="empty-title">Noch keine Berichtshefte</div>
-          <div className="empty-sub">{isAzubi ? 'Klicke auf "+ Aktuelle Woche" um dein erstes Berichtsheft anzulegen.' : 'Noch keine Berichtshefte vorhanden.'}</div>
-        </div>
-      ) : gefilterteHefte.map(h => {
-        const cfg = statusConfig[h.status] || statusConfig.entwurf
-        const azubiName = allUsers.find(u => u.id === h.user_id)?.name || '—'
-        return (
-          <div key={h.id} className="card" style={{cursor:'pointer'}} onClick={()=>heftOeffnen(h)}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div>
-                {(isAdmin||isBuero) && <div style={{fontSize:'0.75rem',color:'var(--blue)',fontWeight:600,marginBottom:2}}>👤 {azubiName}</div>}
-                <div style={{fontWeight:700,color:'var(--dark)'}}>KW {formatDate(h.woche_start)} – {formatDate(h.woche_end)}</div>
-                <div style={{fontSize:'0.75rem',color:'var(--text3)',marginTop:2}}>
-                  {h.azubi_signatur ? '✍️ Azubi signiert' : '○ Azubi nicht signiert'} · {h.ausbilder_signatur ? '✍️ Ausbilder signiert' : '○ Ausbilder nicht signiert'}
-                </div>
-              </div>
-              <span style={{fontSize:'0.72rem',fontWeight:700,padding:'3px 10px',borderRadius:20,background:cfg.bg,color:cfg.color}}>{cfg.label}</span>
-            </div>
+      {(()=>{
+        const gefilterteHefte = filterUser==='alle' ? hefte : hefte.filter(h=>h.user_id===filterUser)
+        if(gefilterteHefte.length === 0) return (
+          <div className="empty-state">
+            <div style={{fontSize:'3rem',marginBottom:12}}>📋</div>
+            <div className="empty-title">Noch keine Berichtshefte</div>
+            <div className="empty-sub">{isAzubi ? 'Klicke auf "+ Aktuelle Woche" um dein erstes Berichtsheft anzulegen.' : 'Noch keine Berichtshefte vorhanden.'}</div>
           </div>
         )
-      })}
+        return gefilterteHefte.map(h => {
+          const cfg = statusConfig[h.status] || statusConfig.entwurf
+          const azubiName = allUsers.find(u => u.id === h.user_id)?.name || '—'
+          return (
+            <div key={h.id} className="card" style={{cursor:'pointer'}} onClick={()=>heftOeffnen(h)}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div>
+                  {(isAdmin||isBuero) && <div style={{fontSize:'0.75rem',color:'var(--blue)',fontWeight:600,marginBottom:2}}>👤 {azubiName}</div>}
+                  <div style={{fontWeight:700,color:'var(--dark)'}}>KW {formatDate(h.woche_start)} – {formatDate(h.woche_end)}</div>
+                  <div style={{fontSize:'0.75rem',color:'var(--text3)',marginTop:2}}>
+                    {h.azubi_signatur ? '✍️ Azubi signiert' : '○ Azubi nicht signiert'} · {h.ausbilder_signatur ? '✍️ Ausbilder signiert' : '○ Ausbilder nicht signiert'}
+                  </div>
+                </div>
+                <span style={{fontSize:'0.72rem',fontWeight:700,padding:'3px 10px',borderRadius:20,background:cfg.bg,color:cfg.color}}>{cfg.label}</span>
+              </div>
+            </div>
+          )
+        })
+      })()}
     </div>
   )
 
