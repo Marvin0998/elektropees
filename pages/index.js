@@ -1954,22 +1954,22 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     const istSigniert = heft.status === 'signiert'
 
     const tage = [
-      {tag: 'Montag', text: heft.montag},
-      {tag: 'Dienstag', text: heft.dienstag},
-      {tag: 'Mittwoch', text: heft.mittwoch},
-      {tag: 'Donnerstag', text: heft.donnerstag},
-      {tag: 'Freitag', text: heft.freitag},
+      {tag: 'Montag', text: heft.montag, frei: false},
+      {tag: 'Dienstag', text: heft.dienstag, frei: false},
+      {tag: 'Mittwoch', text: heft.mittwoch, frei: false},
+      {tag: 'Donnerstag', text: heft.donnerstag, frei: false},
+      {tag: 'Freitag', text: heft.freitag, frei: true},
     ]
 
     function esc(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
-    const tageHtml = tage.map(({tag, text}) => `
+    const tageHtml = tage.map(({tag, text, frei}) => `
 <div class="tag-block">
   <div class="tag-header">
     <span class="tag-dot"></span>
     <span class="tag-name">${tag}</span>
   </div>
-  <div class="tag-body">${text ? esc(text) : '<span class="kein-eintrag">Kein Eintrag</span>'}</div>
+  <div class="tag-body">${text ? esc(text) : frei ? '<span class="kein-eintrag">Betriebsfrei &ndash; 4-Tage-Woche</span>' : '<span class="kein-eintrag">Kein Eintrag</span>'}</div>
 </div>`).join('')
 
     const html = `<!DOCTYPE html>
@@ -2277,10 +2277,6 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
 <div class="doc-header">
   <div class="logo-block">
     <img class="logo-img" src="https://elektropees.vercel.app/logo_dunkel.png" alt="Elektro Pees"/>
-    <div>
-      <div class="logo-text">Elektro Pees</div>
-      <div class="logo-sub">Elektroinstallation &amp; Gebäudetechnik</div>
-    </div>
   </div>
   <div class="header-title">
     <h1>Ausbildungsnachweis</h1>
