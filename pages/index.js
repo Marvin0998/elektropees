@@ -2020,19 +2020,10 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     align-items: center;
     gap: 10px;
   }
-  .logo-placeholder {
-    width: 44px;
-    height: 44px;
-    background: #0A0A44;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .logo-placeholder svg {
-    width: 28px;
-    height: 28px;
-    fill: #fff;
+  .logo-img {
+    height: 52px;
+    width: auto;
+    object-fit: contain;
   }
   .logo-text {
     font-size: 9pt;
@@ -2108,6 +2099,7 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     border-bottom: 1px solid #e5e7eb;
   }
   .sd-label:last-of-type, .sd-val:last-of-type { border-bottom: none; }
+  .sd-divider { border-bottom: 2px solid #1B52DD !important; }
 
   /* ── WOCHEN-ABSCHNITT ── */
   .woche-titel {
@@ -2284,11 +2276,7 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
 <!-- HEADER -->
 <div class="doc-header">
   <div class="logo-block">
-    <div class="logo-placeholder">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-      </svg>
-    </div>
+    <img class="logo-img" src="https://elektropees.vercel.app/logo.png" alt="Elektro Pees"/>
     <div>
       <div class="logo-text">Elektro Pees</div>
       <div class="logo-sub">Elektroinstallation &amp; Gebäudetechnik</div>
@@ -2305,14 +2293,14 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
 <div class="stammdaten">
   <div class="sd-label">Auszubildender</div>
   <div class="sd-val">${esc(azubiName)}</div>
+  <div class="sd-label sd-divider">Ausbilder</div>
+  <div class="sd-val sd-divider">${esc(ausbilderName)}</div>
+  <div class="sd-label sd-divider">Ausbildungsjahr</div>
+  <div class="sd-val sd-divider">${jahr}</div>
   <div class="sd-label">Ausbildungsbetrieb</div>
   <div class="sd-val">Elektro Pees</div>
-  <div class="sd-label">Ausbilder</div>
-  <div class="sd-val">${esc(ausbilderName)}</div>
   <div class="sd-label">Ausbildungswoche</div>
   <div class="sd-val">${wocheLabel}</div>
-  <div class="sd-label">Ausbildungsjahr</div>
-  <div class="sd-val">${jahr}</div>
   <div class="sd-label">Ausbildungsberuf</div>
   <div class="sd-val">Elektroniker/in für Energie- und Gebäudetechnik</div>
 </div>
