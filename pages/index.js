@@ -1840,6 +1840,8 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   const [saving, setSaving] = useState(false)
   const [showSignatur, setShowSignatur] = useState(false) // 'azubi'|'ausbilder'|false
   const [filterUser, setFilterUser] = useState(isAzubi ? user.id : 'alle')
+  const [showNachtrag, setShowNachtrag] = useState(false)
+  const [nachtragDatum, setNachtragDatum] = useState('')
   const [form, setForm] = useState({
     montag:'', dienstag:'', mittwoch:'', donnerstag:'', freitag:'', schulung:'', bemerkungen:''
   })
@@ -1863,10 +1865,10 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     }
   }
 
-  async function neuesHeft() {
+  async function neuesHeft(wocheStart = aktuelleWoche) {
     // Prüfen ob Heft für diese Woche schon existiert
     const {data: exists} = await supabase.from('berichtshefte')
-      .select('id').eq('user_id', user.id).eq('woche_start', aktuelleWoche).single()
+      .select('id').eq('user_id', user.id).eq('woche_start', wocheStart).single()
     if (exists) {
       // Existierendes öffnen - frisch aus Supabase laden
       const {data} = await supabase.from('berichtshefte').select('*').eq('id', exists.id).single()
@@ -1881,11 +1883,11 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
       return
     }
     // Neues anlegen
-    const wocheEnd = new Date(aktuelleWoche)
+    const wocheEnd = new Date(wocheStart)
     wocheEnd.setDate(wocheEnd.getDate() + 4)
     const {data} = await supabase.from('berichtshefte').insert([{
       user_id: user.id,
-      woche_start: aktuelleWoche,
+      woche_start: wocheStart,
       woche_end: wocheEnd.toISOString().split('T')[0],
       status: 'entwurf'
     }]).select().single()
@@ -1958,39 +1960,40 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
     ]
 
     const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
-<title>Berichtsheft ${wocheLabel}</title>
+<title>Berichtsheft ${wocheLabel} – ${azubiName}</title>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #222; }
-  h1 { color: #0A0A44; border-bottom: 3px solid #1B52DD; padding-bottom: 8px; }
-  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 14px; }
-  .tag { margin: 12px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
-  .tag-header { background: #0A0A44; color: white; padding: 8px 14px; font-weight: bold; font-size: 14px; }
-  .tag-body { padding: 12px 14px; min-height: 60px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
-  .schulung { background: #ebf8ff; border-color: #bee3f8; }
-  .schulung .tag-header { background: #2b6cb0; }
-  .signaturen { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; padding-top: 16px; border-top: 2px solid #ddd; }
+  @media print {
+    body { margin: 0; }
+    @page { margin: 15mm; size: A4; }
+  }
+  body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #222; font-size: 13px; }
+  h1 { color: #0A0A44; border-bottom: 3px solid #1B52DD; padding-bottom: 8px; font-size: 18px; }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 13px; }
+  .tag { margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }
+  .tag-header { background: #0A0A44; color: white; padding: 7px 12px; font-weight: bold; font-size: 13px; }
+  .tag-body { padding: 10px 12px; min-height: 50px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+  .signaturen { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; padding-top: 16px; border-top: 2px solid #ddd; page-break-inside: avoid; }
   .signatur-box { text-align: center; }
-  .signatur-label { font-size: 12px; color: #666; margin-bottom: 8px; }
-  .signatur-img { max-width: 200px; max-height: 80px; border-bottom: 1px solid #333; padding-bottom: 4px; }
-  .signatur-datum { font-size: 11px; color: #999; margin-top: 4px; }
-  .status-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-left: 12px; }
+  .signatur-label { font-size: 11px; color: #666; margin-bottom: 8px; font-weight: bold; text-transform: uppercase; }
+  .signatur-img { max-width: 180px; max-height: 70px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  .signatur-datum { font-size: 10px; color: #999; margin-top: 4px; }
+  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-left: 10px; }
   .status-signiert { background: #c6f6d5; color: #276749; }
   .status-eingereicht { background: #fef3c7; color: #92400e; }
-  .status-entwurf { background: #e2e8f0; color: #4a5568; }
+  .no-print { display: none; }
 </style></head><body>
-<h1>📋 Berichtsheft <span class="status-badge status-${heft.status}">${heft.status === 'signiert' ? '✓ Signiert' : heft.status === 'eingereicht' ? '⏳ Eingereicht' : 'Entwurf'}</span></h1>
+<h1>📋 Berichtsheft <span class="status-badge status-${heft.status}">${heft.status === 'signiert' ? '✓ Signiert' : '⏳ Eingereicht'}</span></h1>
 <div class="meta">
   <div><strong>Azubi:</strong> ${azubiName}</div>
   <div><strong>Ausbilder:</strong> ${ausbilderName}</div>
   <div><strong>Woche:</strong> ${wocheLabel}</div>
   <div><strong>Ausbildungsbetrieb:</strong> Elektro Pees</div>
 </div>
-${tage.map(({tag, text}) => `
+${tage.filter(t=>t.text).map(({tag, text}) => `
 <div class="tag">
   <div class="tag-header">${tag}</div>
-  <div class="tag-body">${text || '—'}</div>
+  <div class="tag-body">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
 </div>`).join('')}
-${heft.schulung ? `<div class="tag schulung"><div class="tag-header">🎓 Schulung / Berufsschule</div><div class="tag-body">${heft.schulung}</div></div>` : ''}
 ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen</div><div class="tag-body">${heft.bemerkungen}</div></div>` : ''}
 <div class="signaturen">
   <div class="signatur-box">
@@ -2006,13 +2009,14 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
 </div>
 </body></html>`
 
-    const blob = new Blob([html], {type: 'text/html'})
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `Berichtsheft_${azubiName.replace(' ','_')}_${heft.woche_start}.html`
-    a.click()
-    URL.revokeObjectURL(url)
+    // Neues Fenster öffnen und direkt Druckdialog öffnen → als PDF speichern
+    const printWindow = window.open('', '_blank')
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => {
+      printWindow.print()
+    }, 500)
   }
 
   const statusConfig = {
@@ -2028,7 +2032,10 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
     <div className="page-content">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
         <span className="section-title">📋 Berichtshefte</span>
-        {isAzubi && <button className="btn btn-outline btn-sm" onClick={neuesHeft}>+ Aktuelle Woche</button>}
+        {isAzubi && <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-outline btn-sm" onClick={()=>neuesHeft()}>+ Aktuelle Woche</button>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowNachtrag(true)} style={{color:'var(--text2)'}}>+ Nachtrag</button>
+        </div>}
       </div>
 
       {(isAdmin || isBuero) && azubis.length > 1 && (
@@ -2068,6 +2075,43 @@ ${heft.bemerkungen ? `<div class="tag"><div class="tag-header">📝 Bemerkungen<
           )
         })
       })()}
+    </div>
+  )
+
+  // ── NACHTRAG MODAL ─────────────────────────────────────────────────────────
+  if (showNachtrag && ansicht === 'liste') return (
+    <div className="page-content">
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+        <button onClick={()=>setShowNachtrag(false)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--blue)',fontSize:'1.2rem',padding:0}}>‹</button>
+        <span className="section-title" style={{margin:0}}>📋 Nachtrag anlegen</span>
+      </div>
+      <div className="card">
+        <div style={{fontSize:'0.82rem',color:'var(--text3)',marginBottom:12}}>
+          Wähle ein beliebiges Datum aus der Woche für die du einen Nachtrag erstellen möchtest. Es wird automatisch die ganze Woche (Mo–Fr) als Heft angelegt.
+        </div>
+        <div className="form-group">
+          <label>Datum in der gewünschten Woche</label>
+          <input type="date" value={nachtragDatum} onChange={e=>setNachtragDatum(e.target.value)} style={{width:'100%'}}/>
+        </div>
+        {nachtragDatum&&(
+          <div style={{background:'var(--blue-pale)',borderRadius:8,padding:'8px 12px',fontSize:'0.82rem',color:'var(--blue)',marginBottom:12}}>
+            📅 Woche: {formatDate(getWochenMontagVon(nachtragDatum))} – {(()=>{const d=new Date(getWochenMontagVon(nachtragDatum));d.setDate(d.getDate()+4);return formatDate(d.toISOString().split('T')[0])})()}
+          </div>
+        )}
+        <button
+          className="btn btn-primary"
+          disabled={!nachtragDatum || saving}
+          onClick={async()=>{
+            const ws = getWochenMontagVon(nachtragDatum)
+            setShowNachtrag(false)
+            setNachtragDatum('')
+            await neuesHeft(ws)
+          }}
+        >
+          ✓ Nachtrag anlegen
+        </button>
+        <button className="btn btn-secondary" onClick={()=>setShowNachtrag(false)}>Abbrechen</button>
+      </div>
     </div>
   )
 
