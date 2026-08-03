@@ -1831,7 +1831,7 @@ function SignaturCanvas({onSave, onCancel, title}) {
   )
 }
 
-function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
+function BerichtsheftPage({user, allUsers, isAdmin, isBuero, aktiv}) {
   const isAzubi = user.profile?.role === 'azubi'
   const kannSignieren = isAdmin || isBuero
   const [hefte, setHefte] = useState([])
@@ -1847,13 +1847,7 @@ function BerichtsheftPage({user, allUsers, isAdmin, isBuero}) {
   const heute = new Date()
   const aktuelleWoche = getWochenMontagVon(heute)
 
-  useEffect(() => { loadHefte() }, [])
-  // Neu laden wenn Tab wieder aktiv wird (Fenster-Fokus)
-  useEffect(() => {
-    function onFocus() { loadHefte() }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [aktuellesHeft])
+  useEffect(() => { if(aktiv) loadHefte() }, [aktiv])
 
   async function loadHefte() {
     // Immer ALLE laden (RLS filtert nach Rolle), dann im Frontend filtern
@@ -2327,7 +2321,7 @@ export default function App() {
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero} setPage={setPage}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
-      <div style={{display:page==='berichtsheft'?'block':'none'}}><BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/></div>
+      <div style={{display:page==='berichtsheft'?'block':'none'}}><BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} aktiv={page==='berichtsheft'}/></div>
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
