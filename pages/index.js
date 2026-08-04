@@ -1500,12 +1500,12 @@ function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           const istHeute=tagStr===heute.toISOString().split('T')[0]
           const istWE=tag.getDay()===0||tag.getDay()===6
           return (
-            <div key={i} onClick={()=>{if(tagTermine.length>0)setShowDetail(tagTermine)}} style={{minHeight:52,padding:3,borderRadius:6,background:istHeute?'var(--blue)':istWE?'#f7f7f7':'white',border:istHeute?'none':'1px solid #eee',cursor:tagTermine.length>0?'pointer':'default'}}>
+            <div key={i} onClick={()=>{if(tagTermine.length>0)setShowDetail(tagTermine)}} style={{minHeight:56,padding:'2px 2px',borderRadius:6,background:istHeute?'var(--blue)':istWE?'#f7f7f7':'white',border:istHeute?'none':'1px solid #eee',cursor:tagTermine.length>0?'pointer':'default',overflow:'hidden'}}>
               <div style={{fontSize:'0.72rem',fontWeight:istHeute?700:400,color:istHeute?'white':istWE?'#aaa':'var(--dark)',textAlign:'center'}}>{tag.getDate()}</div>
               <div style={{display:'flex',flexDirection:'column',gap:1,marginTop:2}}>
                 {tagTermine.slice(0,2).map(t=>(
-                  <div key={t.id} style={{fontSize:'0.55rem',background:t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)'),color:'white',borderRadius:3,padding:'1px 2px',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',fontWeight:500,lineHeight:1.3}}>
-                    {t.titel}
+                  <div key={t.id} style={{fontSize:'0.5rem',background:t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)'),color:'white',borderRadius:2,padding:'1px 3px',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',fontWeight:600,lineHeight:1.4,maxWidth:'100%',display:'block'}}>
+                    {t.titel.length>12?t.titel.slice(0,12)+'…':t.titel}
                   </div>
                 ))}
                 {tagTermine.length>2&&<div style={{fontSize:'0.55rem',color:'var(--text3)',textAlign:'center'}}>+{tagTermine.length-2}</div>}
@@ -1521,33 +1521,60 @@ function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
 function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
   const wochenStart=getWeekStart(new Date(ankerDatum))
   const tage=[]
-  for(let i=0;i<7;i++){const d=new Date(wochenStart);d.setDate(d.getDate()+i);tage.push(d)}
-  const tagNamen=['Mo','Di','Mi','Do','Fr','Sa','So']
-  const wochenEnd=new Date(wochenStart);wochenEnd.setDate(wochenStart.getDate()+6)
+  // Nur Mo–Fr (index 0–4)
+  for(let i=0;i<5;i++){const d=new Date(wochenStart);d.setDate(d.getDate()+i);tage.push(d)}
+  const tagNamen=['Mo','Di','Mi','Do','Fr']
+  const wochenEnd=new Date(wochenStart);wochenEnd.setDate(wochenStart.getDate()+4)
+  const heuteStr=heute.toISOString().split('T')[0]
+
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()-7);setAnkerDatum(d)}} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
-        <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.9rem'}}>{formatDate(wochenStart.toISOString().split('T')[0])} – {formatDate(wochenEnd.toISOString().split('T')[0])}</span>
-        <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()+7);setAnkerDatum(d)}} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+      {/* Navigation */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+        <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()-7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+        <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.85rem'}}>{formatDate(wochenStart.toISOString().split('T')[0])} – {formatDate(wochenEnd.toISOString().split('T')[0])}</span>
+        <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()+7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+      {/* Spaltenköpfe */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,marginBottom:3}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
-          const tagTermine=termine.filter(t=>t.datum===tagStr)
-          const istHeute=tagStr===heute.toISOString().split('T')[0]
-          const istWE=i>=5
+          const istHeute=tagStr===heuteStr
           return (
-            <div key={i} style={{background:istHeute?'#ebf8ff':istWE?'#fafafa':'white',borderRadius:10,padding:'6px 4px',border:`1.5px solid ${istHeute?'var(--blue)':'#eee'}`,minHeight:80}}>
-              <div style={{textAlign:'center',marginBottom:4}}>
-                <div style={{fontSize:'0.6rem',color:istWE?'#aaa':'var(--text3)',fontWeight:600}}>{tagNamen[i]}</div>
-                <div style={{fontSize:'0.85rem',fontWeight:700,width:24,height:24,borderRadius:'50%',background:istHeute?'var(--blue)':'transparent',color:istHeute?'white':istWE?'#bbb':'var(--dark)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto'}}>{tag.getDate()}</div>
-              </div>
-              {tagTermine.map(t=>(
-                <div key={t.id} onClick={()=>setShowDetail([t])} style={{fontSize:'0.6rem',background:t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)'),color:'white',borderRadius:4,padding:'2px 4px',marginBottom:2,cursor:'pointer',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {t.titel}
+            <div key={i} style={{textAlign:'center',padding:'4px 2px',borderRadius:6,background:istHeute?'var(--blue)':'var(--bg)'}}>
+              <div style={{fontSize:'0.6rem',fontWeight:600,color:istHeute?'rgba(255,255,255,0.7)':'var(--text3)'}}>{tagNamen[i]}</div>
+              <div style={{fontSize:'0.85rem',fontWeight:700,color:istHeute?'white':'var(--dark)'}}>{tag.getDate()}</div>
+            </div>
+          )
+        })}
+      </div>
+      {/* Termin-Zeilen: alle Termine der Woche untereinander, nach Tag gruppiert */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,alignItems:'start'}}>
+        {tage.map((tag,i)=>{
+          const tagStr=tag.toISOString().split('T')[0]
+          const tagTermine=termine.filter(t=>t.datum===tagStr||
+            // Mehrtägige Termine
+            (t.bis_datum&&t.bis_datum!==t.datum&&tagStr>=t.datum&&tagStr<=t.bis_datum)
+          )
+          const istHeute=tagStr===heuteStr
+          return (
+            <div key={i} style={{minHeight:120,background:istHeute?'#f0f7ff':'white',borderRadius:8,border:`1px solid ${istHeute?'#bee3f8':'#eee'}`,padding:4,display:'flex',flexDirection:'column',gap:3}}>
+              {tagTermine.length===0&&(
+                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <span style={{fontSize:'0.6rem',color:'#e5e7eb'}}>—</span>
                 </div>
-              ))}
+              )}
+              {tagTermine.map(t=>{
+                const farbe=t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)')
+                const uhrzeit=t.uhrzeit?t.uhrzeit.slice(0,5):''
+                const mehrtaegig=t.bis_datum&&t.bis_datum!==t.datum
+                return (
+                  <div key={t.id} onClick={()=>setShowDetail([t])} style={{background:farbe,color:'white',borderRadius:5,padding:'4px 6px',cursor:'pointer',borderLeft:`3px solid rgba(0,0,0,0.15)`}}>
+                    {uhrzeit&&<div style={{fontSize:'0.55rem',opacity:0.85,fontWeight:600}}>{uhrzeit}{mehrtaegig?' →':''}</div>}
+                    <div style={{fontSize:'0.65rem',fontWeight:700,lineHeight:1.3,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{t.titel}</div>
+                  </div>
+                )
+              })}
             </div>
           )
         })}
