@@ -2004,7 +2004,13 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
     <div className="page-content">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
         <span className="section-title">Kalender</span>
-        {kannBearbeiten&&<button className="btn btn-outline btn-sm" onClick={()=>setShowNeu(true)}>+ Termin</button>}
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {kannBearbeiten&&<button className="btn btn-outline btn-sm" onClick={()=>setShowNeu(true)}>+ Termin</button>}
+          <button onClick={syncOutlook} disabled={msSyncing} style={{padding:'5px 10px',borderRadius:'var(--r-sm)',border:`1.5px solid ${msVerbunden?'#0078d4':'var(--border2)'}`,background:msVerbunden?'#0078d4':'white',color:msVerbunden?'white':'#666',fontSize:'0.72rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4}}>
+            📧 {msSyncing?'Sync...':msVerbunden?'Outlook ✓':'Outlook'}
+          </button>
+          {msVerbunden&&<button onClick={()=>{clearMsToken();setMsVerbunden(false);setOutlookTermine([])}} style={{padding:'4px 8px',borderRadius:'var(--r-sm)',border:'1px solid var(--border2)',background:'white',color:'var(--text3)',fontSize:'0.7rem',cursor:'pointer',fontFamily:'inherit'}}>✕</button>}
+        </div>
       </div>
       {baldFaellig>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:10,padding:'8px 14px',marginBottom:12,fontSize:'0.82rem',color:'#92400e'}}>
