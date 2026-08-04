@@ -1504,8 +1504,8 @@ function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
               <div style={{fontSize:'0.72rem',fontWeight:istHeute?700:400,color:istHeute?'white':istWE?'#aaa':'var(--dark)',textAlign:'center'}}>{tag.getDate()}</div>
               <div style={{display:'flex',flexDirection:'column',gap:1,marginTop:2}}>
                 {tagTermine.slice(0,2).map(t=>(
-                  <div key={t.id} style={{fontSize:'0.55rem',background:TYP_CONFIG[t.typ]?.farbe||'var(--blue)',color:'white',borderRadius:3,padding:'1px 3px',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',fontWeight:600}}>
-                    {TYP_CONFIG[t.typ]?.emoji} {t.titel}
+                  <div key={t.id} style={{fontSize:'0.55rem',background:t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)'),color:'white',borderRadius:3,padding:'1px 2px',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',fontWeight:500,lineHeight:1.3}}>
+                    {t.titel}
                   </div>
                 ))}
                 {tagTermine.length>2&&<div style={{fontSize:'0.55rem',color:'var(--text3)',textAlign:'center'}}>+{tagTermine.length-2}</div>}
@@ -1544,8 +1544,8 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
                 <div style={{fontSize:'0.85rem',fontWeight:700,width:24,height:24,borderRadius:'50%',background:istHeute?'var(--blue)':'transparent',color:istHeute?'white':istWE?'#bbb':'var(--dark)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto'}}>{tag.getDate()}</div>
               </div>
               {tagTermine.map(t=>(
-                <div key={t.id} onClick={()=>setShowDetail([t])} style={{fontSize:'0.6rem',background:TYP_CONFIG[t.typ]?.farbe||'var(--blue)',color:'white',borderRadius:4,padding:'2px 4px',marginBottom:2,cursor:'pointer',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {TYP_CONFIG[t.typ]?.emoji} {t.titel}
+                <div key={t.id} onClick={()=>setShowDetail([t])} style={{fontSize:'0.6rem',background:t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)'),color:'white',borderRadius:4,padding:'2px 4px',marginBottom:2,cursor:'pointer',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {t.titel}
                 </div>
               ))}
             </div>
