@@ -1649,6 +1649,11 @@ function KalenderNeuModal({form,setForm,saving,handleSave,handleClose,baustellen
     <div className="modal-overlay open"><div className="modal-sheet" style={{maxHeight:'90vh',overflowY:'auto'}}>
       <div className="modal-handle"/>
       <div className="modal-title">📅 Neuer Termin</div>
+      {getMsToken()&&(
+        <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:'0.78rem',color:'#2b6cb0'}}>
+          📧 Outlook verbunden — Termin wird in Outlook + App gespeichert
+        </div>
+      )}
       <div className="form-group">
         <label>Typ</label>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:4}}>
@@ -1872,10 +1877,21 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
     )
     // Outlook-Events in App-Format umwandeln
     const savedFarben = typeof window!=='undefined' ? JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}') : {}
+    // Kategorien → User-IDs mappen
+    const kategorieZuUserId = {}
+    allUsers.forEach(u => {
+      // Exakter Match oder Vorname-Match
+      kategorieZuUserId[u.name] = u.id
+      kategorieZuUserId[u.name.split(' ')[0]] = u.id
+    })
+
     const mapped = events.map(e => {
-      // Farbe aus erster Kategorie des Events
       const erstKat = e.categories?.[0]
       const farbe = erstKat ? (savedFarben[erstKat] || '#0078d4') : '#0078d4'
+      // Zugewiesene User-IDs aus Kategorien ermitteln
+      const zugewiesen_an = (e.categories||[])
+        .map(k => kategorieZuUserId[k])
+        .filter(Boolean)
       return {
         id: 'outlook_'+e.id,
         titel: e.subject,
@@ -1886,13 +1902,60 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
         bis_uhrzeit: e.end.dateTime?.split('T')[1]?.slice(0,5) || '',
         typ: 'outlook',
         farbe,
-        zugewiesen_an: [],
+        zugewiesen_an,
         erstellt_von: user.id,
         _outlookId: e.id,
         _kategorien: e.categories||[]
       }
     })
     setOutlookTermine(mapped)
+
+    // ── Automatisch in Supabase importieren ──────────────────────────────────
+    // Bestehende Outlook-Termine aus Supabase holen (die wir schon importiert haben)
+    const {data: vorhandene} = await supabase
+      .from('termine')
+      .select('id, outlook_id')
+      .not('outlook_id', 'is', null)
+
+    const vorhandeneIds = new Set((vorhandene||[]).map(t => t.outlook_id))
+
+    for(const e of mapped) {
+      const outlookId = e._outlookId
+      if(!outlookId || !e.datum) continue
+
+      const supabaseData = {
+        titel: e.titel,
+        beschreibung: e.beschreibung||'',
+        datum: e.datum,
+        bis_datum: e.bis_datum||e.datum,
+        uhrzeit: e.uhrzeit||'',
+        bis_uhrzeit: e.bis_uhrzeit||'',
+        typ: 'outlook',
+        farbe: e.farbe,
+        zugewiesen_an: e.zugewiesen_an,
+        erstellt_von: user.id,
+        outlook_id: outlookId
+      }
+
+      if(vorhandeneIds.has(outlookId)) {
+        // Update bestehenden Eintrag
+        await supabase.from('termine').update(supabaseData).eq('outlook_id', outlookId)
+      } else {
+        // Neu einfügen
+        await supabase.from('termine').insert([supabaseData])
+      }
+    }
+
+    // Gelöschte Outlook-Termine aus Supabase entfernen
+    const aktuelleOutlookIds = new Set(mapped.map(e => e._outlookId).filter(Boolean))
+    for(const v of (vorhandene||[])) {
+      if(v.outlook_id && !aktuelleOutlookIds.has(v.outlook_id)) {
+        await supabase.from('termine').delete().eq('id', v.id)
+      }
+    }
+
+    // App-Termine neu laden (enthält jetzt auch die importierten Outlook-Termine)
+    await loadTermine()
     setMsVerbunden(true)
     setMsSyncing(false)
   }
