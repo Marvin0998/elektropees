@@ -2927,6 +2927,22 @@ export default function App() {
   },[])
 
   useEffect(()=>{
+    // Microsoft OAuth Token aus URL-Hash parsen (nach Outlook-Login)
+    if(typeof window !== 'undefined') {
+      const hash = window.location.hash.substring(1)
+      if(hash) {
+        const params = new URLSearchParams(hash)
+        const token = params.get('access_token')
+        const expiresIn = params.get('expires_in')
+        const state = params.get('state')
+        if(token && state === 'outlook_sync') {
+          saveMsToken(token, parseInt(expiresIn)||3600)
+          window.history.replaceState({}, document.title, window.location.pathname)
+          // Nach Login auf Kalender-Tab springen
+          setPage('kalender')
+        }
+      }
+    }
     supabase.auth.getSession().then(async({data:{session}})=>{
       if(session?.user){const {data:profile}=await supabase.from('profiles').select('*').eq('id',session.user.id).single(); setUser({...session.user,profile})}
       setLoading(false)
