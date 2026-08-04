@@ -1471,6 +1471,7 @@ const TYP_CONFIG = {
   termin:   { label: 'Termin',   farbe: '#1B52DD', emoji: '📅' },
   deadline: { label: 'Deadline', farbe: '#D63E3E', emoji: '🔴' },
   baustelle:{ label: 'Baustelle',farbe: '#d69e2e', emoji: '🏗️' },
+  outlook:  { label: 'Outlook',  farbe: '#0078d4', emoji: '📧' },
 }
 
 function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
@@ -1693,8 +1694,129 @@ function KalenderNeuModal({form,setForm,saving,handleSave,handleClose,baustellen
   )
 }
 
+
+// ─── MICROSOFT GRAPH / OUTLOOK KALENDER ──────────────────────────────────────
+const MS_CLIENT_ID = '1e97973c-d452-4f3d-8aa7-681576a4648e'
+const MS_TENANT_ID = 'common'
+const MS_SCOPES = 'User.Read Calendars.ReadWrite'
+const MS_REDIRECT = typeof window !== 'undefined' ? window.location.origin : 'https://elektropees.vercel.app'
+
+function getMsToken() {
+  if(typeof window==='undefined') return null
+  const exp = localStorage.getItem('ms_token_exp')
+  if(exp && Date.now() > parseInt(exp)) { clearMsToken(); return null }
+  return localStorage.getItem('ms_access_token')
+}
+function clearMsToken() {
+  if(typeof window==='undefined') return
+  localStorage.removeItem('ms_access_token')
+  localStorage.removeItem('ms_token_exp')
+  localStorage.removeItem('ms_user_name')
+}
+function saveMsToken(token, expiresIn) {
+  if(typeof window==='undefined') return
+  localStorage.setItem('ms_access_token', token)
+  localStorage.setItem('ms_token_exp', String(Date.now() + expiresIn * 1000 - 60000))
+}
+
+function msLogin() {
+  const params = new URLSearchParams({
+    client_id: MS_CLIENT_ID,
+    response_type: 'token',
+    redirect_uri: MS_REDIRECT,
+    scope: MS_SCOPES,
+    response_mode: 'fragment',
+    state: 'outlook_sync',
+    nonce: Math.random().toString(36)
+  })
+  window.location.href = `https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/authorize?${params}`
+}
+
+function parseMsTokenFromUrl() {
+  if(typeof window==='undefined') return false
+  const hash = window.location.hash.substring(1)
+  if(!hash) return false
+  const params = new URLSearchParams(hash)
+  const token = params.get('access_token')
+  const expiresIn = params.get('expires_in')
+  const state = params.get('state')
+  if(token && state === 'outlook_sync') {
+    saveMsToken(token, parseInt(expiresIn)||3600)
+    window.history.replaceState({}, document.title, window.location.pathname)
+    return true
+  }
+  return false
+}
+
+async function msGraphGet(url) {
+  const token = getMsToken()
+  if(!token) return null
+  const res = await fetch(`https://graph.microsoft.com/v1.0${url}`, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  })
+  if(!res.ok) { if(res.status===401) clearMsToken(); return null }
+  return res.json()
+}
+
+async function msGraphPost(url, body) {
+  const token = getMsToken()
+  if(!token) return null
+  const res = await fetch(`https://graph.microsoft.com/v1.0${url}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  if(!res.ok) { if(res.status===401) clearMsToken(); return null }
+  return res.json()
+}
+
+async function msGraphDelete(url) {
+  const token = getMsToken()
+  if(!token) return false
+  const res = await fetch(`https://graph.microsoft.com/v1.0${url}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.ok
+}
+
+async function ladeOutlookTermine(von, bis) {
+  // Outlook Kalender-Events laden
+  const params = new URLSearchParams({
+    startDateTime: von + 'T00:00:00',
+    endDateTime: bis + 'T23:59:59',
+    $select: 'id,subject,start,end,bodyPreview,categories,isAllDay',
+    $top: '100',
+    $orderby: 'start/dateTime'
+  })
+  const data = await msGraphGet(`/me/calendarView?${params}`)
+  return data?.value || []
+}
+
+async function erstelleOutlookTermin(termin, zugewieseneNamen) {
+  // Termin in Outlook anlegen mit Kategorien für Mitarbeiter-Zuweisung
+  const body = {
+    subject: termin.titel,
+    body: { contentType: 'text', content: termin.beschreibung || '' },
+    start: {
+      dateTime: `${termin.datum}T${termin.uhrzeit||'08:00'}:00`,
+      timeZone: 'Europe/Berlin'
+    },
+    end: {
+      dateTime: `${termin.bis_datum||termin.datum}T${termin.bis_uhrzeit||termin.uhrzeit||'09:00'}:00`,
+      timeZone: 'Europe/Berlin'
+    },
+    categories: zugewieseneNamen, // Mitarbeiternamen als Outlook-Kategorien
+    showAs: 'busy'
+  }
+  return msGraphPost('/me/events', body)
+}
+
 function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const [termine,setTermine]=useState([])
+  const [outlookTermine,setOutlookTermine]=useState([])
+  const [msVerbunden,setMsVerbunden]=useState(false)
+  const [msSyncing,setMsSyncing]=useState(false)
   const [ansicht,setAnsicht]=useState('monat')
   const [heute]=useState(new Date())
   const [ankerDatum,setAnkerDatum]=useState(new Date())
@@ -1704,29 +1826,85 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const [saving,setSaving]=useState(false)
   const kannBearbeiten=isAdmin||isBuero
 
-  useEffect(()=>{loadTermine()},[])
+  useEffect(()=>{
+    // URL-Token nach OAuth-Redirect parsen
+    parseMsTokenFromUrl()
+    setMsVerbunden(!!getMsToken())
+    loadTermine()
+  },[])
+
   async function loadTermine() {
     const {data}=await supabase.from('termine').select('*').order('datum',{ascending:true}).limit(500)
     setTermine(data||[])
   }
+
+  async function syncOutlook() {
+    if(!getMsToken()) { msLogin(); return }
+    setMsSyncing(true)
+    // Aktuellen Monat + nächste 3 Monate laden
+    const von = new Date(); von.setDate(1)
+    const bis = new Date(); bis.setMonth(bis.getMonth()+3)
+    const events = await ladeOutlookTermine(
+      von.toISOString().split('T')[0],
+      bis.toISOString().split('T')[0]
+    )
+    // Outlook-Events in App-Format umwandeln
+    const mapped = events.map(e => ({
+      id: 'outlook_'+e.id,
+      titel: e.subject,
+      beschreibung: e.bodyPreview||'',
+      datum: e.start.dateTime?.split('T')[0] || e.start.date,
+      bis_datum: e.end.dateTime?.split('T')[0] || e.end.date,
+      uhrzeit: e.start.dateTime?.split('T')[1]?.slice(0,5) || '',
+      bis_uhrzeit: e.end.dateTime?.split('T')[1]?.slice(0,5) || '',
+      typ: 'outlook',
+      farbe: '#0078d4',
+      zugewiesen_an: [],
+      erstellt_von: user.id,
+      _outlookId: e.id,
+      _kategorien: e.categories||[]
+    }))
+    setOutlookTermine(mapped)
+    setMsVerbunden(true)
+    setMsSyncing(false)
+  }
+
+  // Alle Termine kombiniert (App + Outlook)
+  const alleTermine = [...termine, ...outlookTermine].sort((a,b)=>a.datum.localeCompare(b.datum))
+
   async function handleSave() {
     if(!form.titel.trim()){alert('Bitte Titel eingeben!');return}
     if(!form.datum){alert('Bitte Datum angeben!');return}
     setSaving(true)
+    // In Supabase speichern
     await supabase.from('termine').insert([{...form,erstellt_von:user.id,zugewiesen_an:form.zugewiesen_an}])
+    // Auch in Outlook anlegen wenn verbunden
+    if(getMsToken()) {
+      const zugewieseneNamen = allUsers.filter(u=>form.zugewiesen_an.includes(u.id)).map(u=>u.name)
+      await erstelleOutlookTermin(form, zugewieseneNamen)
+    }
     await loadTermine()
+    if(getMsToken()) await syncOutlook()
     setShowNeu(false)
     setForm({titel:'',beschreibung:'',datum:today(),uhrzeit:'',bis_datum:'',bis_uhrzeit:'',typ:'termin',baustelle_id:'',zugewiesen_an:[],farbe:'#1B52DD'})
     setSaving(false)
   }
   async function handleDelete(id) {
-    await supabase.from('termine').delete().eq('id',id)
-    await loadTermine(); setShowDetail(null)
+    if(id.startsWith('outlook_')) {
+      // Outlook-Event löschen
+      const outlookId = outlookTermine.find(t=>t.id===id)?._outlookId
+      if(outlookId) await msGraphDelete(`/me/events/${outlookId}`)
+      setOutlookTermine(o=>o.filter(t=>t.id!==id))
+    } else {
+      await supabase.from('termine').delete().eq('id',id)
+      await loadTermine()
+    }
+    setShowDetail(null)
   }
   function toggleZuweisung(uid) {
     setForm(f=>({...f,zugewiesen_an:f.zugewiesen_an.includes(uid)?f.zugewiesen_an.filter(x=>x!==uid):[...f.zugewiesen_an,uid]}))
   }
-  const baldFaellig=termine.filter(t=>{
+  const baldFaellig=alleTermine.filter(t=>{
     const d=new Date(t.datum); const diff=(d-heute)/(1000*60*60*24)
     return diff>=0&&diff<=7&&(t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)
   }).length
