@@ -1521,71 +1521,57 @@ function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
 function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
   const wochenStart=getWeekStart(new Date(ankerDatum))
   const tage=[]
-  // Nur Mo–Fr (index 0–4)
   for(let i=0;i<5;i++){const d=new Date(wochenStart);d.setDate(d.getDate()+i);tage.push(d)}
   const tagNamen=['Mo','Di','Mi','Do','Fr']
   const wochenEnd=new Date(wochenStart);wochenEnd.setDate(wochenStart.getDate()+4)
   const heuteStr=heute.toISOString().split('T')[0]
+  const savedFarben=typeof window!=='undefined'?JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}'):{}
+  const legendeEintraege=Object.entries(savedFarben).filter(([n])=>!n.includes('Kategorie'))
 
   return (
     <div>
-      {/* Navigation */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
         <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()-7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
         <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.85rem'}}>{formatDate(wochenStart.toISOString().split('T')[0])} – {formatDate(wochenEnd.toISOString().split('T')[0])}</span>
         <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()+7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
       </div>
-      {/* Alles in EINEM Grid: Köpfe oben, Termine darunter */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3}}>
-        {/* Zeile 1: Tagesköpfe */}
+      {legendeEintraege.length>0&&(
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,padding:'4px 0 8px'}}>
+          {legendeEintraege.map(([name,farbe])=>(
+            <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
+              <span style={{width:9,height:9,borderRadius:'50%',background:farbe,display:'inline-block'}}/>
+              {name.split(' ')[0]}
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,marginBottom:3}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
           const istHeute=tagStr===heuteStr
           return (
-            <div key={'h'+i} style={{textAlign:'center',padding:'4px 2px',borderRadius:6,background:istHeute?'var(--blue)':'var(--bg)'}}>
+            <div key={i} style={{textAlign:'center',padding:'4px 0',borderRadius:6,background:istHeute?'var(--blue)':'var(--bg)'}}>
               <div style={{fontSize:'0.6rem',fontWeight:600,color:istHeute?'rgba(255,255,255,0.7)':'var(--text3)'}}>{tagNamen[i]}</div>
               <div style={{fontSize:'0.85rem',fontWeight:700,color:istHeute?'white':'var(--dark)'}}>{tag.getDate()}</div>
             </div>
           )
         })}
-        {/* Legende: 5 Spalten überspannen */}
-        {(()=>{
-          const savedFarben = typeof window!=='undefined' ? JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}') : {}
-          const eintraege = Object.entries(savedFarben).filter(([name]) => !name.includes('Kategorie'))
-          if(eintraege.length===0) return null
-          return (
-            <div style={{gridColumn:'1 / -1',display:'flex',flexWrap:'wrap',gap:8,padding:'6px 2px'}}>
-              {eintraege.map(([name,farbe])=>(
-                <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
-                  <span style={{width:10,height:10,borderRadius:'50%',background:farbe,flexShrink:0,display:'inline-block'}}/>
-                  {name.split(' ')[0]}
-                </span>
-              ))}
-            </div>
-          )
-        })()}
-        {/* Zeile 2: Terminfelder */}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,minWidth:0,overflowX:'auto'}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
-          const tagTermine=termine.filter(t=>t.datum===tagStr||
-            (t.bis_datum&&t.bis_datum!==t.datum&&tagStr>=t.datum&&tagStr<=t.bis_datum)
-          )
+          const tagTermine=termine.filter(t=>t.datum===tagStr||(t.bis_datum&&t.bis_datum!==t.datum&&tagStr>=t.datum&&tagStr<=t.bis_datum))
           const istHeute=tagStr===heuteStr
           return (
-            <div key={'t'+i} style={{minHeight:120,background:istHeute?'#f0f7ff':'white',borderRadius:8,border:`1px solid ${istHeute?'#bee3f8':'#eee'}`,padding:4,display:'flex',flexDirection:'column',gap:3}}>
-              {tagTermine.length===0&&(
-                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <span style={{fontSize:'0.6rem',color:'#e5e7eb'}}>—</span>
-                </div>
-              )}
+            <div key={i} style={{minHeight:100,minWidth:0,background:istHeute?'#f0f7ff':'#fafafa',borderRadius:8,border:`1px solid ${istHeute?'#bee3f8':'#eee'}`,padding:3,display:'flex',flexDirection:'column',gap:2,overflow:'hidden'}}>
+              {tagTermine.length===0&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'0.6rem',color:'#ddd'}}>—</span></div>}
               {tagTermine.map(t=>{
                 const farbe=t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)')
                 const uhrzeit=t.uhrzeit?t.uhrzeit.slice(0,5):''
-                const mehrtaegig=t.bis_datum&&t.bis_datum!==t.datum
                 return (
-                  <div key={t.id} onClick={()=>setShowDetail([t])} style={{background:farbe,color:'white',borderRadius:5,padding:'4px 6px',cursor:'pointer',borderLeft:`3px solid rgba(0,0,0,0.15)`}}>
-                    {uhrzeit&&<div style={{fontSize:'0.55rem',opacity:0.85,fontWeight:600}}>{uhrzeit}{mehrtaegig?' →':''}</div>}
-                    <div style={{fontSize:'0.65rem',fontWeight:700,lineHeight:1.3,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{t.titel}</div>
+                  <div key={t.id} onClick={()=>setShowDetail([t])} style={{background:farbe,color:'white',borderRadius:4,padding:'3px 5px',cursor:'pointer'}}>
+                    {uhrzeit&&<div style={{fontSize:'0.5rem',opacity:0.85,fontWeight:600}}>{uhrzeit}</div>}
+                    <div style={{fontSize:'0.62rem',fontWeight:700,lineHeight:1.3,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{t.titel}</div>
                   </div>
                 )
               })}
@@ -1593,22 +1579,16 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           )
         })}
       </div>
-      {/* Legende */}
-      {(()=>{
-        const savedFarben = typeof window!=='undefined' ? JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}') : {}
-        const eintraege = Object.entries(savedFarben).filter(([name]) => !name.includes('Kategorie'))
-        if(eintraege.length===0) return null
-        return (
-          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8,padding:'6px 0'}}>
-            {eintraege.map(([name,farbe])=>(
-              <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
-                <span style={{width:10,height:10,borderRadius:'50%',background:farbe,flexShrink:0,display:'inline-block'}}/>
-                {name.split(' ')[0]}
-              </span>
-            ))}
-          </div>
-        )
-      })()}
+      {legendeEintraege.length>0&&(
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,padding:'6px 0 0'}}>
+          {legendeEintraege.map(([name,farbe])=>(
+            <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
+              <span style={{width:9,height:9,borderRadius:'50%',background:farbe,display:'inline-block'}}/>
+              {name.split(' ')[0]}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -2029,11 +2009,20 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   }
 
   // Alle Termine kombiniert (App + Outlook), gefiltert nach Rolle
-  const alleTermineRaw = [...termine, ...outlookTermine].sort((a,b)=>a.datum.localeCompare(b.datum))
+  // Outlook-Termine nur für Admin/Büro als Ergänzung (Mitarbeiter sehen nur Supabase-Termine)
+  const outlookNurFuerAdmin = (isAdmin||isBuero) ? outlookTermine.filter(ot=>!termine.some(t=>t.outlook_id===ot._outlookId)) : []
+  const alleTermineRaw = [...termine, ...outlookNurFuerAdmin].sort((a,b)=>a.datum.localeCompare(b.datum))
   const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(t=>{
-    // Mitarbeiter sehen nur: eigene Termine + Termine die ihnen zugewiesen sind + Termine ohne Zuweisung
-    if(!t.zugewiesen_an||t.zugewiesen_an.length===0) return true // kein Filter = alle sehen
-    return t.zugewiesen_an.includes(user.id) // nur wenn mir zugewiesen
+    // Kein Zuweisungsfilter → alle sehen (allgemeine Termine)
+    const hatZuweisung = (t.zugewiesen_an&&t.zugewiesen_an.length>0)||(t._kategorien&&t._kategorien.length>0)
+    if(!hatZuweisung) return true
+    // User-ID Zuweisung prüfen
+    if(t.zugewiesen_an?.includes(user.id)) return true
+    // Kategorien-Namen prüfen (Outlook-Termine)
+    const userName = user.profile?.name||''
+    const vorname = userName.split(' ')[0]
+    if(t._kategorien?.some(k=>k===userName||k.includes(vorname))) return true
+    return false
   })
 
   async function handleSave() {
