@@ -1548,6 +1548,22 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           )
         })}
       </div>
+      {/* Legende */}
+      {(()=>{
+        const savedFarben = typeof window!=='undefined' ? JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}') : {}
+        const eintraege = Object.entries(savedFarben).filter(([name]) => !name.includes('Kategorie'))
+        if(eintraege.length===0) return null
+        return (
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8,padding:'6px 0'}}>
+            {eintraege.map(([name,farbe])=>(
+              <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
+                <span style={{width:10,height:10,borderRadius:'50%',background:farbe,flexShrink:0,display:'inline-block'}}/>
+                {name.split(' ')[0]}
+              </span>
+            ))}
+          </div>
+        )
+      })()}
       {/* Termin-Zeilen: alle Termine der Woche untereinander, nach Tag gruppiert */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,alignItems:'start'}}>
         {tage.map((tag,i)=>{
