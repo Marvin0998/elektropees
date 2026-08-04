@@ -263,6 +263,50 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,on
   )
 }
 
+function BaustellenCounterOverview({baustelleId}) {
+  const LABELS_B = {steckdose:'Steckdose',rahmen1:'1-Fach Rahmen',rahmen2:'2-Fach Rahmen',rahmen3:'3-Fach Rahmen',rahmen4:'4-Fach Rahmen',rahmen5:'5-Fach Rahmen',wechsel:'Aus/Wechselschalter',kontroll:'Kontrollschalter',serien:'Serienschalter',kreuz:'Kreuzschalter',netzwerk:'Netzwerkdose',sat:'Sat-Dose'}
+  const LABELS_W = {m16:'M16 Rohr',m20:'M20 Rohr',m25:'M25 Rohr',m32:'M32 Rohr',m40:'M40 Rohr',m50:'M50 Rohr',kk2030:'Kabelkanal 20×30',kk4040:'Kabelkanal 40×40',kk4060:'Kabelkanal 40×60',ap1:'AP-Steckdose 1-fach',ap2:'AP-Steckdose 2-fach',ap3:'AP-Steckdose 3-fach',k315:'Kabel 3×1,5mm²',k515:'Kabel 5×1,5mm²',k54:'Kabel 5×4mm²',k54nyy:'Kabel 5×4 NYY',k2bus:'2×0,75 Bus',k510:'Kabel 5×10mm²'}
+  const UNITS_W = {m16:'m',m20:'m',m25:'m',m32:'m',m40:'m',m50:'m',kk2030:'m',kk4040:'m',kk4060:'m',ap1:'Stk',ap2:'Stk',ap3:'Stk',k315:'m',k515:'m',k54:'m',k54nyy:'m',k2bus:'m',k510:'m'}
+  const [counterData, setCounterData] = useState(null)
+  useEffect(()=>{
+    if(!baustelleId) return
+    supabase.from('counter_saves').select('counts,custom,mode,updated_at').eq('baustelle_id', baustelleId).order('updated_at',{ascending:false}).limit(10).then(({data})=>{
+      if(data&&data.length>0) setCounterData(data)
+      else setCounterData([])
+    })
+  },[baustelleId])
+  if(!counterData||counterData.length===0) return null
+  return (
+    <div style={{marginBottom:'0.75rem'}}>
+      <div style={{fontWeight:700,fontSize:'0.85rem',color:'var(--dark)',marginBottom:8}}>📦 Material-Counter</div>
+      {counterData.map((row,i)=>{
+        const allLabels = row.mode==='waermepumpe'?LABELS_W:LABELS_B
+        const allUnits = row.mode==='waermepumpe'?UNITS_W:{}
+        const eintraege = Object.entries(row.counts||{}).filter(([k,v])=>v>0)
+        const customEintraege = (row.custom||[]).filter(c=>row.counts[c.id]>0)
+        if(eintraege.length===0&&customEintraege.length===0) return null
+        return (
+          <div key={i} className="card" style={{padding:'0.75rem',marginBottom:6,background:'#f7fafc'}}>
+            <div style={{fontSize:'0.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',marginBottom:6}}>{row.mode==='waermepumpe'?'🌡️ Wärmepumpe':'🏗️ Elektro-Material'}</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {eintraege.map(([k,v])=>(
+                <span key={k} style={{fontSize:'0.78rem',background:'var(--blue-pale)',color:'var(--blue)',padding:'3px 10px',borderRadius:20,fontWeight:600}}>
+                  {allLabels[k]||k}: {v}{allUnits[k]?' '+allUnits[k]:''}
+                </span>
+              ))}
+              {customEintraege.map(c=>(
+                <span key={c.id} style={{fontSize:'0.78rem',background:'#f0fff4',color:'#276749',padding:'3px 10px',borderRadius:20,fontWeight:600}}>
+                  {c.label}: {row.counts[c.id]}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUsers}) {
   const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
@@ -343,52 +387,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
               </div>
             ))}
           </div>
-          {/* ── MATERIAL COUNTER ÜBERSICHT ── */}
-          {(()=>{
-            const LABELS_B = {steckdose:'Steckdose',rahmen1:'1-Fach Rahmen',rahmen2:'2-Fach Rahmen',rahmen3:'3-Fach Rahmen',rahmen4:'4-Fach Rahmen',rahmen5:'5-Fach Rahmen',wechsel:'Aus/Wechselschalter',kontroll:'Kontrollschalter',serien:'Serienschalter',kreuz:'Kreuzschalter',netzwerk:'Netzwerkdose',sat:'Sat-Dose'}
-            const LABELS_W = {m16:'M16 Rohr',m20:'M20 Rohr',m25:'M25 Rohr',m32:'M32 Rohr',m40:'M40 Rohr',m50:'M50 Rohr',kk2030:'Kabelkanal 20×30',kk4040:'Kabelkanal 40×40',kk4060:'Kabelkanal 40×60',ap1:'AP-Steckdose 1-fach',ap2:'AP-Steckdose 2-fach',ap3:'AP-Steckdose 3-fach',k315:'Kabel 3×1,5mm²',k515:'Kabel 5×1,5mm²',k54:'Kabel 5×4mm²',k54nyy:'Kabel 5×4 NYY',k2bus:'2×0,75 Bus',k510:'Kabel 5×10mm²'}
-            const UNITS_W = {m16:'m',m20:'m',m25:'m',m32:'m',m40:'m',m50:'m',kk2030:'m',kk4040:'m',kk4060:'m',ap1:'Stk',ap2:'Stk',ap3:'Stk',k315:'m',k515:'m',k54:'m',k54nyy:'m',k2bus:'m',k510:'m'}
-            const [counterData, setCounterData] = useState(null)
-            useEffect(()=>{
-              async function load() {
-                const {data} = await supabase.from('counter_saves').select('counts,custom,mode,updated_at').eq('baustelle_id', showDetail).order('updated_at',{ascending:false}).limit(10)
-                if(data&&data.length>0) setCounterData(data)
-              }
-              if(showDetail) load()
-            },[showDetail])
-            if(!counterData||counterData.length===0) return null
-            return (
-              <div style={{marginBottom:'0.75rem'}}>
-                <div style={{fontWeight:700,fontSize:'0.85rem',color:'var(--dark)',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
-                  📦 Material-Counter
-                </div>
-                {counterData.map((row,i)=>{
-                  const allLabels = row.mode==='waermepumpe'?LABELS_W:LABELS_B
-                  const allUnits = row.mode==='waermepumpe'?UNITS_W:{}
-                  const eintraege = Object.entries(row.counts||{}).filter(([k,v])=>v>0)
-                  const customEintraege = (row.custom||[]).filter(c=>row.counts[c.id]>0)
-                  if(eintraege.length===0&&customEintraege.length===0) return null
-                  return (
-                    <div key={i} className="card" style={{padding:'0.75rem',marginBottom:6,background:'#f7fafc'}}>
-                      <div style={{fontSize:'0.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',marginBottom:6}}>{row.mode==='waermepumpe'?'🌡️ Wärmepumpe':'🏗️ Elektro-Material'}</div>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                        {eintraege.map(([k,v])=>(
-                          <span key={k} style={{fontSize:'0.78rem',background:'var(--blue-pale)',color:'var(--blue)',padding:'3px 10px',borderRadius:20,fontWeight:600}}>
-                            {allLabels[k]||k}: {v}{allUnits[k]?' '+allUnits[k]:''}
-                          </span>
-                        ))}
-                        {customEintraege.map(c=>(
-                          <span key={c.id} style={{fontSize:'0.78rem',background:'#f0fff4',color:'#276749',padding:'3px 10px',borderRadius:20,fontWeight:600}}>
-                            {c.label}: {row.counts[c.id]}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })()}
+          <BaustellenCounterOverview baustelleId={showDetail}/>
           {!editMode&&(
             <button className="btn btn-secondary" style={{marginBottom:'0.5rem'}} onClick={()=>setEditMode(true)}>✏️ Baustelle bearbeiten</button>
           )}
