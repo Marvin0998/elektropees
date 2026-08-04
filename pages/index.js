@@ -1609,6 +1609,7 @@ function KalenderListe({termine,heute,baustellen,allUsers,user,setShowDetail}) {
 function KalenderDetailModal({showDetail,setShowDetail,baustellen,allUsers,kannBearbeiten,handleDelete}) {
   if(!showDetail) return null
   const liste=Array.isArray(showDetail)?showDetail:[showDetail]
+  const savedFarben = typeof window!=='undefined' ? JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}') : {}
   return (
     <div className="modal-overlay open"><div className="modal-sheet">
       <div className="modal-handle"/>
@@ -1841,6 +1842,27 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   async function syncOutlook() {
     if(!getMsToken()) { msLogin(); return }
     setMsSyncing(true)
+    // Kategorien + Farben laden
+    const katData = await msGraphGet('/me/outlook/masterCategories')
+    const kategorienFarben = {}
+    if(katData?.value) {
+      katData.value.forEach(k => {
+        // Outlook Farbnamen → HEX
+        const farbMap = {
+          'preset0':'#e74856','preset1':'#ff8c00','preset2':'#ffb900','preset3':'#fff100',
+          'preset4':'#00b294','preset5':'#008272','preset6':'#00b7c3','preset7':'#0099bc',
+          'preset8':'#0078d4','preset9':'#4b0082','preset10':'#881798','preset11':'#c239b3',
+          'preset12':'#e3008c','preset13':'#ea005e','preset14':'#da3b01','preset15':'#ef6950',
+          'preset16':'#d13438','preset17':'#ff4343','preset18':'#69797e','preset19':'#767676',
+          'preset20':'#a0aeb2','preset21':'#69797e','preset22':'#4c4a48','preset23':'#767676',
+          'none':'#888888'
+        }
+        kategorienFarben[k.displayName] = farbMap[k.color] || '#1B52DD'
+      })
+    }
+    if(typeof window!=='undefined') {
+      window.localStorage.setItem('ms_kategorien_farben', JSON.stringify(kategorienFarben))
+    }
     // Aktuellen Monat + nächste 3 Monate laden
     const von = new Date(); von.setDate(1)
     const bis = new Date(); bis.setMonth(bis.getMonth()+3)
@@ -1849,21 +1871,27 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
       bis.toISOString().split('T')[0]
     )
     // Outlook-Events in App-Format umwandeln
-    const mapped = events.map(e => ({
-      id: 'outlook_'+e.id,
-      titel: e.subject,
-      beschreibung: e.bodyPreview||'',
-      datum: e.start.dateTime?.split('T')[0] || e.start.date,
-      bis_datum: e.end.dateTime?.split('T')[0] || e.end.date,
-      uhrzeit: e.start.dateTime?.split('T')[1]?.slice(0,5) || '',
-      bis_uhrzeit: e.end.dateTime?.split('T')[1]?.slice(0,5) || '',
-      typ: 'outlook',
-      farbe: '#0078d4',
-      zugewiesen_an: [],
-      erstellt_von: user.id,
-      _outlookId: e.id,
-      _kategorien: e.categories||[]
-    }))
+    const savedFarben = typeof window!=='undefined' ? JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}') : {}
+    const mapped = events.map(e => {
+      // Farbe aus erster Kategorie des Events
+      const erstKat = e.categories?.[0]
+      const farbe = erstKat ? (savedFarben[erstKat] || '#0078d4') : '#0078d4'
+      return {
+        id: 'outlook_'+e.id,
+        titel: e.subject,
+        beschreibung: e.bodyPreview||'',
+        datum: e.start.dateTime?.split('T')[0] || e.start.date,
+        bis_datum: e.end.dateTime?.split('T')[0] || e.end.date,
+        uhrzeit: e.start.dateTime?.split('T')[1]?.slice(0,5) || '',
+        bis_uhrzeit: e.end.dateTime?.split('T')[1]?.slice(0,5) || '',
+        typ: 'outlook',
+        farbe,
+        zugewiesen_an: [],
+        erstellt_von: user.id,
+        _outlookId: e.id,
+        _kategorien: e.categories||[]
+      }
+    })
     setOutlookTermine(mapped)
     setMsVerbunden(true)
     setMsSyncing(false)
