@@ -18,6 +18,23 @@ function initials(name) { return name.split(' ').map(n=>n[0]).join('').toUpperCa
 function today() { return new Date().toISOString().split('T')[0] }
 function getDayName(dateStr) { const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; return days[new Date(dateStr).getDay()] }
 function countWorkdays(from,to) { let count=0; const d=new Date(from); while(d<=new Date(to)){const dow=d.getDay(); if(dow>=1&&dow<=4)count++; d.setDate(d.getDate()+1)} return count }
+function fmtStd(h) {
+  // Deutsche Stundenformatierung: 9,5 Std. / 0,0 Std.
+  return h.toFixed(1).replace('.',',') + ' Std.'
+}
+function istLaufendeWoche(weekStart) {
+  const heute = new Date(); heute.setHours(0,0,0,0)
+  const ws = new Date(weekStart); ws.setHours(0,0,0,0)
+  const we = new Date(ws); we.setDate(we.getDate()+6)
+  return heute >= ws && heute <= we
+}
+function vergangeneArbeitstageDieseWoche() {
+  const heute = new Date()
+  const dow = heute.getDay() // 0=So,1=Mo,...,6=Sa
+  // Mo-Do zählen, bis heute
+  if(dow === 0) return 0 // Sonntag
+  return Math.min(dow, 4) // max 4 (Do)
+}
 
 // ─── STUNDENKONTO ─────────────────────────────────────────────────────────────
 function berechneStundenkonto(stunden) {
@@ -128,6 +145,12 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,on
   const ausstehend=myStunden.filter(s=>s.freigabe_status==='ausstehend').length
   const regelStunden=user.profile?.regel_stunden||38
   const diff=wocheStunden-regelStunden
+  // Nur vergangene Arbeitstage als Soll berechnen (laufende Woche)
+  const laufend=istLaufendeWoche(weekStart)
+  const vergangTage=laufend?vergangeneArbeitstageDieseWoche():4
+  const sollBisHeute=laufend?(vergangTage*9.5):regelStunden
+  const echteFehlstunden=wocheStunden-sollBisHeute
+  const pct=Math.min(100,(wocheStunden/regelStunden)*100)
   const [showAll,setShowAll]=useState(false)
   const sorted=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum))
   const recent=showAll?sorted:sorted.slice(0,4)
@@ -176,10 +199,9 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,on
 
   return (
     <div className="page-content">
-      <div className="welcome-block">
-        <div className="welcome-time">{greet}</div>
-        <div className="welcome-name">{user.profile?.name||user.email}</div>
-        <div className="welcome-sub">Hier kannst du deine Arbeitszeit erfassen und deine aktuellen Einträge prüfen.</div>
+      <div style={{marginBottom:'0.75rem',paddingTop:'0.25rem'}}>
+        <div style={{fontSize:'0.8rem',color:'var(--text3)'}}>{greet},</div>
+        <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--dark)'}}>{(user.profile?.name||user.email).split(' ')[0]}</div>
       </div>
       <button className="hero-btn" onClick={onStunden}>
         <div className="hero-icon"><IconClock/></div>
@@ -190,32 +212,44 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,on
         </div>
         <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
       </button>
-      {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'1rem',background:'#fff5f5',border:'1.5px solid #feb2b2',borderRadius:'var(--r-xl)',padding:'0.875rem 1.25rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
-        <div style={{width:44,height:44,borderRadius:'50%',background:'#fed7d7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.4rem',flexShrink:0}}>🤒</div>
+      {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid #fecaca',borderRadius:'var(--r-lg)',padding:'0.625rem 1rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
+        <div style={{width:32,height:32,borderRadius:'50%',background:'#fee2e2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>🤒</div>
         <div style={{flex:1}}>
-          <div style={{fontSize:'0.7rem',fontWeight:600,color:'#c53030',textTransform:'uppercase',letterSpacing:'0.05em'}}>Krankmeldung</div>
-          <div style={{fontSize:'1rem',fontWeight:700,color:'#742a2a'}}>Krank melden</div>
-          <div style={{fontSize:'0.78rem',color:'#c53030'}}>9,5h werden gutgeschrieben</div>
+          <div style={{fontSize:'0.85rem',fontWeight:600,color:'#b91c1c'}}>Krank / Abwesenheit melden</div>
+          <div style={{fontSize:'0.72rem',color:'#9ca3af',marginTop:1}}>Arbeitszeit wird nach Prüfung berücksichtigt</div>
         </div>
-        <div style={{color:'#feb2b2',fontSize:'1.2rem'}}>→</div>
+        <span style={{color:'#fca5a5',fontSize:'1rem'}}>›</span>
       </button>}
       {ausstehend>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
           <span style={{fontSize:'0.85rem',color:'#92400e'}}>⏳ {ausstehend} Eintrag{ausstehend>1?'e':''} wartet auf Freigabe</span>
         </div>
       )}
-      <div className="stats-row">
-        <div className="stat-card">
-          <div className="stat-label">Stunden diese Woche</div>
-          <div className="stat-num">{wocheStunden.toFixed(1)}</div>
-          <div className="stat-sub">von {regelStunden}.0 h Regelarbeitszeit</div>
-          <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,(wocheStunden/regelStunden)*100).toFixed(0)}%`}}/></div>
+      <div className="card" style={{marginBottom:'0.75rem'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+          <div>
+            <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Diese Woche</div>
+            <div style={{fontSize:'1.4rem',fontWeight:800,color:'var(--dark)',fontFamily:"'DM Mono',monospace",marginTop:2}}>
+              {wocheStunden.toFixed(1).replace('.',',')} <span style={{fontSize:'0.85rem',fontWeight:400,color:'var(--text3)'}}>von {regelStunden.toFixed(0)},0 Std.</span>
+            </div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            {echteFehlstunden>=0
+              ? <div style={{fontSize:'0.82rem',fontWeight:700,color:'var(--green)'}}>+{echteFehlstunden.toFixed(1).replace('.',',')} Std.</div>
+              : laufend&&vergangTage===0
+                ? <div style={{fontSize:'0.78rem',color:'var(--text3)'}}>Woche beginnt heute</div>
+                : laufend
+                  ? <div style={{fontSize:'0.82rem',color:'var(--blue)',fontWeight:600}}>{Math.abs(echteFehlstunden).toFixed(1).replace('.',',')} Std. offen</div>
+                  : <div style={{fontSize:'0.82rem',fontWeight:700,color:'var(--red)'}}>−{Math.abs(diff).toFixed(1).replace('.',',')} Fehlstunden</div>
+            }
+            <div style={{fontSize:'0.68rem',color:'var(--text3)',marginTop:2}}>{laufend?`${vergangTage} von 4 Tagen`:'Woche abgeschlossen'}</div>
+          </div>
         </div>
-        <div className={`stat-card ${diff>=0?'success':'danger'}`}>
-          <div className="stat-label">{diff>=0?'Überstunden':'Fehlstunden'}</div>
-          <div className={`stat-num ${diff>=0?'plus':'minus'}`}>{diff>=0?'+':''}{diff.toFixed(1)}</div>
-          <div className="stat-sub">noch offen diese Woche</div>
-          <div className="progress-bar"><div className={`progress-fill ${diff<0?'danger':''}`} style={{width:`${Math.min(100,Math.abs(diff)/regelStunden*100).toFixed(0)}%`}}/></div>
+        <div className="progress-bar">
+          <div className="progress-fill" style={{width:`${pct.toFixed(0)}%`,background:pct>=100?'var(--green)':'var(--blue)'}}/>
+        </div>
+        <div style={{fontSize:'0.72rem',color:'var(--text3)',marginTop:4}}>
+          {laufend&&echteFehlstunden<0?`Noch ${Math.abs(diff).toFixed(1).replace('.',',')} Std. bis Wochenziel`:`${pct.toFixed(0)} % des Wochenziels`}
         </div>
       </div>
       <div className="card">
@@ -2578,6 +2612,14 @@ ${heft.bemerkungen ? `<div class="bemerkungen-block"><div class="bem-header">Bem
           <button className="btn btn-primary" style={{marginBottom:8}} onClick={()=>setShowSignatur('ausbilder')}>✍️ Als Ausbilder signieren</button>
         )}
         <button className="btn btn-secondary" style={{marginBottom:8}} onClick={()=>exportPDF(h)}>📄 Als PDF exportieren</button>
+        {kannSignieren&&(
+          <button onClick={async()=>{
+            if(!confirm('Berichtsheft wirklich löschen?')) return
+            await supabase.from('berichtshefte').delete().eq('id',h.id)
+            await loadHefte()
+            setAnsicht('liste')
+          }} style={{width:'100%',padding:'0.875rem',background:'var(--red-pale)',color:'var(--red)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',fontFamily:'inherit',fontWeight:600,fontSize:'0.95rem',marginBottom:8}}>🗑️ Berichtsheft löschen</button>
+        )}
         <button className="btn btn-secondary" onClick={()=>setAnsicht('liste')}>Zurück zur Liste</button>
 
         {showSignatur && (
@@ -2604,6 +2646,7 @@ export default function App() {
   const [showInstallBanner,setShowInstallBanner]=useState(false)
 
   useEffect(()=>{
+    if(typeof window!=='undefined'&&window.localStorage.getItem('pwa_banner_dismissed')) return
     const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true) }
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
@@ -2657,31 +2700,22 @@ export default function App() {
           <span>📱 App auf Homescreen installieren</span>
           <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
             <button className="pwa-btn" onClick={handleInstall}>Installieren</button>
-            <button className="pwa-close" onClick={()=>setShowInstallBanner(false)}>✕</button>
+            <button className="pwa-close" onClick={()=>{setShowInstallBanner(false);if(typeof window!=='undefined')window.localStorage.setItem('pwa_banner_dismissed','1')}}>✕</button>
           </div>
         </div>
       )}
-      <div style={{background:'var(--dark)'}}>
-        <div style={{padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <img src="/logo.png" alt="Elektro Pees" style={{height:'72px',width:'auto',maxWidth:'240px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div style="color:white;font-size:1.1rem;font-weight:700">Elektro Pees</div>'}}/>
-            <span style={{color:'rgba(255,255,255,0.25)',fontSize:'0.65rem',letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:400}}>App</span>
+      <div style={{background:'var(--dark)',padding:'6px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+        <img src="/logo.png" alt="Elektro Pees" style={{height:'36px',width:'auto',maxWidth:'140px',objectFit:'contain'}} onError={e=>{e.target.outerHTML='<div style="color:white;font-size:0.9rem;font-weight:700">Elektro Pees</div>'}}/>
+        <div style={{display:'flex',alignItems:'center',gap:6,flex:1,justifyContent:'flex-end'}}>
+          <div style={{width:28,height:28,borderRadius:'50%',background:'linear-gradient(135deg,var(--blue),var(--blue-light))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.7rem',fontWeight:700,color:'white',flexShrink:0}}>
+            {(user.profile?.name||user.email).split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)}
           </div>
-        </div>
-        <div style={{padding:'7px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <div style={{width:26,height:26,borderRadius:'50%',background:'linear-gradient(135deg,var(--blue),var(--blue-light))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.68rem',fontWeight:700,color:'white',flexShrink:0}}>
-              {(user.profile?.name||user.email).split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)}
-            </div>
-            <div>
-              <span style={{color:'rgba(255,255,255,0.85)',fontSize:'0.82rem',fontWeight:500}}>{user.profile?.name||user.email}</span>
-              <span style={{color:'rgba(255,255,255,0.35)',fontSize:'0.68rem',marginLeft:6}}>{user.profile?.role==='admin'?'Admin':user.profile?.role==='buero'?'Büro':user.profile?.role==='azubi'?'Azubi':'Mitarbeiter'}</span>
-            </div>
+          <div style={{display:'flex',flexDirection:'column',lineHeight:1.2}}>
+            <span style={{color:'rgba(255,255,255,0.9)',fontSize:'0.8rem',fontWeight:600}}>{(user.profile?.name||user.email).split(' ')[0]}</span>
+            <span style={{color:'rgba(255,255,255,0.4)',fontSize:'0.6rem'}}>{user.profile?.role==='admin'?'Admin':user.profile?.role==='buero'?'Büro':user.profile?.role==='azubi'?'Azubi':'Monteur'}</span>
           </div>
-          <div style={{display:'flex',gap:6}}>
-            <button onClick={loadData} style={{width:28,height:28,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.6)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:'0.85rem',display:'flex',alignItems:'center',justifyContent:'center'}}>↻</button>
-            <button className="top-logout" onClick={handleLogout} style={{height:28,padding:'0 10px',fontSize:'0.75rem'}}>Abmelden</button>
-          </div>
+          <button onClick={loadData} style={{width:30,height:30,background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.6)',borderRadius:6,cursor:'pointer',fontSize:'0.9rem',display:'flex',alignItems:'center',justifyContent:'center',marginLeft:4}}>↻</button>
+          <button onClick={handleLogout} style={{height:30,padding:'0 10px',fontSize:'0.72rem',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.7)',borderRadius:6,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>Abmelden</button>
         </div>
       </div>
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)}/>}
