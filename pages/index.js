@@ -1535,13 +1535,13 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
         <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.85rem'}}>{formatDate(wochenStart.toISOString().split('T')[0])} – {formatDate(wochenEnd.toISOString().split('T')[0])}</span>
         <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()+7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
       </div>
-      {/* Spaltenköpfe */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,marginBottom:3}}>
+      {/* Spaltenköpfe + Termine in einem gemeinsamen Grid */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
           const istHeute=tagStr===heuteStr
           return (
-            <div key={i} style={{textAlign:'center',padding:'4px 2px',borderRadius:6,background:istHeute?'var(--blue)':'var(--bg)'}}>
+            <div key={'h'+i} style={{textAlign:'center',padding:'4px 2px',borderRadius:6,background:istHeute?'var(--blue)':'var(--bg)',marginBottom:3}}>
               <div style={{fontSize:'0.6rem',fontWeight:600,color:istHeute?'rgba(255,255,255,0.7)':'var(--text3)'}}>{tagNamen[i]}</div>
               <div style={{fontSize:'0.85rem',fontWeight:700,color:istHeute?'white':'var(--dark)'}}>{tag.getDate()}</div>
             </div>
@@ -1564,7 +1564,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           </div>
         )
       })()}
-      {/* Termin-Zeilen: alle Termine der Woche untereinander, nach Tag gruppiert */}
+      {/* Termin-Zeilen */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,alignItems:'start'}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
@@ -2014,8 +2014,13 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
     setMsSyncing(false)
   }
 
-  // Alle Termine kombiniert (App + Outlook)
-  const alleTermine = [...termine, ...outlookTermine].sort((a,b)=>a.datum.localeCompare(b.datum))
+  // Alle Termine kombiniert (App + Outlook), gefiltert nach Rolle
+  const alleTermineRaw = [...termine, ...outlookTermine].sort((a,b)=>a.datum.localeCompare(b.datum))
+  const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(t=>{
+    // Mitarbeiter sehen nur: eigene Termine + Termine die ihnen zugewiesen sind + Termine ohne Zuweisung
+    if(!t.zugewiesen_an||t.zugewiesen_an.length===0) return true // kein Filter = alle sehen
+    return t.zugewiesen_an.includes(user.id) // nur wenn mir zugewiesen
+  })
 
   async function handleSave() {
     if(!form.titel.trim()){alert('Bitte Titel eingeben!');return}
