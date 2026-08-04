@@ -1545,7 +1545,8 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           ))}
         </div>
       )}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,marginBottom:3}}>
+      <div style={{overflowX:'auto',margin:'0 -4px',padding:'0 4px'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(56px,1fr))',gap:3,marginBottom:3,minWidth:280}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
           const istHeute=tagStr===heuteStr
@@ -1557,7 +1558,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           )
         })}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:3,minWidth:0,overflowX:'auto'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(56px,1fr))',gap:3,minWidth:280}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.toISOString().split('T')[0]
           const tagTermine=termine.filter(t=>t.datum===tagStr||(t.bis_datum&&t.bis_datum!==t.datum&&tagStr>=t.datum&&tagStr<=t.bis_datum))
@@ -1579,16 +1580,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           )
         })}
       </div>
-      {legendeEintraege.length>0&&(
-        <div style={{display:'flex',flexWrap:'wrap',gap:8,padding:'6px 0 0'}}>
-          {legendeEintraege.map(([name,farbe])=>(
-            <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
-              <span style={{width:9,height:9,borderRadius:'50%',background:farbe,display:'inline-block'}}/>
-              {name.split(' ')[0]}
-            </span>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
