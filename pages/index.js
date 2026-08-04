@@ -1703,7 +1703,7 @@ function KalenderNeuModal({form,setForm,saving,handleSave,handleClose,baustellen
 
 // ─── MICROSOFT GRAPH / OUTLOOK KALENDER ──────────────────────────────────────
 const MS_CLIENT_ID = '1e97973c-d452-4f3d-8aa7-681576a4648e'
-const MS_TENANT_ID = 'common'
+const MS_TENANT_ID = '5054d4b9-5bb6-45af-bd57-73162a682c83'
 const MS_SCOPES = 'User.Read Calendars.ReadWrite'
 const MS_REDIRECT = typeof window !== 'undefined' ? window.location.origin : 'https://elektropees.vercel.app'
 
@@ -1726,6 +1726,7 @@ function saveMsToken(token, expiresIn) {
 }
 
 function msLogin() {
+  // Redirect-basiert: Supabase-Session bleibt erhalten da Supabase sie in localStorage speichert
   const params = new URLSearchParams({
     client_id: MS_CLIENT_ID,
     response_type: 'token',
@@ -1735,6 +1736,10 @@ function msLogin() {
     state: 'outlook_sync',
     nonce: Math.random().toString(36)
   })
+  // Merken dass wir zum Kalender-Tab wollen nach dem Login
+  if(typeof window !== 'undefined') {
+    window.localStorage.setItem('ms_redirect_to', 'kalender')
+  }
   window.location.href = `https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/authorize?${params}`
 }
 
@@ -1833,10 +1838,13 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const kannBearbeiten=isAdmin||isBuero
 
   useEffect(()=>{
-    // URL-Token nach OAuth-Redirect parsen
-    parseMsTokenFromUrl()
-    setMsVerbunden(!!getMsToken())
+    const token = getMsToken()
+    setMsVerbunden(!!token)
     loadTermine()
+    // Nach Outlook-Login: automatisch syncen
+    if(token) {
+      syncOutlook()
+    }
   },[])
 
   async function loadTermine() {
@@ -1845,7 +1853,10 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   }
 
   async function syncOutlook() {
-    if(!getMsToken()) { msLogin(); return }
+    if(!getMsToken()) {
+      msLogin()
+      return
+    }
     setMsSyncing(true)
     // Kategorien + Farben laden
     const katData = await msGraphGet('/me/outlook/masterCategories')
@@ -2927,19 +2938,20 @@ export default function App() {
   },[])
 
   useEffect(()=>{
-    // Microsoft OAuth Token aus URL-Hash parsen (nach Outlook-Login)
+    // Microsoft OAuth Token aus URL-Hash parsen (nach Redirect)
     if(typeof window !== 'undefined') {
-      const hash = window.location.hash.substring(1)
-      if(hash) {
-        const params = new URLSearchParams(hash)
-        const token = params.get('access_token')
-        const expiresIn = params.get('expires_in')
-        const state = params.get('state')
+      const hash = window.location.hash
+      if(hash && hash.includes('access_token')) {
+        const p = new URLSearchParams(hash.substring(1))
+        const token = p.get('access_token')
+        const exp = p.get('expires_in')
+        const state = p.get('state')
         if(token && state === 'outlook_sync') {
-          saveMsToken(token, parseInt(expiresIn)||3600)
+          saveMsToken(token, parseInt(exp)||3600)
           window.history.replaceState({}, document.title, window.location.pathname)
-          // Nach Login auf Kalender-Tab springen
-          setPage('kalender')
+          const redirectTo = window.localStorage.getItem('ms_redirect_to')
+          window.localStorage.removeItem('ms_redirect_to')
+          if(redirectTo) setPage(redirectTo)
         }
       }
     }
