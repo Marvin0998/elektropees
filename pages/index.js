@@ -1524,7 +1524,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
   for(let i=0;i<5;i++){const d=new Date(wochenStart);d.setDate(d.getDate()+i);tage.push(d)}
   const tagNamen=['Mo','Di','Mi','Do','Fr']
   const wochenEnd=new Date(wochenStart);wochenEnd.setDate(wochenStart.getDate()+4)
-  const heuteStr=heute.toISOString().split('T')[0]
+  const heuteStr=heute.getFullYear()+'-'+String(heute.getMonth()+1).padStart(2,'0')+'-'+String(heute.getDate()).padStart(2,'0')
   const savedFarben=typeof window!=='undefined'?JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}'):{}
   const legendeEintraege=Object.entries(savedFarben).filter(([n])=>!n.includes('Kategorie'))
   return (
@@ -1578,7 +1578,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
 
 
 function KalenderListe({termine,heute,baustellen,allUsers,user,setShowDetail}) {
-  const heuteStr=heute.toISOString().split('T')[0]
+  const heuteStr=heute.getFullYear()+'-'+String(heute.getMonth()+1).padStart(2,'0')+'-'+String(heute.getDate()).padStart(2,'0')
   const kommend=termine.filter(t=>t.datum>=heuteStr).slice(0,50)
   const vergangen=termine.filter(t=>t.datum<heuteStr).sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,20)
   const TerminItem=({t})=>{
@@ -1831,6 +1831,10 @@ async function ladeOutlookTermine(von, bis) {
   })
   if(!res.ok) return []
   const data = await res.json()
+  if(data?.value?.[0]) {
+    const e = data.value[0]
+    console.log('OUTLOOK DEBUG:', e.subject, 'start:', e.start?.dateTime, 'timeZone:', e.start?.timeZone)
+  }
   return data?.value || []
 }
 
@@ -1859,8 +1863,16 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const [msVerbunden,setMsVerbunden]=useState(false)
   const [msSyncing,setMsSyncing]=useState(false)
   const [ansicht,setAnsicht]=useState('monat')
-  const [heute]=useState(new Date())
-  const [ankerDatum,setAnkerDatum]=useState(getWeekStart(new Date()))
+  const [heute]=useState(()=>{
+    // Lokales Datum ohne Timezone-Shift
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  })
+  const [ankerDatum,setAnkerDatum]=useState(()=>{
+    const now = new Date()
+    const local = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    return getWeekStart(local)
+  })
   const [showNeu,setShowNeu]=useState(false)
   const [showDetail,setShowDetail]=useState(null)
   const [form,setForm]=useState({titel:'',beschreibung:'',datum:today(),uhrzeit:'',bis_datum:'',bis_uhrzeit:'',typ:'termin',baustelle_id:'',zugewiesen_an:[],farbe:'#1B52DD'})
