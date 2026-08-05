@@ -1963,8 +1963,6 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
       kategorieZuUserId[nameClean] = u.id
       kategorieZuUserId[nameClean.split(' ')[0]] = u.id
     })
-    console.log('Kategorie-Map:', Object.keys(kategorieZuUserId))
-
     const mapped = events.map(e => {
       const erstKat = e.categories?.[0]
       const farbe = erstKat ? (savedFarben[erstKat] || '#0078d4') : '#0078d4'
@@ -1972,7 +1970,7 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
       const zugewiesen_an = (e.categories||[])
         .map(k => kategorieZuUserId[k.trim().toLowerCase()] || kategorieZuUserId[k.trim().toLowerCase().split(' ')[0]])
         .filter(Boolean)
-      if(e.categories?.length>0) console.log('Termin:', e.subject, 'Kategorien:', e.categories, '→ IDs:', zugewiesen_an)
+
       return {
         id: 'outlook_'+e.id,
         titel: e.subject,
@@ -2056,15 +2054,15 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const outlookNurFuerAdmin = (isAdmin||isBuero) ? outlookTermine.filter(ot=>!termine.some(t=>t.outlook_id===ot._outlookId)) : []
   const alleTermineRaw = [...termine, ...outlookNurFuerAdmin].sort((a,b)=>a.datum.localeCompare(b.datum))
   const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(t=>{
-    // Mitarbeiter/Azubi: nur Termine wo sie explizit zugewiesen sind
-    if(t.zugewiesen_an&&t.zugewiesen_an.includes(user.id)) return true
-    // Kategorien-Namen prüfen (Outlook-Termine die noch nicht importiert sind)
-    const userName = user.profile?.name||''
-    const vorname = userName.split(' ')[0]
-    if(t._kategorien?.some(k=>k===userName||k.startsWith(vorname))) return true
-    // Typ 'termin' ohne Zuweisung: NUR für Admin/Büro (bereits oben behandelt)
-    // Alle anderen: nicht anzeigen
-    return false
+    // Wenn Termin explizit zugewiesen → nur diese sehen
+    if(t.zugewiesen_an&&t.zugewiesen_an.length>0) {
+      return t.zugewiesen_an.includes(user.id)
+    }
+    // Outlook-Termin ohne Mitarbeiter-Zuweisung → alle Mitarbeiter sehen ihn
+    // (Firma-weite Termine wie Baustellen-Einsätze)
+    if(t.typ==='outlook'||t.outlook_id) return true
+    // App-Termin ohne Zuweisung → alle sehen ihn
+    return true
   })
 
   async function handleSave() {
