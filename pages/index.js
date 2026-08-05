@@ -1813,15 +1813,24 @@ async function msGraphDelete(url) {
 }
 
 async function ladeOutlookTermine(von, bis) {
-  // Outlook Kalender-Events laden
+  const token = getMsToken()
+  if(!token) return []
   const params = new URLSearchParams({
     startDateTime: von + 'T00:00:00',
     endDateTime: bis + 'T23:59:59',
     $select: 'id,subject,start,end,bodyPreview,categories,isAllDay',
-    $top: '100',
+    $top: '200',
     $orderby: 'start/dateTime'
   })
-  const data = await msGraphGet(`/me/calendarView?${params}`)
+  const res = await fetch(`https://graph.microsoft.com/v1.0/me/calendarView?${params}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'outlook.timezone="Europe/Berlin"'
+    }
+  })
+  if(!res.ok) return []
+  const data = await res.json()
   return data?.value || []
 }
 
