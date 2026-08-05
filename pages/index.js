@@ -1812,6 +1812,34 @@ async function msGraphDelete(url) {
   return res.ok
 }
 
+
+function parseDatumLokal(dateTimeStr) {
+  if(!dateTimeStr) return ''
+  // Format: "2026-08-05T07:30:00+02:00" oder "2026-08-05T05:30:00Z" oder "2026-08-05"
+  if(dateTimeStr.length === 10) return dateTimeStr // schon YYYY-MM-DD
+  // Timezone-Offset parsen
+  const hasOffset = dateTimeStr.includes('+') || (dateTimeStr.includes('-') && dateTimeStr.lastIndexOf('-') > 7)
+  const isUTC = dateTimeStr.endsWith('Z')
+  if(hasOffset || isUTC) {
+    // Mit Timezone: direkt als Date parsen, dann lokales Datum extrahieren
+    const d = new Date(dateTimeStr)
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+  }
+  // Ohne Timezone-Info: ersten 10 Zeichen nehmen
+  return dateTimeStr.slice(0,10)
+}
+
+function parseUhrzeitLokal(dateTimeStr) {
+  if(!dateTimeStr) return ''
+  if(dateTimeStr.length === 10) return ''
+  const hasOffset = dateTimeStr.includes('+') || dateTimeStr.endsWith('Z')
+  if(hasOffset) {
+    const d = new Date(dateTimeStr)
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')
+  }
+  return dateTimeStr.slice(11,16)
+}
+
 async function ladeOutlookTermine(von, bis) {
   const token = getMsToken()
   if(!token) return []
@@ -1831,10 +1859,7 @@ async function ladeOutlookTermine(von, bis) {
   })
   if(!res.ok) return []
   const data = await res.json()
-  if(data?.value?.[0]) {
-    const e = data.value[0]
-    console.log('OUTLOOK DEBUG:', e.subject, 'start:', e.start?.dateTime, 'timeZone:', e.start?.timeZone)
-  }
+
   return data?.value || []
 }
 
@@ -1949,10 +1974,10 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
         id: 'outlook_'+e.id,
         titel: e.subject,
         beschreibung: e.bodyPreview||'',
-        datum: e.start.dateTime?.split('T')[0] || e.start.date,
-        bis_datum: e.end.dateTime?.split('T')[0] || e.end.date,
-        uhrzeit: e.start.dateTime?.split('T')[1]?.slice(0,5) || '',
-        bis_uhrzeit: e.end.dateTime?.split('T')[1]?.slice(0,5) || '',
+        datum: parseDatumLokal(e.start.dateTime || e.start.date),
+        bis_datum: parseDatumLokal(e.end.dateTime || e.end.date),
+        uhrzeit: parseUhrzeitLokal(e.start.dateTime || ''),
+        bis_uhrzeit: parseUhrzeitLokal(e.end.dateTime || ''),
         typ: 'outlook',
         farbe,
         zugewiesen_an,
