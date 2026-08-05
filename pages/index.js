@@ -1999,10 +1999,10 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
 
     for(const e of mapped) {
       const outlookId = e._outlookId
-      if(!outlookId || !e.datum) continue
+      if(!outlookId || !e.datum || !e.titel) continue  // Termine ohne Titel überspringen
 
       const supabaseData = {
-        titel: e.titel,
+        titel: e.titel || '(Kein Betreff)',
         beschreibung: e.beschreibung||'',
         datum: e.datum,
         bis_datum: e.bis_datum||e.datum,
