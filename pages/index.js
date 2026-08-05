@@ -15,7 +15,7 @@ function formatDate(d) { if(!d)return'—'; const [y,m,day]=d.split('-'); return
 function getWeekStart(d) { const day=new Date(d); const dow=day.getDay(); const diff=dow===0?-6:1-dow; day.setDate(day.getDate()+diff); day.setHours(0,0,0,0); return day }
 function calcDauer(start,end) { const [sh,sm]=start.split(':').map(Number); const [eh,em]=end.split(':').map(Number); const mins=(eh*60+em)-(sh*60+sm); return mins>0?parseFloat((mins/60).toFixed(2)):0 }
 function initials(name) { return name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) }
-function today() { return new Date().toISOString().split('T')[0] }
+function today() { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0') }
 function getDayName(dateStr) { const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; return days[new Date(dateStr).getDay()] }
 function countWorkdays(from,to) { let count=0; const d=new Date(from); while(d<=new Date(to)){const dow=d.getDay(); if(dow>=1&&dow<=4)count++; d.setDate(d.getDate()+1)} return count }
 function fmtStd(h) {
@@ -1497,7 +1497,7 @@ function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
           if(!tag) return <div key={i}/>
           const tagStr=tag.toISOString().split('T')[0]
           const tagTermine=termine.filter(t=>t.datum===tagStr)
-          const istHeute=tagStr===heute.toISOString().split('T')[0]
+          const istHeute=tagStr===(heute.getFullYear()+'-'+String(heute.getMonth()+1).padStart(2,'0')+'-'+String(heute.getDate()).padStart(2,'0'))
           const istWE=tag.getDay()===0||tag.getDay()===6
           return (
             <div key={i} onClick={()=>{if(tagTermine.length>0)setShowDetail(tagTermine)}} style={{minHeight:56,padding:'2px 2px',borderRadius:6,background:istHeute?'var(--blue)':istWE?'#f7f7f7':'white',border:istHeute?'none':'1px solid #eee',cursor:tagTermine.length>0?'pointer':'default',overflow:'hidden'}}>
