@@ -2053,16 +2053,9 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   // Outlook-Termine nur für Admin/Büro als Ergänzung (Mitarbeiter sehen nur Supabase-Termine)
   const outlookNurFuerAdmin = (isAdmin||isBuero) ? outlookTermine.filter(ot=>!termine.some(t=>t.outlook_id===ot._outlookId)) : []
   const alleTermineRaw = [...termine, ...outlookNurFuerAdmin].sort((a,b)=>a.datum.localeCompare(b.datum))
-  const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(t=>{
-    // Wenn Termin explizit zugewiesen → nur diese sehen
-    if(t.zugewiesen_an&&t.zugewiesen_an.length>0) {
-      return t.zugewiesen_an.includes(user.id)
-    }
-    // Outlook-Termin ohne Mitarbeiter-Zuweisung → alle Mitarbeiter sehen ihn
-    // (Firma-weite Termine wie Baustellen-Einsätze)
-    if(t.typ==='outlook'||t.outlook_id) return true
-    // App-Termin ohne Zuweisung → alle sehen ihn
-    return true
+const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(t=>{
+    // Mitarbeiter/Azubis sehen nur Termine, die ihnen explizit zugewiesen sind
+    return t.zugewiesen_an && t.zugewiesen_an.includes(user.id)
   })
 
   async function handleSave() {
