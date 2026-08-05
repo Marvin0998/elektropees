@@ -1522,52 +1522,52 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
   const wochenStart=getWeekStart(new Date(ankerDatum))
   const tage=[]
   for(let i=0;i<5;i++){const d=new Date(wochenStart);d.setDate(d.getDate()+i);tage.push(d)}
-  const tagNamen=['Mo','Di','Mi','Do','Fr']
+  const tagNamen=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag']
   const wochenEnd=new Date(wochenStart);wochenEnd.setDate(wochenStart.getDate()+4)
   const heuteStr=heute.getFullYear()+'-'+String(heute.getMonth()+1).padStart(2,'0')+'-'+String(heute.getDate()).padStart(2,'0')
-  const savedFarben=typeof window!=='undefined'?JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}'):{}
-  const legendeEintraege=Object.entries(savedFarben).filter(([n])=>!n.includes('Kategorie'))
+  const wsSt=wochenStart.getFullYear()+'-'+String(wochenStart.getMonth()+1).padStart(2,'0')+'-'+String(wochenStart.getDate()).padStart(2,'0')
+  const weEnd=wochenEnd.getFullYear()+'-'+String(wochenEnd.getMonth()+1).padStart(2,'0')+'-'+String(wochenEnd.getDate()).padStart(2,'0')
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
         <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()-7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>&#8249;</button>
-        <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.85rem'}}>{formatDate(wochenStart.toISOString().split('T')[0])} – {formatDate(wochenEnd.toISOString().split('T')[0])}</span>
+        <span style={{fontWeight:700,color:'var(--dark)',fontSize:'0.85rem'}}>{formatDate(wsSt)} – {formatDate(weEnd)}</span>
         <button onClick={()=>{const d=new Date(ankerDatum);d.setDate(d.getDate()+7);setAnkerDatum(d)}} style={{width:30,height:30,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>&#8250;</button>
       </div>
-      {legendeEintraege.length>0&&(
-        <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:8}}>
-          {legendeEintraege.map(([name,farbe])=>(
-            <span key={name} style={{display:'flex',alignItems:'center',gap:4,fontSize:'0.7rem',fontWeight:600,color:'var(--dark)'}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:farbe,display:'inline-block'}}/>
-              {name.split(' ')[0]}
-            </span>
-          ))}
-        </div>
-      )}
-      <div style={{display:'flex',gap:3}}>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {tage.map((tag,i)=>{
           const tagStr=tag.getFullYear()+'-'+String(tag.getMonth()+1).padStart(2,'0')+'-'+String(tag.getDate()).padStart(2,'0')
           const istHeute=tagStr===heuteStr
           const tagTermine=termine.filter(t=>t.datum===tagStr||(t.bis_datum&&t.bis_datum!==t.datum&&tagStr>=t.datum&&tagStr<=t.bis_datum))
           return (
-            <div key={i} style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',gap:2}}>
-              <div style={{textAlign:'center',padding:'4px 1px',borderRadius:6,background:istHeute?'var(--blue)':'var(--bg)',marginBottom:2}}>
-                <div style={{fontSize:'0.55rem',fontWeight:600,color:istHeute?'rgba(255,255,255,0.7)':'var(--text3)'}}>{tagNamen[i]}</div>
-                <div style={{fontSize:'0.82rem',fontWeight:700,color:istHeute?'white':'var(--dark)'}}>{tag.getDate()}</div>
+            <div key={i} style={{borderRadius:10,overflow:'hidden',border:'1px solid '+(istHeute?'#bee3f8':'#eee')}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:istHeute?'var(--blue)':'var(--bg)',borderBottom:'1px solid '+(istHeute?'rgba(255,255,255,0.15)':'#eee')}}>
+                <div style={{width:28,height:28,borderRadius:'50%',background:istHeute?'white':'var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <span style={{fontSize:'0.75rem',fontWeight:700,color:istHeute?'var(--blue)':'var(--text3)'}}>{tag.getDate()}</span>
+                </div>
+                <span style={{fontWeight:700,fontSize:'0.85rem',color:istHeute?'white':'var(--dark)'}}>{tagNamen[i]}</span>
+                {tagTermine.length>0&&<span style={{marginLeft:'auto',fontSize:'0.7rem',color:istHeute?'rgba(255,255,255,0.7)':'var(--text3)',fontWeight:600}}>{tagTermine.length} Termin{tagTermine.length>1?'e':''}</span>}
               </div>
-              <div style={{flex:1,minHeight:80,background:istHeute?'#f0f7ff':'#fafafa',borderRadius:8,border:'1px solid '+(istHeute?'#bee3f8':'#eee'),padding:3,display:'flex',flexDirection:'column',gap:2}}>
-                {tagTermine.length===0&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:40}}><span style={{fontSize:'0.6rem',color:'#ddd'}}>—</span></div>}
-                {tagTermine.map(t=>{
-                  const farbe=t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)')
-                  const uhrzeit=t.uhrzeit?t.uhrzeit.slice(0,5):''
-                  return (
-                    <div key={t.id} onClick={()=>setShowDetail([t])} style={{background:farbe,color:'white',borderRadius:4,padding:'3px 4px',cursor:'pointer',overflow:'hidden'}}>
-                      {uhrzeit&&<div style={{fontSize:'0.5rem',opacity:0.85,fontWeight:600}}>{uhrzeit}</div>}
-                      <div style={{fontSize:'0.6rem',fontWeight:700,lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.titel}</div>
-                    </div>
-                  )
-                })}
-              </div>
+              {tagTermine.length===0?(
+                <div style={{padding:'10px 12px',color:'#ccc',fontSize:'0.8rem',fontStyle:'italic'}}>Kein Termin</div>
+              ):(
+                <div style={{display:'flex',flexDirection:'column',gap:0}}>
+                  {tagTermine.map((t,ti)=>{
+                    const farbe=t.farbe||(TYP_CONFIG[t.typ]?.farbe||'var(--blue)')
+                    const uhrzeit=t.uhrzeit?t.uhrzeit.slice(0,5):''
+                    return (
+                      <div key={t.id} onClick={()=>setShowDetail([t])} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderBottom:ti<tagTermine.length-1?'1px solid #f5f5f5':'none',cursor:'pointer',background:'white'}}>
+                        <div style={{width:4,alignSelf:'stretch',borderRadius:2,background:farbe,flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,fontSize:'0.85rem',color:'var(--dark)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.titel}</div>
+                          {uhrzeit&&<div style={{fontSize:'0.72rem',color:'var(--text3)',marginTop:1}}>{uhrzeit} Uhr</div>}
+                        </div>
+                        <div style={{width:10,height:10,borderRadius:'50%',background:farbe,flexShrink:0}}/>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}
@@ -1575,6 +1575,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
     </div>
   )
 }
+
 
 
 function KalenderListe({termine,heute,baustellen,allUsers,user,setShowDetail}) {
@@ -2119,6 +2120,21 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
           📅 {baldFaellig} Termin{baldFaellig>1?'e':''} in den nächsten 7 Tagen
         </div>
       )}
+      {(()=>{
+        const sf=typeof window!=='undefined'?JSON.parse(window.localStorage.getItem('ms_kategorien_farben')||'{}'):{}
+        const le=Object.entries(sf).filter(([n])=>!n.includes('Kategorie'))
+        if(!le.length) return null
+        return (
+          <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:10,padding:'8px 12px',background:'white',borderRadius:'var(--r-lg)',border:'1px solid var(--border)'}}>
+            {le.map(([name,farbe])=>(
+              <span key={name} style={{display:'flex',alignItems:'center',gap:5,fontSize:'0.72rem',fontWeight:600,color:'var(--dark)'}}>
+                <span style={{width:10,height:10,borderRadius:'50%',background:farbe,flexShrink:0}}/>
+                {name.split(' ')[0]}
+              </span>
+            ))}
+          </div>
+        )
+      })()}
       <div style={{display:'flex',background:'white',borderRadius:'var(--r-xl)',padding:3,marginBottom:12,boxShadow:'var(--shadow-sm)',border:'1px solid var(--border)'}}>
         {[['monat','📆 Monat'],['woche','📅 Woche'],['liste','📋 Liste']].map(([key,label])=>(
           <button key={key} onClick={()=>setAnsicht(key)} style={{flex:1,padding:'0.5rem 4px',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.75rem',fontWeight:600,background:ansicht===key?'var(--dark)':'transparent',color:ansicht===key?'white':'var(--text2)',transition:'all 0.2s'}}>{label}</button>
