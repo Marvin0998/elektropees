@@ -1495,7 +1495,7 @@ function KalenderMonat({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
         {tage.map((tag,i)=>{
           if(!tag) return <div key={i}/>
-          const tagStr=tag.toISOString().split('T')[0]
+          const tagStr=tag.getFullYear()+'-'+String(tag.getMonth()+1).padStart(2,'0')+'-'+String(tag.getDate()).padStart(2,'0')
           const tagTermine=termine.filter(t=>t.datum===tagStr)
           const istHeute=tagStr===(heute.getFullYear()+'-'+String(heute.getMonth()+1).padStart(2,'0')+'-'+String(heute.getDate()).padStart(2,'0'))
           const istWE=tag.getDay()===0||tag.getDay()===6
@@ -1546,7 +1546,7 @@ function KalenderWoche({termine,ankerDatum,setAnkerDatum,heute,setShowDetail}) {
       )}
       <div style={{display:'flex',gap:3}}>
         {tage.map((tag,i)=>{
-          const tagStr=tag.toISOString().split('T')[0]
+          const tagStr=tag.getFullYear()+'-'+String(tag.getMonth()+1).padStart(2,'0')+'-'+String(tag.getDate()).padStart(2,'0')
           const istHeute=tagStr===heuteStr
           const tagTermine=termine.filter(t=>t.datum===tagStr||(t.bis_datum&&t.bis_datum!==t.datum&&tagStr>=t.datum&&tagStr<=t.bis_datum))
           return (
