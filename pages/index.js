@@ -1959,18 +1959,20 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
     // Kategorien → User-IDs mappen
     const kategorieZuUserId = {}
     allUsers.forEach(u => {
-      // Exakter Match oder Vorname-Match
-      kategorieZuUserId[u.name] = u.id
-      kategorieZuUserId[u.name.split(' ')[0]] = u.id
+      const nameClean = u.name.trim().toLowerCase()
+      kategorieZuUserId[nameClean] = u.id
+      kategorieZuUserId[nameClean.split(' ')[0]] = u.id
     })
+    console.log('Kategorie-Map:', Object.keys(kategorieZuUserId))
 
     const mapped = events.map(e => {
       const erstKat = e.categories?.[0]
       const farbe = erstKat ? (savedFarben[erstKat] || '#0078d4') : '#0078d4'
-      // Zugewiesene User-IDs aus Kategorien ermitteln
+      // Zugewiesene User-IDs aus Kategorien ermitteln (case-insensitiv)
       const zugewiesen_an = (e.categories||[])
-        .map(k => kategorieZuUserId[k])
+        .map(k => kategorieZuUserId[k.trim().toLowerCase()] || kategorieZuUserId[k.trim().toLowerCase().split(' ')[0]])
         .filter(Boolean)
+      if(e.categories?.length>0) console.log('Termin:', e.subject, 'Kategorien:', e.categories, '→ IDs:', zugewiesen_an)
       return {
         id: 'outlook_'+e.id,
         titel: e.subject,
@@ -2054,15 +2056,14 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const outlookNurFuerAdmin = (isAdmin||isBuero) ? outlookTermine.filter(ot=>!termine.some(t=>t.outlook_id===ot._outlookId)) : []
   const alleTermineRaw = [...termine, ...outlookNurFuerAdmin].sort((a,b)=>a.datum.localeCompare(b.datum))
   const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(t=>{
-    // Kein Zuweisungsfilter → alle sehen (allgemeine Termine)
-    const hatZuweisung = (t.zugewiesen_an&&t.zugewiesen_an.length>0)||(t._kategorien&&t._kategorien.length>0)
-    if(!hatZuweisung) return true
-    // User-ID Zuweisung prüfen
-    if(t.zugewiesen_an?.includes(user.id)) return true
-    // Kategorien-Namen prüfen (Outlook-Termine)
+    // Mitarbeiter/Azubi: nur Termine wo sie explizit zugewiesen sind
+    if(t.zugewiesen_an&&t.zugewiesen_an.includes(user.id)) return true
+    // Kategorien-Namen prüfen (Outlook-Termine die noch nicht importiert sind)
     const userName = user.profile?.name||''
     const vorname = userName.split(' ')[0]
-    if(t._kategorien?.some(k=>k===userName||k.includes(vorname))) return true
+    if(t._kategorien?.some(k=>k===userName||k.startsWith(vorname))) return true
+    // Typ 'termin' ohne Zuweisung: NUR für Admin/Büro (bereits oben behandelt)
+    // Alle anderen: nicht anzeigen
     return false
   })
 
@@ -2109,10 +2110,10 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
         <span className="section-title">Kalender</span>
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {kannBearbeiten&&<button className="btn btn-outline btn-sm" onClick={()=>setShowNeu(true)}>+ Termin</button>}
-          <button onClick={syncOutlook} disabled={msSyncing} style={{padding:'5px 10px',borderRadius:'var(--r-sm)',border:`1.5px solid ${msVerbunden?'#0078d4':'var(--border2)'}`,background:msVerbunden?'#0078d4':'white',color:msVerbunden?'white':'#666',fontSize:'0.72rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4}}>
+          {(isAdmin||isBuero)&&<button onClick={syncOutlook} disabled={msSyncing} style={{padding:'5px 10px',borderRadius:'var(--r-sm)',border:`1.5px solid ${msVerbunden?'#0078d4':'var(--border2)'}`,background:msVerbunden?'#0078d4':'white',color:msVerbunden?'white':'#666',fontSize:'0.72rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4}}>
             📧 {msSyncing?'Sync...':msVerbunden?'Outlook ✓':'Outlook'}
-          </button>
-          {msVerbunden&&<button onClick={()=>{clearMsToken();setMsVerbunden(false);setOutlookTermine([])}} style={{padding:'4px 8px',borderRadius:'var(--r-sm)',border:'1px solid var(--border2)',background:'white',color:'var(--text3)',fontSize:'0.7rem',cursor:'pointer',fontFamily:'inherit'}}>✕</button>}
+          </button>}
+          {(isAdmin||isBuero)&&msVerbunden&&<button onClick={()=>{clearMsToken();setMsVerbunden(false);setOutlookTermine([])}} style={{padding:'4px 8px',borderRadius:'var(--r-sm)',border:'1px solid var(--border2)',background:'white',color:'var(--text3)',fontSize:'0.7rem',cursor:'pointer',fontFamily:'inherit'}}>✕</button>}
         </div>
       </div>
       {baldFaellig>0&&(
