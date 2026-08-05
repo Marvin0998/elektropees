@@ -1851,7 +1851,7 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
   const [msSyncing,setMsSyncing]=useState(false)
   const [ansicht,setAnsicht]=useState('monat')
   const [heute]=useState(new Date())
-  const [ankerDatum,setAnkerDatum]=useState(new Date())
+  const [ankerDatum,setAnkerDatum]=useState(getWeekStart(new Date()))
   const [showNeu,setShowNeu]=useState(false)
   const [showDetail,setShowDetail]=useState(null)
   const [form,setForm]=useState({titel:'',beschreibung:'',datum:today(),uhrzeit:'',bis_datum:'',bis_uhrzeit:'',typ:'termin',baustelle_id:'',zugewiesen_an:[],farbe:'#1B52DD'})
