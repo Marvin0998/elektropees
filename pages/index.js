@@ -2015,12 +2015,22 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
         outlook_id: outlookId
       }
 
+      // Erst löschen falls vorhanden, dann neu einfügen
       if(vorhandeneIds.has(outlookId)) {
-        // Update bestehenden Eintrag
-        await supabase.from('termine').update(supabaseData).eq('outlook_id', outlookId)
+        const {error: updErr} = await supabase.from('termine').update({
+          titel: supabaseData.titel,
+          beschreibung: supabaseData.beschreibung,
+          datum: supabaseData.datum,
+          bis_datum: supabaseData.bis_datum,
+          uhrzeit: supabaseData.uhrzeit,
+          bis_uhrzeit: supabaseData.bis_uhrzeit,
+          farbe: supabaseData.farbe,
+          zugewiesen_an: supabaseData.zugewiesen_an,
+        }).eq('outlook_id', outlookId)
+        if(updErr) console.error('Update Fehler:', updErr.message)
       } else {
-        // Neu einfügen
-        await supabase.from('termine').insert([supabaseData])
+        const {error: insErr} = await supabase.from('termine').insert([supabaseData])
+        if(insErr) console.error('Insert Fehler:', insErr.message, 'Data:', JSON.stringify(supabaseData).slice(0,300))
       }
     }
 
