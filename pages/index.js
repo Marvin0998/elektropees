@@ -1988,6 +1988,7 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
       }
     })
     setOutlookTermine(mapped)
+    console.log('DEBUG Kategorien:', mapped.filter(m=>m.titel && m.titel.includes('Mato')).map(m=>({titel:m.titel, kategorien:m._kategorien, zugewiesen:m.zugewiesen_an})))
 
     // ── Automatisch in Supabase importieren ──────────────────────────────────
     // Bestehende Outlook-Termine aus Supabase holen (die wir schon importiert haben)
