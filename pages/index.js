@@ -1988,7 +1988,6 @@ function KalenderPage({user,baustellen,allUsers,isAdmin,isBuero}) {
       }
     })
     setOutlookTermine(mapped)
-    console.log('DEBUG Kategorien:', mapped.filter(m=>m.titel && m.titel.includes('Mato')).map(m=>({titel:m.titel, kategorien:m._kategorien, zugewiesen:m.zugewiesen_an})))
 
     // ── Automatisch in Supabase importieren ──────────────────────────────────
     // Bestehende Outlook-Termine aus Supabase holen (die wir schon importiert haben)
@@ -2133,10 +2132,10 @@ const alleTermine = (isAdmin||isBuero) ? alleTermineRaw : alleTermineRaw.filter(
           <button key={key} onClick={()=>setAnsicht(key)} style={{flex:1,padding:'0.5rem 4px',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.75rem',fontWeight:600,background:ansicht===key?'var(--dark)':'transparent',color:ansicht===key?'white':'var(--text2)',transition:'all 0.2s'}}>{label}</button>
         ))}
       </div>
-      <div className="card">
-        {ansicht==='monat'&&<KalenderMonat termine={termine} ankerDatum={ankerDatum} setAnkerDatum={setAnkerDatum} heute={heute} setShowDetail={setShowDetail}/>}
-        {ansicht==='woche'&&<KalenderWoche termine={termine} ankerDatum={ankerDatum} setAnkerDatum={setAnkerDatum} heute={heute} setShowDetail={setShowDetail}/>}
-        {ansicht==='liste'&&<KalenderListe termine={termine} heute={heute} baustellen={baustellen} allUsers={allUsers} user={user} setShowDetail={setShowDetail}/>}
+     <div className="card">
+        {ansicht==='monat'&&<KalenderMonat termine={alleTermine} ankerDatum={ankerDatum} setAnkerDatum={setAnkerDatum} heute={heute} setShowDetail={setShowDetail}/>}
+        {ansicht==='woche'&&<KalenderWoche termine={alleTermine} ankerDatum={ankerDatum} setAnkerDatum={setAnkerDatum} heute={heute} setShowDetail={setShowDetail}/>}
+        {ansicht==='liste'&&<KalenderListe termine={alleTermine} heute={heute} baustellen={baustellen} allUsers={allUsers} user={user} setShowDetail={setShowDetail}/>}
       </div>
       {showDetail&&<KalenderDetailModal showDetail={showDetail} setShowDetail={setShowDetail} baustellen={baustellen} allUsers={allUsers} kannBearbeiten={kannBearbeiten} handleDelete={handleDelete}/>}
       {showNeu&&kannBearbeiten&&<KalenderNeuModal form={form} setForm={setForm} saving={saving} handleSave={handleSave} handleClose={()=>setShowNeu(false)} baustellen={baustellen} allUsers={allUsers} toggleZuweisung={toggleZuweisung}/>}
