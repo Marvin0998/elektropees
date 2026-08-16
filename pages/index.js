@@ -3521,13 +3521,6 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
         ))}
       </div>
 
-      <div className="form-group" style={{marginBottom:'0.75rem'}}>
-        <select value={filterModell} onChange={e=>setFilterModell(e.target.value)}>
-          <option value="alle">Alle Modelle</option>
-          {modelleRaw.map(m=><option key={m.id} value={m.id}>{m.hersteller_name} · {m.modell}</option>)}
-        </select>
-      </div>
-
       {loading?<p className="text-muted text-sm">Lädt...</p>:gefiltert.length===0?(
         <div className="empty-state">
           <div style={{fontSize:'3rem',marginBottom:12}}>🌡️</div>
