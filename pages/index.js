@@ -3455,6 +3455,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
   const [filterModell, setFilterModell] = useState('alle')
   const [showNeu, setShowNeu] = useState(false)
   const [showVerwaltung, setShowVerwaltung] = useState(false)
+  const [showEinladen, setShowEinladen] = useState(false)
   const [detailVorgang, setDetailVorgang] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -3490,8 +3491,10 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
     <div className="page-content">
       <div className="section-header">
         <span className="section-title">🌡️ Wärmepumpen-Anmeldung</span>
-        {(isAdmin||isBuero)&&<button className="btn btn-outline btn-sm" onClick={()=>setShowVerwaltung(true)}>⚙️ Verwalten</button>}
-      </div>
+        {(isAdmin||isBuero)&&<div style={{display:'flex',gap:6}}>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowEinladen(true)}>🔗 Extern einladen</button>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowVerwaltung(true)}>⚙️ Verwalten</button>
+        </div>}
 
       {offenCount>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
@@ -3559,8 +3562,62 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
 
       {showNeu&&<WaermepumpenNeuModal user={user} allUsers={allUsers} modelle={modelleRaw} onClose={()=>setShowNeu(false)} onSaved={load}/>}
       {showVerwaltung&&<WaermepumpenVerwaltungModal onClose={()=>setShowVerwaltung(false)} onChanged={load}/>}
+      {showEinladen&&<ExternEinladenModal user={user} onClose={()=>setShowEinladen(false)}/>}
       {detailVorgang&&<WaermepumpenDetailModal vorgang={detailVorgang} user={user} allUsers={allUsers} modelle={modelleRaw} onClose={()=>setDetailVorgang(null)} onRefresh={load}/>}
     </div>
+  )
+}
+function ExternEinladenModal({ user, onClose }) {
+  const [form, setForm] = useState({ name: '', firma: '' })
+  const [saving, setSaving] = useState(false)
+  const [link, setLink] = useState('')
+  const [kopiert, setKopiert] = useState(false)
+
+  async function handleErstellen() {
+    if (!form.name.trim()) { alert('Bitte Name angeben!'); return }
+    setSaving(true)
+    const cleanName = form.name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '')
+    const autoEmail = cleanName + '.extern@elektropees.de'
+    const { data, error } = await supabase.from('einladungen').insert([{
+      name: form.name.trim(), firma: form.firma.trim() || null,
+      rolle: 'extern', email: autoEmail, erstellt_von: user.id
+    }]).select().single()
+    if (error) { alert('Fehler: ' + error.message); setSaving(false); return }
+    setLink(`${window.location.origin}/einladen?token=${data.token}`)
+    setSaving(false)
+  }
+
+  function kopieren() {
+    navigator.clipboard.writeText(link)
+    setKopiert(true)
+    setTimeout(() => setKopiert(false), 2000)
+  }
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet">
+      <div className="modal-handle"/>
+      <div className="modal-title">🔗 Externe Firma einladen</div>
+      {!link ? (
+        <>
+          <div className="form-group"><label>Name *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="z.B. Max Deibel"/></div>
+          <div className="form-group"><label>Firma (optional)</label><input value={form.firma} onChange={e=>setForm(f=>({...f,firma:e.target.value}))} placeholder="z.B. Deibel GmbH"/></div>
+          <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:8,padding:'0.6rem 0.9rem',fontSize:'0.78rem',color:'#2b6cb0',marginBottom:'0.75rem'}}>
+            💡 Die Person bekommt einen Link, öffnet ihn, vergibt selbst ein Passwort und sieht danach ausschließlich den Wärmepumpen-Bereich.
+          </div>
+          <button className="btn btn-primary" onClick={handleErstellen} disabled={saving}>{saving?'Wird erstellt...':'✓ Einladungslink erstellen'}</button>
+          <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+        </>
+      ) : (
+        <>
+          <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:10,padding:'1rem',marginBottom:'0.75rem'}}>
+            <div style={{fontSize:'0.78rem',color:'#276749',fontWeight:600,marginBottom:6}}>✓ Link erstellt — jetzt teilen:</div>
+            <div style={{background:'white',border:'1px solid var(--border2)',borderRadius:8,padding:'0.6rem 0.75rem',fontSize:'0.78rem',wordBreak:'break-all',color:'var(--dark)'}}>{link}</div>
+          </div>
+          <button className="btn btn-primary" onClick={kopieren}>{kopiert?'✓ Kopiert!':'📋 Link kopieren'}</button>
+          <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
+        </>
+      )}
+    </div></div>
   )
 }
 export default function App() {
