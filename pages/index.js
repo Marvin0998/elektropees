@@ -777,7 +777,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
     <div className="page-content">
       {msg&&<div className="alert alert-success">{msg}</div>}
       <div className="tab-row">
-        {[['freigabe',ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung']].map(([key,label])=>(
+        {[['freigabe',ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung'],['waermepumpen','🌡️ Wärmepumpe']].map(([key,label])=>(
           <button key={key} className={`tab-btn ${tab===key?'active':''}`} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
@@ -1001,7 +1001,10 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
           </div>
         </>
       )}
-
+ {tab==='waermepumpen'&&(
+        <WaermepumpenPage user={currentUser} allUsers={allUsers} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'} isExtern={false}/>
+      )}
+   
       {stundenDetail&&(
         <div className="modal-overlay open"><div className="modal-sheet">
           <div className="modal-handle"/>
@@ -3691,7 +3694,7 @@ export default function App() {
         {!isExtern&&<button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>}
         {!isExtern&&(isAzubi||isAdmin||isBuero)&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
         {!isExtern&&(isAdmin||isBuero)&&<button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>}
-        {(isAdmin||isBuero||isExtern)&&(
+        {isExtern&&(
           <button className={`nav-item ${page==='waermepumpen'?'active':''}`} onClick={()=>setPage('waermepumpen')}>
             <span style={{fontSize:'1.2rem',lineHeight:1}}>🌡️</span><span>Wärmepumpe</span>
           </button>
