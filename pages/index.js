@@ -3573,6 +3573,16 @@ function ExternEinladenModal({ user, onClose }) {
   const [saving, setSaving] = useState(false)
   const [link, setLink] = useState('')
   const [kopiert, setKopiert] = useState(false)
+  const [einladungen, setEinladungen] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(()=>{ loadEinladungen() },[])
+
+  async function loadEinladungen() {
+    const { data } = await supabase.from('einladungen').select('*').order('created_at',{ascending:false})
+    setEinladungen(data||[])
+    setLoading(false)
+  }
 
   async function handleErstellen() {
     if (!form.name.trim()) { alert('Bitte Name angeben!'); return }
@@ -3587,27 +3597,39 @@ function ExternEinladenModal({ user, onClose }) {
     if (error) { alert('Fehler: ' + error.message); setSaving(false); return }
     setLink(`${window.location.origin}/einladen?token=${data.token}`)
     setSaving(false)
+    await loadEinladungen()
   }
 
-  function kopieren() {
-    navigator.clipboard.writeText(link)
-    setKopiert(true)
+  async function toggleAktiv(e) {
+    await supabase.from('einladungen').update({ aktiv: !e.aktiv }).eq('token', e.token)
+    await loadEinladungen()
+  }
+
+  async function loeschen(e) {
+    if(!confirm(`Zugang für "${e.name}" wirklich endgültig löschen?`)) return
+    await supabase.from('einladungen').delete().eq('token', e.token)
+    await loadEinladungen()
+  }
+
+  function kopieren(tok) {
+    navigator.clipboard.writeText(`${window.location.origin}/einladen?token=${tok}`)
+    setKopiert(tok)
     setTimeout(() => setKopiert(false), 2000)
   }
 
   return (
-    <div className="modal-overlay open"><div className="modal-sheet">
+    <div className="modal-overlay open"><div className="modal-sheet" style={{maxHeight:'90vh',overflowY:'auto'}}>
       <div className="modal-handle"/>
       <div className="modal-title">🔗 Externe Firma einladen</div>
+
       {!link ? (
         <>
           <div className="form-group"><label>Name *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="z.B. Max Deibel"/></div>
           <div className="form-group"><label>Firma (optional)</label><input value={form.firma} onChange={e=>setForm(f=>({...f,firma:e.target.value}))} placeholder="z.B. Deibel GmbH"/></div>
           <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:8,padding:'0.6rem 0.9rem',fontSize:'0.78rem',color:'#2b6cb0',marginBottom:'0.75rem'}}>
-            💡 Die Person bekommt einen Link, öffnet ihn, vergibt selbst ein Passwort und sieht danach ausschließlich den Wärmepumpen-Bereich.
+            💡 Die Person bekommt einen Link, öffnet ihn und sieht danach ausschließlich den Wärmepumpen-Bereich — ganz ohne Eingabe von Zugangsdaten.
           </div>
-          <button className="btn btn-primary" onClick={handleErstellen} disabled={saving}>{saving?'Wird erstellt...':'✓ Einladungslink erstellen'}</button>
-          <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-primary" onClick={handleErstellen} disabled={saving}>{saving?'Wird erstellt...':'✓ Neuen Einladungslink erstellen'}</button>
         </>
       ) : (
         <>
@@ -3615,10 +3637,41 @@ function ExternEinladenModal({ user, onClose }) {
             <div style={{fontSize:'0.78rem',color:'#276749',fontWeight:600,marginBottom:6}}>✓ Link erstellt — jetzt teilen:</div>
             <div style={{background:'white',border:'1px solid var(--border2)',borderRadius:8,padding:'0.6rem 0.75rem',fontSize:'0.78rem',wordBreak:'break-all',color:'var(--dark)'}}>{link}</div>
           </div>
-          <button className="btn btn-primary" onClick={kopieren}>{kopiert?'✓ Kopiert!':'📋 Link kopieren'}</button>
-          <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
+          <button className="btn btn-primary" onClick={()=>kopieren(link.split('token=')[1])}>{kopiert?'✓ Kopiert!':'📋 Link kopieren'}</button>
+          <button className="btn btn-secondary" onClick={()=>{setLink('');setForm({name:'',firma:''})}}>+ Weiteren Link erstellen</button>
         </>
       )}
+
+      <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'1rem 0 0.5rem'}}>
+        Bestehende Zugänge ({einladungen.length})
+      </div>
+
+      {loading?<p className="text-muted text-sm">Lädt...</p>:einladungen.length===0?(
+        <p className="text-muted text-sm">Noch keine Einladungen erstellt.</p>
+      ):einladungen.map(e=>(
+        <div key={e.token} className="card" style={{padding:'0.75rem 1rem',marginBottom:6,opacity:e.aktiv?1:0.55}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:'0.88rem',color:'var(--dark)'}}>{e.name}</div>
+              {e.firma&&<div style={{fontSize:'0.75rem',color:'var(--text3)'}}>{e.firma}</div>}
+              <div style={{fontSize:'0.7rem',color:'var(--text3)',marginTop:2}}>
+                {e.aktiv?'✓ Aktiv':'✗ Gesperrt'} · {e.benutzt?'schon geöffnet':'noch nicht geöffnet'}
+              </div>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+            <button className="btn btn-outline btn-sm" style={{marginBottom:0}} onClick={()=>kopieren(e.token)}>{kopiert===e.token?'✓ Kopiert':'📋 Link kopieren'}</button>
+            <button onClick={()=>toggleAktiv(e)} style={{fontSize:'0.75rem',padding:'6px 12px',borderRadius:'var(--r-sm)',border:'1px solid var(--border2)',background:'white',cursor:'pointer',fontFamily:'inherit',fontWeight:600,color:e.aktiv?'#92400e':'#276749'}}>
+              {e.aktiv?'🔒 Sperren':'🔓 Entsperren'}
+            </button>
+            <button onClick={()=>loeschen(e)} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'6px 12px',fontFamily:'inherit',fontWeight:600}}>
+              🗑️ Löschen
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <button className="btn btn-secondary" onClick={onClose} style={{marginTop:'0.75rem'}}>Schließen</button>
     </div></div>
   )
 }
