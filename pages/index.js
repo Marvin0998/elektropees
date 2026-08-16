@@ -3495,6 +3495,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
           <button className="btn btn-outline btn-sm" onClick={()=>setShowEinladen(true)}>🔗 Extern einladen</button>
           <button className="btn btn-outline btn-sm" onClick={()=>setShowVerwaltung(true)}>⚙️ Verwalten</button>
         </div>}
+      </div>
 
       {offenCount>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
