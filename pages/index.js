@@ -3578,9 +3578,10 @@ function ExternEinladenModal({ user, onClose }) {
     setSaving(true)
     const cleanName = form.name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '')
     const autoEmail = cleanName + '.extern@elektropees.de'
+    const autoPasswort = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
     const { data, error } = await supabase.from('einladungen').insert([{
       name: form.name.trim(), firma: form.firma.trim() || null,
-      rolle: 'extern', email: autoEmail, erstellt_von: user.id
+      rolle: 'extern', email: autoEmail, passwort: autoPasswort, erstellt_von: user.id
     }]).select().single()
     if (error) { alert('Fehler: ' + error.message); setSaving(false); return }
     setLink(`${window.location.origin}/einladen?token=${data.token}`)
