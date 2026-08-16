@@ -3639,6 +3639,8 @@ export default function App() {
   const isAdmin=user.profile?.role==='admin'
   const isBuero=user.profile?.role==='buero'
   const isAzubi=user.profile?.role==='azubi'
+  const isExtern=user.profile?.role==='extern'
+  useEffect(()=>{ if(isExtern && page==='home') setPage('waermepumpen') }, [isExtern])
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   const kalenderBadge=termine.filter(t=>{const d=new Date(t.datum);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<=2&&(t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)}).length
   return (
@@ -3674,21 +3676,27 @@ export default function App() {
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {page==='berichtsheft'&&<BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
+      {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
-        <button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>
-        <button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>
-        <button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>
-        <button className={`nav-item ${page==='kalender'?'active':''}`} onClick={()=>setPage('kalender')} style={{position:'relative'}}>
+        {!isExtern&&<button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>}
+        {!isExtern&&<button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>}
+        {!isExtern&&<button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>}
+        {!isExtern&&<button className={`nav-item ${page==='kalender'?'active':''}`} onClick={()=>setPage('kalender')} style={{position:'relative'}}>
           <IconKalender/>
           {kalenderBadge>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#d69e2e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{kalenderBadge}</span>}
           <span>Kalender</span>
-        </button>
-        <button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>
-        {(isAzubi||isAdmin||isBuero)&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
-        {(isAdmin||isBuero)&&<button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>}
-        {(isAdmin||isBuero)&&(
+        </button>}
+        {!isExtern&&<button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>}
+        {!isExtern&&(isAzubi||isAdmin||isBuero)&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
+        {!isExtern&&(isAdmin||isBuero)&&<button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>}
+        {(isAdmin||isBuero||isExtern)&&(
+          <button className={`nav-item ${page==='waermepumpen'?'active':''}`} onClick={()=>setPage('waermepumpen')}>
+            <span style={{fontSize:'1.2rem',lineHeight:1}}>🌡️</span><span>Wärmepumpe</span>
+          </button>
+        )}
+        {!isExtern&&(isAdmin||isBuero)&&(
           <button className={`nav-item ${page==='admin'?'active':''}`} onClick={()=>setPage('admin')} style={{position:'relative'}}>
             <IconStar/>
             {ausstehendCount>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#e53e3e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{ausstehendCount}</span>}
