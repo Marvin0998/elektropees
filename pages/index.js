@@ -3569,6 +3569,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
 }
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
+  useEffect(()=>{ if(user?.profile?.role==='extern' && page==='home') setPage('waermepumpen') }, [user, page])
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
   const [termine,setTermine]=useState([])
   const [showStunden,setShowStunden]=useState(false)
@@ -3640,7 +3641,6 @@ export default function App() {
   const isBuero=user.profile?.role==='buero'
   const isAzubi=user.profile?.role==='azubi'
   const isExtern=user.profile?.role==='extern'
-  useEffect(()=>{ if(isExtern && page==='home') setPage('waermepumpen') }, [isExtern])
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   const kalenderBadge=termine.filter(t=>{const d=new Date(t.datum);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<=2&&(t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)}).length
   return (
