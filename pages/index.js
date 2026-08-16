@@ -1068,6 +1068,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
               <option value="azubi">Azubi</option>
               <option value="buero">Büro (Minijob / Flex)</option>
               <option value="admin">Admin</option>
+              <option value="extern">Extern (z.B. Firma Deibel)</option>
             </select>
           </div>
           <div style={{background:'#f7fafc',borderRadius:8,padding:'0.6rem 0.8rem',fontSize:'0.78rem',color:'#718096',marginBottom:'0.75rem'}}>
@@ -3019,7 +3020,553 @@ ${heft.bemerkungen ? `<div class="bemerkungen-block"><div class="bem-header">Bem
 
   return null
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// WÄRMEPUMPEN-ANMELDUNG MODUL
+// Diesen kompletten Block VOR "export default function App()" in pages/index.js einfügen.
+// ═══════════════════════════════════════════════════════════════════════════
 
+const WP_STATUS = {
+  offen:        { label: 'Offen',        bg: '#e2e8f0', color: '#4a5568' },
+  eingereicht:  { label: 'Eingereicht',  bg: '#fef3c7', color: '#92400e' },
+  angemeldet:   { label: 'Angemeldet',   bg: '#dbeafe', color: '#1e40af' },
+  abgeschlossen:{ label: 'Abgeschlossen',bg: '#c6f6d5', color: '#276749' },
+}
+
+const WP_DOKUMENT_TYPEN = [
+  { id: 'vollmacht', label: 'Vollmacht' },
+  { id: 'datenblatt', label: 'Datenblatt Wärmepumpe' },
+  { id: 'netzbetreiber_unterlagen', label: 'Netzbetreiber-Unterlagen' },
+  { id: 'bestaetigung_netzbetreiber', label: 'Bestätigung Netzbetreiber' },
+  { id: 'sonstiges', label: 'Sonstiges' },
+]
+
+function wpStatusBadge(status) {
+  const cfg = WP_STATUS[status] || WP_STATUS.offen
+  return <span style={{background:cfg.bg,color:cfg.color,padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',fontWeight:700}}>{cfg.label}</span>
+}
+
+async function wpLogHistorie(vorgangId, aktion, beschreibung, userId) {
+  await supabase.from('wp_historie').insert([{ vorgang_id: vorgangId, aktion, beschreibung, user_id: userId }])
+}
+
+// ─── DROPDOWN: WÄRMEPUMPE AUSWÄHLEN (mit Suche) ─────────────────────────────
+function WaermepumpenModellSelect({ modelle, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [suche, setSuche] = useState('')
+  const gefiltert = modelle.filter(m => {
+    const text = (m.hersteller_name + ' ' + m.modell).toLowerCase()
+    return text.includes(suche.toLowerCase())
+  })
+  const ausgewaehlt = modelle.find(m => m.id === value)
+  return (
+    <div style={{position:'relative'}}>
+      <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',textAlign:'left',padding:'0.6rem 0.875rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',background:'white',fontFamily:'inherit',fontSize:'0.85rem',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{color:ausgewaehlt?'var(--dark)':'#a0aec0'}}>{ausgewaehlt ? `${ausgewaehlt.hersteller_name} · ${ausgewaehlt.modell}` : '— Wärmepumpe auswählen —'}</span>
+        <span style={{color:'var(--text3)'}}>▾</span>
+      </button>
+      {open && (
+        <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:50,background:'white',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',marginTop:4,maxHeight:260,overflowY:'auto',boxShadow:'var(--shadow-sm)'}}>
+          <div style={{padding:8,borderBottom:'1px solid var(--border)'}}>
+            <input autoFocus value={suche} onChange={e=>setSuche(e.target.value)} placeholder="Suchen..." style={{width:'100%',padding:'0.5rem 0.7rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.82rem',fontFamily:'inherit'}}/>
+          </div>
+          {gefiltert.length===0 && <div style={{padding:'0.75rem',fontSize:'0.8rem',color:'var(--text3)'}}>Keine Treffer.</div>}
+          {gefiltert.map(m=>(
+            <div key={m.id} onClick={()=>{onChange(m.id);setOpen(false);setSuche('')}} style={{padding:'0.6rem 0.875rem',cursor:'pointer',fontSize:'0.85rem',borderBottom:'1px solid var(--border)',background:value===m.id?'var(--blue-pale)':'white'}}>
+              <div style={{fontWeight:600,color:'var(--dark)'}}>{m.hersteller_name}</div>
+              <div style={{fontSize:'0.78rem',color:'var(--text3)'}}>{m.modell}{m.leistung_kw?` · ${m.leistung_kw} kW`:''}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── VERWALTUNG: HERSTELLER & MODELLE ───────────────────────────────────────
+function WaermepumpenVerwaltungModal({ onClose, onChanged }) {
+  const [hersteller, setHersteller] = useState([])
+  const [modelle, setModelle] = useState([])
+  const [neuerHersteller, setNeuerHersteller] = useState('')
+  const [neuesModell, setNeuesModell] = useState({ hersteller_id:'', modell:'', leistung_kw:'' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(()=>{ load() },[])
+  async function load() {
+    const [{data:h},{data:m}] = await Promise.all([
+      supabase.from('wp_hersteller').select('*').order('name'),
+      supabase.from('wp_modelle').select('*').order('modell')
+    ])
+    setHersteller(h||[]); setModelle(m||[])
+  }
+  async function addHersteller() {
+    if(!neuerHersteller.trim()) return
+    setSaving(true)
+    await supabase.from('wp_hersteller').insert([{ name: neuerHersteller.trim() }])
+    setNeuerHersteller(''); await load(); setSaving(false); onChanged&&onChanged()
+  }
+  async function addModell() {
+    if(!neuesModell.hersteller_id||!neuesModell.modell.trim()){ alert('Bitte Hersteller und Modellname angeben!'); return }
+    setSaving(true)
+    await supabase.from('wp_modelle').insert([{
+      hersteller_id: neuesModell.hersteller_id,
+      modell: neuesModell.modell.trim(),
+      leistung_kw: neuesModell.leistung_kw ? parseFloat(neuesModell.leistung_kw) : null
+    }])
+    setNeuesModell({ hersteller_id:'', modell:'', leistung_kw:'' })
+    await load(); setSaving(false); onChanged&&onChanged()
+  }
+  async function toggleModellAktiv(m) {
+    await supabase.from('wp_modelle').update({ aktiv: !m.aktiv }).eq('id', m.id)
+    await load(); onChanged&&onChanged()
+  }
+  async function toggleHerstellerAktiv(h) {
+    await supabase.from('wp_hersteller').update({ aktiv: !h.aktiv }).eq('id', h.id)
+    await load(); onChanged&&onChanged()
+  }
+
+  return (
+    <div className="modal-overlay open" style={{zIndex:300}}><div className="modal-sheet" style={{maxHeight:'90vh',overflowY:'auto'}}>
+      <div className="modal-handle"/>
+      <div className="modal-title">🌡️ Wärmepumpen verwalten</div>
+
+      <div className="card" style={{marginBottom:'0.75rem'}}>
+        <div className="card-title">Hersteller</div>
+        {hersteller.map(h=>(
+          <div key={h.id} className="list-item">
+            <span style={{opacity:h.aktiv?1:0.4}}>{h.name}</span>
+            <button onClick={()=>toggleHerstellerAktiv(h)} className="btn btn-outline btn-sm" style={{marginBottom:0}}>{h.aktiv?'Deaktivieren':'Aktivieren'}</button>
+          </div>
+        ))}
+        <div style={{display:'flex',gap:6,marginTop:8}}>
+          <input value={neuerHersteller} onChange={e=>setNeuerHersteller(e.target.value)} placeholder="Neuer Hersteller..." style={{flex:1,padding:'0.55rem 0.75rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}}/>
+          <button onClick={addHersteller} disabled={saving} className="btn btn-primary" style={{marginBottom:0,padding:'0.55rem 1rem'}}>+ Add</button>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Modelle</div>
+        {modelle.map(m=>{
+          const h = hersteller.find(h=>h.id===m.hersteller_id)
+          return (
+            <div key={m.id} className="list-item">
+              <div className="list-item-left">
+                <span className="list-item-title text-sm" style={{opacity:m.aktiv?1:0.4}}>{h?.name} · {m.modell}</span>
+                {m.leistung_kw&&<span className="list-item-sub">{m.leistung_kw} kW</span>}
+              </div>
+              <button onClick={()=>toggleModellAktiv(m)} className="btn btn-outline btn-sm" style={{marginBottom:0}}>{m.aktiv?'Deaktivieren':'Aktivieren'}</button>
+            </div>
+          )
+        })}
+        <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'0.875rem',marginTop:8}}>
+          <div className="form-group" style={{marginBottom:'0.5rem'}}>
+            <label>Hersteller</label>
+            <select value={neuesModell.hersteller_id} onChange={e=>setNeuesModell(f=>({...f,hersteller_id:e.target.value}))}>
+              <option value="">— Bitte auswählen —</option>
+              {hersteller.filter(h=>h.aktiv).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label>Modellname</label><input value={neuesModell.modell} onChange={e=>setNeuesModell(f=>({...f,modell:e.target.value}))} placeholder="z.B. aroTHERM plus VWL 75/6"/></div>
+            <div className="form-group"><label>Leistung (kW, optional)</label><input type="number" value={neuesModell.leistung_kw} onChange={e=>setNeuesModell(f=>({...f,leistung_kw:e.target.value}))}/></div>
+          </div>
+          <button onClick={addModell} disabled={saving} className="btn btn-primary" style={{marginBottom:0}}>+ Modell hinzufügen</button>
+        </div>
+      </div>
+
+      <button className="btn btn-secondary" onClick={onClose} style={{marginTop:'0.75rem'}}>Schließen</button>
+    </div></div>
+  )
+}
+
+// ─── NEUEN VORGANG ANLEGEN ───────────────────────────────────────────────────
+function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    projektnummer:'', vorname:'', nachname:'', strasse:'', hausnummer:'', plz:'', ort:'',
+    geburtsdatum:'', telefon:'', email:'', modell_id:'', zustaendig_user_id: user.id
+  })
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if(!form.projektnummer.trim()||!form.vorname.trim()||!form.nachname.trim()){
+      alert('Bitte mindestens Projektnummer, Vor- und Nachname angeben!'); return
+    }
+    setSaving(true)
+    const { data, error } = await supabase.from('wp_vorgaenge').insert([{
+      ...form,
+      geburtsdatum: form.geburtsdatum || null,
+      modell_id: form.modell_id || null,
+      status: 'offen',
+      erstellt_von: user.id
+    }]).select().single()
+    if(error){ alert('Fehler: '+error.message); setSaving(false); return }
+    await wpLogHistorie(data.id, 'erstellt', `Vorgang angelegt von ${user.profile?.name||user.email}`, user.id)
+    await onSaved()
+    onClose()
+    setSaving(false)
+  }
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet" style={{maxHeight:'90vh',overflowY:'auto'}}>
+      <div className="modal-handle"/>
+      <div className="modal-title">🌡️ Neue Wärmepumpen-Anmeldung</div>
+
+      <div className="form-group"><label>Projektnummer *</label><input value={form.projektnummer} onChange={e=>setForm(f=>({...f,projektnummer:e.target.value}))}/></div>
+
+      <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Kunde</div>
+      <div className="form-row">
+        <div className="form-group"><label>Vorname *</label><input value={form.vorname} onChange={e=>setForm(f=>({...f,vorname:e.target.value}))}/></div>
+        <div className="form-group"><label>Nachname *</label><input value={form.nachname} onChange={e=>setForm(f=>({...f,nachname:e.target.value}))}/></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>Straße</label><input value={form.strasse} onChange={e=>setForm(f=>({...f,strasse:e.target.value}))}/></div>
+        <div className="form-group"><label>Hausnummer</label><input value={form.hausnummer} onChange={e=>setForm(f=>({...f,hausnummer:e.target.value}))}/></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>PLZ</label><input value={form.plz} onChange={e=>setForm(f=>({...f,plz:e.target.value}))}/></div>
+        <div className="form-group"><label>Ort</label><input value={form.ort} onChange={e=>setForm(f=>({...f,ort:e.target.value}))}/></div>
+      </div>
+      <div className="form-group"><label>Geburtsdatum</label><input type="date" value={form.geburtsdatum} onChange={e=>setForm(f=>({...f,geburtsdatum:e.target.value}))}/></div>
+      <div className="form-row">
+        <div className="form-group"><label>Telefon (optional)</label><input value={form.telefon} onChange={e=>setForm(f=>({...f,telefon:e.target.value}))}/></div>
+        <div className="form-group"><label>E-Mail (optional)</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
+      </div>
+
+      <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Wärmepumpe</div>
+      <div className="form-group">
+        <WaermepumpenModellSelect modelle={modelle} value={form.modell_id} onChange={id=>setForm(f=>({...f,modell_id:id}))}/>
+      </div>
+
+      <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Projekt</div>
+      <div className="form-group">
+        <label>Zuständige Person</label>
+        <select value={form.zustaendig_user_id} onChange={e=>setForm(f=>({...f,zustaendig_user_id:e.target.value}))}>
+          {allUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+      </div>
+
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Vorgang anlegen'}</button>
+      <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+    </div></div>
+  )
+}
+
+// ─── DETAILANSICHT EINES VORGANGS ────────────────────────────────────────────
+function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, onRefresh }) {
+  const [tab, setTab] = useState('daten')
+  const [editForm, setEditForm] = useState({ ...vorgang })
+  const [saving, setSaving] = useState(false)
+  const [dokumente, setDokumente] = useState([])
+  const [historie, setHistorie] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [dokTyp, setDokTyp] = useState('vollmacht')
+  const fileInputRef = useRef(null)
+
+  useEffect(()=>{ loadDokumente(); loadHistorie() },[vorgang.id])
+
+  async function loadDokumente() {
+    const { data } = await supabase.from('wp_dokumente').select('*').eq('vorgang_id', vorgang.id).order('created_at',{ascending:false})
+    setDokumente(data||[])
+  }
+  async function loadHistorie() {
+    const { data } = await supabase.from('wp_historie').select('*').eq('vorgang_id', vorgang.id).order('created_at',{ascending:false})
+    setHistorie(data||[])
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    const changes = []
+    if(editForm.status !== vorgang.status) {
+      const alt = WP_STATUS[vorgang.status]?.label||vorgang.status
+      const neu = WP_STATUS[editForm.status]?.label||editForm.status
+      changes.push(`Status von "${alt}" auf "${neu}" geändert`)
+    }
+    if(editForm.modell_id !== vorgang.modell_id) changes.push('Wärmepumpe geändert')
+    await supabase.from('wp_vorgaenge').update({
+      ...editForm, updated_at: new Date().toISOString()
+    }).eq('id', vorgang.id)
+    for(const c of changes) {
+      await wpLogHistorie(vorgang.id, 'aenderung', `${c} — durch ${user.profile?.name||user.email}`, user.id)
+    }
+    await onRefresh(); await loadHistorie()
+    setSaving(false)
+  }
+
+  async function handleStatusChange(neuerStatus) {
+    setEditForm(f=>({...f,status:neuerStatus}))
+    await supabase.from('wp_vorgaenge').update({ status: neuerStatus, updated_at: new Date().toISOString() }).eq('id', vorgang.id)
+    const alt = WP_STATUS[vorgang.status]?.label||vorgang.status
+    const neu = WP_STATUS[neuerStatus]?.label||neuerStatus
+    await wpLogHistorie(vorgang.id, 'status', `Status von "${alt}" auf "${neu}" geändert — durch ${user.profile?.name||user.email}`, user.id)
+    await onRefresh(); await loadHistorie()
+  }
+
+  async function handleUpload(e) {
+    const file = e.target.files[0]
+    if(!file) return
+    if(file.type !== 'application/pdf'){ alert('Bitte nur PDF-Dateien hochladen!'); return }
+    setUploading(true)
+    const path = `${vorgang.id}/${Date.now()}_${file.name}`
+    const { error: upErr } = await supabase.storage.from('wp-dokumente').upload(path, file)
+    if(upErr){ alert('Upload-Fehler: '+upErr.message); setUploading(false); return }
+    await supabase.from('wp_dokumente').insert([{
+      vorgang_id: vorgang.id, dateiname: file.name, storage_path: path,
+      dokumenttyp: dokTyp, hochgeladen_von: user.id
+    }])
+    await wpLogHistorie(vorgang.id, 'dokument', `"${file.name}" hochgeladen (${WP_DOKUMENT_TYPEN.find(t=>t.id===dokTyp)?.label}) — durch ${user.profile?.name||user.email}`, user.id)
+    await loadDokumente(); await loadHistorie()
+    setUploading(false)
+    if(fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handleOpenDoc(doc) {
+    const { data } = await supabase.storage.from('wp-dokumente').createSignedUrl(doc.storage_path, 300)
+    if(data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+  async function handleDeleteDoc(doc) {
+    if(!confirm(`"${doc.dateiname}" wirklich löschen?`)) return
+    await supabase.storage.from('wp-dokumente').remove([doc.storage_path])
+    await supabase.from('wp_dokumente').delete().eq('id', doc.id)
+    await wpLogHistorie(vorgang.id, 'dokument', `"${doc.dateiname}" gelöscht — durch ${user.profile?.name||user.email}`, user.id)
+    await loadDokumente(); await loadHistorie()
+  }
+
+  const modell = modelle.find(m=>m.id===editForm.modell_id)
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet" style={{maxHeight:'92vh',overflowY:'auto'}}>
+      <div className="modal-handle"/>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+        <div>
+          <div className="modal-title" style={{marginBottom:2}}>{vorgang.vorname} {vorgang.nachname}</div>
+          <div style={{fontSize:'0.78rem',color:'var(--text3)'}}>Projekt {vorgang.projektnummer}</div>
+        </div>
+        {wpStatusBadge(editForm.status)}
+      </div>
+
+      <div className="tab-row">
+        {[['daten','Daten'],['dokumente',`Dokumente (${dokumente.length})`],['historie','Historie']].map(([k,l])=>(
+          <button key={k} className={`tab-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>{l}</button>
+        ))}
+      </div>
+
+      {tab==='daten'&&(
+        <div style={{marginTop:'0.75rem'}}>
+          <div className="form-group">
+            <label>Status</label>
+            <select value={editForm.status} onChange={e=>handleStatusChange(e.target.value)}>
+              {Object.entries(WP_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </div>
+          <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.5rem 0 0.4rem'}}>Kunde</div>
+          <div className="form-row">
+            <div className="form-group"><label>Vorname</label><input value={editForm.vorname||''} onChange={e=>setEditForm(f=>({...f,vorname:e.target.value}))}/></div>
+            <div className="form-group"><label>Nachname</label><input value={editForm.nachname||''} onChange={e=>setEditForm(f=>({...f,nachname:e.target.value}))}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label>Straße</label><input value={editForm.strasse||''} onChange={e=>setEditForm(f=>({...f,strasse:e.target.value}))}/></div>
+            <div className="form-group"><label>Hausnummer</label><input value={editForm.hausnummer||''} onChange={e=>setEditForm(f=>({...f,hausnummer:e.target.value}))}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label>PLZ</label><input value={editForm.plz||''} onChange={e=>setEditForm(f=>({...f,plz:e.target.value}))}/></div>
+            <div className="form-group"><label>Ort</label><input value={editForm.ort||''} onChange={e=>setEditForm(f=>({...f,ort:e.target.value}))}/></div>
+          </div>
+          <div className="form-group"><label>Geburtsdatum</label><input type="date" value={editForm.geburtsdatum||''} onChange={e=>setEditForm(f=>({...f,geburtsdatum:e.target.value}))}/></div>
+          <div className="form-row">
+            <div className="form-group"><label>Telefon</label><input value={editForm.telefon||''} onChange={e=>setEditForm(f=>({...f,telefon:e.target.value}))}/></div>
+            <div className="form-group"><label>E-Mail</label><input value={editForm.email||''} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))}/></div>
+          </div>
+
+          <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Wärmepumpe</div>
+          <div className="form-group">
+            <WaermepumpenModellSelect modelle={modelle} value={editForm.modell_id} onChange={id=>setEditForm(f=>({...f,modell_id:id}))}/>
+          </div>
+
+          <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Projekt</div>
+          <div className="form-group"><label>Projektnummer</label><input value={editForm.projektnummer||''} onChange={e=>setEditForm(f=>({...f,projektnummer:e.target.value}))}/></div>
+          <div className="form-group">
+            <label>Zuständige Person</label>
+            <select value={editForm.zustaendig_user_id||''} onChange={e=>setEditForm(f=>({...f,zustaendig_user_id:e.target.value}))}>
+              <option value="">— Keine —</option>
+              {allUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Änderungen speichern'}</button>
+        </div>
+      )}
+
+      {tab==='dokumente'&&(
+        <div style={{marginTop:'0.75rem'}}>
+          <div className="card" style={{background:'var(--bg)',marginBottom:'0.75rem'}}>
+            <div style={{fontWeight:700,fontSize:'0.85rem',marginBottom:8}}>📎 PDF hochladen</div>
+            <div className="form-group" style={{marginBottom:8}}>
+              <select value={dokTyp} onChange={e=>setDokTyp(e.target.value)}>
+                {WP_DOKUMENT_TYPEN.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <input ref={fileInputRef} type="file" accept="application/pdf" onChange={handleUpload} disabled={uploading} style={{fontSize:'0.82rem'}}/>
+            {uploading&&<div style={{fontSize:'0.78rem',color:'var(--blue)',marginTop:6}}>Wird hochgeladen...</div>}
+          </div>
+          {dokumente.length===0?<p className="text-muted text-sm">Noch keine Dokumente hochgeladen.</p>:dokumente.map(d=>(
+            <div key={d.id} className="card" style={{padding:'0.75rem 1rem',marginBottom:6}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:'0.85rem',color:'var(--dark)'}}>{d.dateiname}</div>
+                  <div style={{fontSize:'0.72rem',color:'var(--text3)',marginTop:2}}>
+                    {WP_DOKUMENT_TYPEN.find(t=>t.id===d.dokumenttyp)?.label||d.dokumenttyp} · {formatDate(d.created_at.slice(0,10))} · {allUsers.find(u=>u.id===d.hochgeladen_von)?.name||'—'}
+                  </div>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6,marginTop:8}}>
+                <button className="btn btn-outline btn-sm" style={{marginBottom:0}} onClick={()=>handleOpenDoc(d)}>👁️ Ansehen</button>
+                <button onClick={()=>handleDeleteDoc(d)} style={{fontSize:'0.75rem',color:'var(--red)',background:'var(--red-pale)',border:'1px solid rgba(214,62,62,0.2)',borderRadius:'var(--r-sm)',cursor:'pointer',padding:'6px 12px',fontFamily:'inherit',fontWeight:600}}>🗑️ Löschen</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab==='historie'&&(
+        <div style={{marginTop:'0.75rem'}}>
+          {historie.length===0?<p className="text-muted text-sm">Noch keine Einträge.</p>:historie.map(h=>(
+            <div key={h.id} style={{padding:'0.6rem 0',borderBottom:'1px solid var(--border)'}}>
+              <div style={{fontSize:'0.72rem',color:'var(--text3)',fontWeight:600}}>{new Date(h.created_at).toLocaleString('de-DE')}</div>
+              <div style={{fontSize:'0.85rem',color:'var(--dark)',marginTop:2}}>{h.beschreibung}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button className="btn btn-secondary" onClick={onClose} style={{marginTop:'0.75rem'}}>Schließen</button>
+    </div></div>
+  )
+}
+
+// ─── HAUPTSEITE: LISTE / FILTER / SUCHE ─────────────────────────────────────
+function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
+  const [vorgaenge, setVorgaenge] = useState([])
+  const [modelleRaw, setModelleRaw] = useState([])
+  const [hersteller, setHersteller] = useState([])
+  const [suche, setSuche] = useState('')
+  const [filterStatus, setFilterStatus] = useState('alle')
+  const [filterModell, setFilterModell] = useState('alle')
+  const [showNeu, setShowNeu] = useState(false)
+  const [showVerwaltung, setShowVerwaltung] = useState(false)
+  const [detailVorgang, setDetailVorgang] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(()=>{ load() },[])
+  async function load() {
+    const [{data:v},{data:m},{data:h}] = await Promise.all([
+      supabase.from('wp_vorgaenge').select('*').order('updated_at',{ascending:false}),
+      supabase.from('wp_modelle').select('*').eq('aktiv',true),
+      supabase.from('wp_hersteller').select('*')
+    ])
+    setHersteller(h||[])
+    // Namen client-seitig auflösen (siehe bekannte Supabase-Join-Probleme)
+    const modelleMitName = (m||[]).map(mo=>({ ...mo, hersteller_name: (h||[]).find(x=>x.id===mo.hersteller_id)?.name||'—' }))
+    setModelleRaw(modelleMitName)
+    setVorgaenge(v||[])
+    setLoading(false)
+  }
+
+  const gefiltert = vorgaenge.filter(v=>{
+    if(filterStatus!=='alle' && v.status!==filterStatus) return false
+    if(filterModell!=='alle' && v.modell_id!==filterModell) return false
+    if(suche.trim()){
+      const s = suche.toLowerCase()
+      const text = `${v.vorname} ${v.nachname} ${v.projektnummer}`.toLowerCase()
+      if(!text.includes(s)) return false
+    }
+    return true
+  })
+
+  const offenCount = vorgaenge.filter(v=>v.status==='offen').length
+
+  return (
+    <div className="page-content">
+      <div className="section-header">
+        <span className="section-title">🌡️ Wärmepumpen-Anmeldung</span>
+        {(isAdmin||isBuero)&&<button className="btn btn-outline btn-sm" onClick={()=>setShowVerwaltung(true)}>⚙️ Verwalten</button>}
+      </div>
+
+      {offenCount>0&&(
+        <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
+          <span style={{fontSize:'0.85rem',color:'#92400e'}}>⏳ {offenCount} Vorgang{offenCount>1?'ände sind':' ist'} noch offen</span>
+        </div>
+      )}
+
+      <button className="hero-btn" onClick={()=>setShowNeu(true)} style={{marginBottom:'0.75rem'}}>
+        <div className="hero-icon">🌡️</div>
+        <div className="hero-text">
+          <div className="hero-label">Neuer Vorgang</div>
+          <div className="hero-title">Wärmepumpen-Anmeldung</div>
+          <div className="hero-sub">Neuen Kunden / Vorgang anlegen</div>
+        </div>
+        <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+      </button>
+
+      <div className="form-group" style={{marginBottom:'0.5rem'}}>
+        <input value={suche} onChange={e=>setSuche(e.target.value)} placeholder="Suche nach Kundenname oder Projektnummer..." style={{width:'100%',padding:'0.6rem 0.875rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}}/>
+      </div>
+
+      <div style={{display:'flex',gap:6,marginBottom:'0.5rem',flexWrap:'wrap'}}>
+        {['alle',...Object.keys(WP_STATUS)].map(s=>(
+          <button key={s} onClick={()=>setFilterStatus(s)} style={{padding:'5px 12px',borderRadius:20,border:'1.5px solid var(--border2)',background:filterStatus===s?'var(--dark)':'white',color:filterStatus===s?'white':'var(--text2)',fontSize:'0.76rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+            {s==='alle'?'Alle':WP_STATUS[s].label}
+          </button>
+        ))}
+      </div>
+
+      <div className="form-group" style={{marginBottom:'0.75rem'}}>
+        <select value={filterModell} onChange={e=>setFilterModell(e.target.value)}>
+          <option value="alle">Alle Modelle</option>
+          {modelleRaw.map(m=><option key={m.id} value={m.id}>{m.hersteller_name} · {m.modell}</option>)}
+        </select>
+      </div>
+
+      {loading?<p className="text-muted text-sm">Lädt...</p>:gefiltert.length===0?(
+        <div className="empty-state">
+          <div style={{fontSize:'3rem',marginBottom:12}}>🌡️</div>
+          <div className="empty-title">Keine Vorgänge gefunden</div>
+          <div className="empty-sub">Lege einen neuen Vorgang an oder ändere die Filter.</div>
+        </div>
+      ):gefiltert.map(v=>{
+        const modell = modelleRaw.find(m=>m.id===v.modell_id)
+        const zustaendig = allUsers.find(u=>u.id===v.zustaendig_user_id)
+        return (
+          <div key={v.id} className="card" style={{cursor:'pointer'}} onClick={()=>setDetailVorgang(v)}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div style={{flex:1}}>
+                <div className="font-bold" style={{color:'#0A0A44'}}>{v.vorname} {v.nachname}</div>
+                <div className="text-xs text-muted" style={{marginTop:2}}>Projekt {v.projektnummer} · {v.plz} {v.ort}</div>
+                {modell&&<div className="text-xs" style={{color:'var(--blue)',marginTop:2}}>🌡️ {modell.hersteller_name} · {modell.modell}</div>}
+                {zustaendig&&<div className="text-xs text-muted" style={{marginTop:2}}>👤 {zustaendig.name}</div>}
+              </div>
+              {wpStatusBadge(v.status)}
+            </div>
+            <div style={{marginTop:'0.6rem',paddingTop:'0.6rem',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between',alignItems:'center'}} onClick={e=>e.stopPropagation()}>
+              <span className="text-xs text-muted">Zuletzt geändert: {formatDate((v.updated_at||v.created_at).slice(0,10))}</span>
+              <select value={v.status} onChange={async e=>{
+                const neu = e.target.value
+                await supabase.from('wp_vorgaenge').update({status:neu, updated_at:new Date().toISOString()}).eq('id',v.id)
+                const alt = WP_STATUS[v.status]?.label||v.status
+                await wpLogHistorie(v.id, 'status', `Status von "${alt}" auf "${WP_STATUS[neu]?.label||neu}" geändert — durch ${user.profile?.name||user.email}`, user.id)
+                await load()
+              }} style={{padding:'4px 8px',fontSize:'0.75rem',borderRadius:'var(--r-sm)',border:'1.5px solid var(--border2)',fontFamily:'inherit'}}>
+                {Object.entries(WP_STATUS).map(([k,cfg])=><option key={k} value={k}>{cfg.label}</option>)}
+              </select>
+            </div>
+          </div>
+        )
+      })}
+
+      {showNeu&&<WaermepumpenNeuModal user={user} allUsers={allUsers} modelle={modelleRaw} onClose={()=>setShowNeu(false)} onSaved={load}/>}
+      {showVerwaltung&&<WaermepumpenVerwaltungModal onClose={()=>setShowVerwaltung(false)} onChanged={load}/>}
+      {detailVorgang&&<WaermepumpenDetailModal vorgang={detailVorgang} user={user} allUsers={allUsers} modelle={modelleRaw} onClose={()=>setDetailVorgang(null)} onRefresh={load}/>}
+    </div>
+  )
+}
 export default function App() {
   const [user,setUser]=useState(null); const [loading,setLoading]=useState(true); const [page,setPage]=useState('home')
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
