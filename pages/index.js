@@ -3351,7 +3351,20 @@ function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, on
           <button key={k} className={`tab-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>{l}</button>
         ))}
       </div>
-
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:'0.75rem',padding:'0.6rem 0.9rem',background:editForm.prioritaet?'#fffdf5':'var(--bg)',border:editForm.prioritaet?'1.5px solid #f6c343':'1px solid var(--border2)',borderRadius:'var(--r-sm)'}}>
+            <button onClick={async()=>{
+              const neu=!editForm.prioritaet
+              setEditForm(f=>({...f,prioritaet:neu}))
+              await supabase.from('wp_vorgaenge').update({prioritaet:neu,updated_at:new Date().toISOString()}).eq('id',vorgang.id)
+              await wpLogHistorie(vorgang.id,'prioritaet',neu?'Als Priorität markiert':'Priorität entfernt — durch '+(user.profile?.name||user.email),user.id)
+              await onRefresh()
+            }} style={{background:'none',border:'none',cursor:'pointer',fontSize:'1.3rem',padding:0,lineHeight:1}}>
+              {editForm.prioritaet?'⭐':'☆'}
+            </button>
+            <span style={{fontSize:'0.85rem',fontWeight:600,color:editForm.prioritaet?'#7a5c00':'var(--text2)'}}>
+              {editForm.prioritaet?'Als Priorität markiert':'Nicht priorisiert'}
+            </span>
+          </div>
       {tab==='daten'&&(
         <div style={{marginTop:'0.75rem'}}>
           <div className="form-group">
@@ -3458,6 +3471,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
   const [showEinladen, setShowEinladen] = useState(false)
   const [detailVorgang, setDetailVorgang] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [nurPrioritaet, setNurPrioritaet] = useState(false)
 
   useEffect(()=>{ load() },[])
   async function load() {
@@ -3476,6 +3490,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
 
   const gefiltert = vorgaenge.filter(v=>{
     if(filterStatus!=='alle' && v.status!==filterStatus) return false
+    if(nurPrioritaet && !v.prioritaet) return false
     if(filterModell!=='alle' && v.modell_id!==filterModell) return false
     if(suche.trim()){
       const s = suche.toLowerCase()
@@ -3484,7 +3499,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
     }
     return true
   })
-
+  const sortiert = [...gefiltert].sort((a,b) => (b.prioritaet===true) - (a.prioritaet===true))
   const offenCount = vorgaenge.filter(v=>v.status==='offen').length
 
   return (
@@ -3516,7 +3531,11 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
       <div className="form-group" style={{marginBottom:'0.5rem'}}>
         <input value={suche} onChange={e=>setSuche(e.target.value)} placeholder="Suche nach Kundenname oder Projektnummer..." style={{width:'100%',padding:'0.6rem 0.875rem',border:'1.5px solid var(--border2)',borderRadius:'var(--r-sm)',fontSize:'0.85rem',fontFamily:'inherit'}}/>
       </div>
-
+<div style={{marginBottom:'0.5rem'}}>
+        <button onClick={()=>setNurPrioritaet(p=>!p)} style={{padding:'5px 12px',borderRadius:20,border:'1.5px solid #f6c343',background:nurPrioritaet?'#f6c343':'white',color:nurPrioritaet?'#7a5c00':'#7a5c00',fontSize:'0.76rem',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          ⭐ Nur Priorität {nurPrioritaet?'✓':''}
+        </button>
+      </div>
       <div style={{display:'flex',gap:6,marginBottom:'0.5rem',flexWrap:'wrap'}}>
         {['alle',...Object.keys(WP_STATUS)].map(s=>(
           <button key={s} onClick={()=>setFilterStatus(s)} style={{padding:'5px 12px',borderRadius:20,border:'1.5px solid var(--border2)',background:filterStatus===s?'var(--dark)':'white',color:filterStatus===s?'white':'var(--text2)',fontSize:'0.76rem',fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
@@ -3531,14 +3550,25 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
           <div className="empty-title">Keine Vorgänge gefunden</div>
           <div className="empty-sub">Lege einen neuen Vorgang an oder ändere die Filter.</div>
         </div>
-      ):gefiltert.map(v=>{
+      ):sortiert.map(v=>{
         const modell = modelleRaw.find(m=>m.id===v.modell_id)
         const zustaendig = allUsers.find(u=>u.id===v.zustaendig_user_id)
         return (
-          <div key={v.id} className="card" style={{cursor:'pointer'}} onClick={()=>setDetailVorgang(v)}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+         <div key={v.id} className="card" style={{cursor:'pointer',border:v.prioritaet?'1.5px solid #f6c343':undefined,background:v.prioritaet?'#fffdf5':undefined}} onClick={()=>setDetailVorgang(v)}>
+           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}>
-                <div className="font-bold" style={{color:'#0A0A44'}}>{v.vorname} {v.nachname}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <button onClick={async e=>{
+                    e.stopPropagation()
+                    const neu=!v.prioritaet
+                    await supabase.from('wp_vorgaenge').update({prioritaet:neu,updated_at:new Date().toISOString()}).eq('id',v.id)
+                    await wpLogHistorie(v.id,'prioritaet',neu?'Als Priorität markiert':'Priorität entfernt — durch '+(user.profile?.name||user.email),user.id)
+                    await load()
+                  }} style={{background:'none',border:'none',cursor:'pointer',fontSize:'1.1rem',padding:0,lineHeight:1,flexShrink:0}} title={v.prioritaet?'Priorität entfernen':'Als Priorität markieren'}>
+                    {v.prioritaet?'⭐':'☆'}
+                  </button>
+                  <div className="font-bold" style={{color:'#0A0A44'}}>{v.vorname} {v.nachname}</div>
+                </div>
                 <div className="text-xs text-muted" style={{marginTop:2}}>Projekt {v.projektnummer} · {v.plz} {v.ort}</div>
                 {modell&&<div className="text-xs" style={{color:'var(--blue)',marginTop:2}}>🌡️ {modell.hersteller_name} · {modell.modell}</div>}
                 {zustaendig&&<div className="text-xs text-muted" style={{marginTop:2}}>👤 {zustaendig.name}</div>}
