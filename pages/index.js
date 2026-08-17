@@ -3185,7 +3185,9 @@ function WaermepumpenVerwaltungModal({ onClose, onChanged }) {
 function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
   const [form, setForm] = useState({
     projektnummer:'', vorname:'', nachname:'', strasse:'', hausnummer:'', plz:'', ort:'',
-    geburtsdatum:'', telefon:'', email:'', modell_id:'', zustaendig_user_id: user.id
+    geburtsdatum:'', telefon:'', email:'', modell_id:'', zustaendig_user_id: user.id,
+    rechnungsadresse_abweichend: false, rechnung_name:'', rechnung_strasse:'', rechnung_hausnummer:'', rechnung_plz:'', rechnung_ort:'',
+    kommentar: ''
   })
   const [saving, setSaving] = useState(false)
 
@@ -3234,17 +3236,42 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
         <div className="form-group"><label>E-Mail (optional)</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
       </div>
 
+      <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'0.6rem 0.75rem',borderRadius:'var(--r-sm)',background:'var(--bg)',border:'1px solid var(--border2)',marginBottom:'0.75rem'}}>
+        <input type="checkbox" checked={form.rechnungsadresse_abweichend} onChange={e=>setForm(f=>({...f,rechnungsadresse_abweichend:e.target.checked}))} style={{accentColor:'var(--blue)',width:16,height:16}}/>
+        <span style={{fontSize:'0.85rem',fontWeight:500,color:'var(--dark)'}}>Rechnungsadresse weicht von der Lieferadresse ab</span>
+      </label>
+
+      {form.rechnungsadresse_abweichend&&(
+        <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'0.875rem',marginBottom:'0.75rem',border:'1px solid var(--border2)'}}>
+          <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'0.5rem'}}>Rechnungsadresse</div>
+          <div className="form-group"><label>Name / Firma</label><input value={form.rechnung_name} onChange={e=>setForm(f=>({...f,rechnung_name:e.target.value}))} placeholder="z.B. Firma XY GmbH"/></div>
+          <div className="form-row">
+            <div className="form-group"><label>Straße</label><input value={form.rechnung_strasse} onChange={e=>setForm(f=>({...f,rechnung_strasse:e.target.value}))}/></div>
+            <div className="form-group"><label>Hausnummer</label><input value={form.rechnung_hausnummer} onChange={e=>setForm(f=>({...f,rechnung_hausnummer:e.target.value}))}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label>PLZ</label><input value={form.rechnung_plz} onChange={e=>setForm(f=>({...f,rechnung_plz:e.target.value}))}/></div>
+            <div className="form-group"><label>Ort</label><input value={form.rechnung_ort} onChange={e=>setForm(f=>({...f,rechnung_ort:e.target.value}))}/></div>
+          </div>
+        </div>
+      )}
+
       <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Wärmepumpe</div>
       <div className="form-group">
         <WaermepumpenModellSelect modelle={modelle} value={form.modell_id} onChange={id=>setForm(f=>({...f,modell_id:id}))}/>
       </div>
 
       <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Projekt</div>
-      <div className="form-group">
+  <div className="form-group">
         <label>Zuständige Person</label>
         <select value={form.zustaendig_user_id} onChange={e=>setForm(f=>({...f,zustaendig_user_id:e.target.value}))}>
           {allUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
+      </div>
+
+      <div className="form-group">
+        <label>Kommentar / Sonstiges (optional)</label>
+        <textarea value={form.kommentar} onChange={e=>setForm(f=>({...f,kommentar:e.target.value}))} placeholder="Besonderheiten, Notizen, Rückfragen..."/>
       </div>
 
       <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Vorgang anlegen'}</button>
@@ -3387,10 +3414,30 @@ function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, on
             <div className="form-group"><label>Ort</label><input value={editForm.ort||''} onChange={e=>setEditForm(f=>({...f,ort:e.target.value}))}/></div>
           </div>
           <div className="form-group"><label>Geburtsdatum</label><input type="date" value={editForm.geburtsdatum||''} onChange={e=>setEditForm(f=>({...f,geburtsdatum:e.target.value}))}/></div>
-          <div className="form-row">
+         <div className="form-row">
             <div className="form-group"><label>Telefon</label><input value={editForm.telefon||''} onChange={e=>setEditForm(f=>({...f,telefon:e.target.value}))}/></div>
             <div className="form-group"><label>E-Mail</label><input value={editForm.email||''} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))}/></div>
           </div>
+
+          <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'0.6rem 0.75rem',borderRadius:'var(--r-sm)',background:'var(--bg)',border:'1px solid var(--border2)',marginBottom:'0.75rem'}}>
+            <input type="checkbox" checked={editForm.rechnungsadresse_abweichend||false} onChange={e=>setEditForm(f=>({...f,rechnungsadresse_abweichend:e.target.checked}))} style={{accentColor:'var(--blue)',width:16,height:16}}/>
+            <span style={{fontSize:'0.85rem',fontWeight:500,color:'var(--dark)'}}>Rechnungsadresse weicht von der Lieferadresse ab</span>
+          </label>
+
+          {editForm.rechnungsadresse_abweichend&&(
+            <div style={{background:'var(--bg)',borderRadius:'var(--r-md)',padding:'0.875rem',marginBottom:'0.75rem',border:'1px solid var(--border2)'}}>
+              <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'0.5rem'}}>Rechnungsadresse</div>
+              <div className="form-group"><label>Name / Firma</label><input value={editForm.rechnung_name||''} onChange={e=>setEditForm(f=>({...f,rechnung_name:e.target.value}))}/></div>
+              <div className="form-row">
+                <div className="form-group"><label>Straße</label><input value={editForm.rechnung_strasse||''} onChange={e=>setEditForm(f=>({...f,rechnung_strasse:e.target.value}))}/></div>
+                <div className="form-group"><label>Hausnummer</label><input value={editForm.rechnung_hausnummer||''} onChange={e=>setEditForm(f=>({...f,rechnung_hausnummer:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>PLZ</label><input value={editForm.rechnung_plz||''} onChange={e=>setEditForm(f=>({...f,rechnung_plz:e.target.value}))}/></div>
+                <div className="form-group"><label>Ort</label><input value={editForm.rechnung_ort||''} onChange={e=>setEditForm(f=>({...f,rechnung_ort:e.target.value}))}/></div>
+              </div>
+            </div>
+          )}
 
           <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Wärmepumpe</div>
           <div className="form-group">
@@ -3405,6 +3452,11 @@ function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, on
               <option value="">— Keine —</option>
               {allUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
+          </div>
+
+         <div className="form-group">
+            <label>Kommentar / Sonstiges</label>
+            <textarea value={editForm.kommentar||''} onChange={e=>setEditForm(f=>({...f,kommentar:e.target.value}))} placeholder="Besonderheiten, Notizen, Rückfragen..."/>
           </div>
 
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Änderungen speichern'}</button>
