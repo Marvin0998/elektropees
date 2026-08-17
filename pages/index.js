@@ -3187,7 +3187,7 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
     projektnummer:'', vorname:'', nachname:'', strasse:'', hausnummer:'', plz:'', ort:'',
     geburtsdatum:'', telefon:'', email:'', modell_id:'', zustaendig_user_id: user.id,
     rechnungsadresse_abweichend: false, rechnung_name:'', rechnung_strasse:'', rechnung_hausnummer:'', rechnung_plz:'', rechnung_ort:'',
-    kommentar: ''
+    kommentar: '', prioritaet: false, heizstab: true
   })
   const [saving, setSaving] = useState(false)
 
@@ -3213,7 +3213,12 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
   return (
     <div className="modal-overlay open"><div className="modal-sheet" style={{maxHeight:'90vh',overflowY:'auto'}}>
       <div className="modal-handle"/>
-      <div className="modal-title">🌡️ Neue Wärmepumpen-Anmeldung</div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.75rem'}}>
+        <div className="modal-title" style={{marginBottom:0}}>🌡️ Neue Wärmepumpen-Anmeldung</div>
+        <button type="button" onClick={()=>setForm(f=>({...f,prioritaet:!f.prioritaet}))} style={{background:'none',border:'none',cursor:'pointer',fontSize:'1.4rem',padding:0,lineHeight:1}} title={form.prioritaet?'Priorität entfernen':'Als Priorität markieren'}>
+          {form.prioritaet?'⭐':'☆'}
+        </button>
+      </div>
 
       <div className="form-group"><label>Projektnummer *</label><input value={form.projektnummer} onChange={e=>setForm(f=>({...f,projektnummer:e.target.value}))}/></div>
 
@@ -3259,6 +3264,13 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
       <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Wärmepumpe</div>
       <div className="form-group">
         <WaermepumpenModellSelect modelle={modelle} value={form.modell_id} onChange={id=>setForm(f=>({...f,modell_id:id}))}/>
+      </div>
+      <div className="form-group">
+        <label>Heizstab?</label>
+        <select value={form.heizstab?'ja':'nein'} onChange={e=>setForm(f=>({...f,heizstab:e.target.value==='ja'}))}>
+          <option value="ja">Ja</option>
+          <option value="nein">Nein</option>
+        </select>
       </div>
 
       <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Projekt</div>
@@ -3442,6 +3454,13 @@ function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, on
           <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Wärmepumpe</div>
           <div className="form-group">
             <WaermepumpenModellSelect modelle={modelle} value={editForm.modell_id} onChange={id=>setEditForm(f=>({...f,modell_id:id}))}/>
+          </div>
+          <div className="form-group">
+            <label>Heizstab?</label>
+            <select value={editForm.heizstab?'ja':'nein'} onChange={e=>setEditForm(f=>({...f,heizstab:e.target.value==='ja'}))}>
+              <option value="ja">Ja</option>
+              <option value="nein">Nein</option>
+            </select>
           </div>
 
           <div style={{fontSize:'0.72rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.06em',margin:'0.75rem 0 0.4rem'}}>Projekt</div>
