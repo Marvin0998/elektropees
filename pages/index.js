@@ -3027,6 +3027,340 @@ ${heft.bemerkungen ? `<div class="bemerkungen-block"><div class="bem-header">Bem
 // WÄRMEPUMPEN-ANMELDUNG MODUL
 // Diesen kompletten Block VOR "export default function App()" in pages/index.js einfügen.
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// Komponenten für das Modul "Zählerschrank-Prüfung"
+// Einfügen in pages/index.js, VOR "export default function App()" —
+// am besten direkt nach den bestehenden Wärmepumpen-Komponenten.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ZS_STATUS = {
+  eingegangen:        { label: 'Eingegangen',        bg: '#edf2f7', color: '#4a5568' },
+  in_pruefung:        { label: 'In Prüfung',          bg: '#feebc8', color: '#9c4221' },
+  geeignet:           { label: 'Geeignet',            bg: '#c6f6d5', color: '#276749' },
+  nicht_geeignet:     { label: 'Nicht geeignet',      bg: '#fed7d7', color: '#c53030' },
+  umbau_erforderlich: { label: 'Umbau erforderlich',  bg: '#feebc8', color: '#9c4221' }
+}
+
+const ZS_BEWERTUNG = {
+  A: { label: 'A – Erneuerung wahrscheinlich', bg: '#fed7d7', color: '#c53030' },
+  B: { label: 'B – Prüfung erforderlich',      bg: '#feebc8', color: '#9c4221' },
+  C: { label: 'C – Platz fehlt',               bg: '#fed7d7', color: '#c53030' },
+  D: { label: 'D – Gut nachrüstbar',           bg: '#c6f6d5', color: '#276749' }
+}
+
+const ZS_FOTO_LABELS = {
+  schrank_komplett: 'Zählerschrank komplett',
+  zaehlerplaetze_frontal: 'Zählerplätze frontal',
+  bereich_unterhalb: 'Bereich unterhalb der Zähler',
+  bereich_oberhalb: 'Bereich oberhalb der Zähler'
+}
+
+function zsStatusBadge(status) {
+  const s = ZS_STATUS[status] || ZS_STATUS.eingegangen
+  return <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>
+}
+
+function zsBewertungBadge(bewertung) {
+  if (!bewertung) return null
+  const b = ZS_BEWERTUNG[bewertung]
+  if (!b) return null
+  return <span className="badge" style={{ background: b.bg, color: b.color }}>{b.label}</span>
+}
+
+// ── Link erstellen/verwalten ───────────────────────────────────────────────
+function ZaehlerschrankLinkModal({ user, onClose }) {
+  const [form, setForm] = useState({ name: '' })
+  const [saving, setSaving] = useState(false)
+  const [links, setLinks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [kopiertToken, setKopiertToken] = useState('')
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('zs_links').select('*').order('created_at', { ascending: false })
+    setLinks(data || [])
+    setLoading(false)
+  }
+
+  async function handleErstellen() {
+    if (!form.name.trim()) { alert('Bitte Name angeben!'); return }
+    setSaving(true)
+    const { error } = await supabase.from('zs_links').insert([{ name: form.name.trim(), erstellt_von: user.id }])
+    setSaving(false)
+    if (error) { alert('Fehler: ' + error.message); return }
+    setForm({ name: '' })
+    load()
+  }
+
+  async function handleToggleAktiv(link) {
+    await supabase.from('zs_links').update({ aktiv: !link.aktiv }).eq('token', link.token)
+    load()
+  }
+
+  async function handleLoeschen(link) {
+    if (!confirm(`Link "${link.name}" wirklich löschen?`)) return
+    await supabase.from('zs_links').delete().eq('token', link.token)
+    load()
+  }
+
+  function kopieren(token) {
+    const url = `${window.location.origin}/zaehlerschrank-pruefung?token=${token}`
+    navigator.clipboard.writeText(url)
+    setKopiertToken(token)
+    setTimeout(() => setKopiertToken(''), 2000)
+  }
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet">
+      <div className="modal-handle"/>
+      <div className="modal-title">🔗 Zählerschrank-Prüfung: Links verwalten</div>
+
+      <div className="form-group"><label>Neuer Link für</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={form.name} onChange={e=>setForm({ name: e.target.value })} placeholder="z.B. Heizungsbau Mustermann" style={{ flex: 1 }}/>
+          <button className="btn btn-primary btn-sm" onClick={handleErstellen} disabled={saving}>{saving?'...':'+ Erstellen'}</button>
+        </div>
+      </div>
+
+      <div style={{ background: '#ebf8ff', border: '1px solid #bee3f8', borderRadius: 8, padding: '0.6rem 0.9rem', fontSize: '0.78rem', color: '#2b6cb0', marginBottom: '0.75rem' }}>
+        💡 Jeder Link kann beliebig oft benutzt werden — jedes Öffnen startet eine neue Zählerschrank-Prüfung. Kein Login nötig.
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border2)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+        {loading ? <div style={{ textAlign: 'center', padding: '1rem', color: '#a0aec0' }}>Lädt...</div> :
+         links.length === 0 ? <div style={{ textAlign: 'center', padding: '1rem', color: '#a0aec0' }}>Noch keine Links erstellt.</div> :
+         links.map(l => (
+          <div key={l.token} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0', borderBottom: '1px solid var(--border2)' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: '#0A0A44', fontSize: '0.85rem' }}>{l.name}</div>
+              <div style={{ fontSize: '0.72rem', color: l.aktiv ? '#276749' : '#c53030' }}>{l.aktiv ? 'Aktiv' : 'Gesperrt'}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-outline btn-sm" onClick={()=>kopieren(l.token)}>{kopiertToken===l.token?'✓ Kopiert':'📋'}</button>
+              <button className="btn btn-outline btn-sm" onClick={()=>handleToggleAktiv(l)}>{l.aktiv?'🔒':'🔓'}</button>
+              <button className="btn btn-outline btn-sm" onClick={()=>handleLoeschen(l)}>🗑️</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn btn-secondary" onClick={onClose} style={{ marginTop: '0.75rem' }}>Schließen</button>
+    </div></div>
+  )
+}
+
+// ── Detailansicht einer Prüfung ──────────────────────────────────────────────
+function ZaehlerschrankDetailModal({ pruefung, user, onClose, onRefresh }) {
+  const [tab, setTab] = useState('daten')
+  const [fotos, setFotos] = useState([])
+  const [fotoUrls, setFotoUrls] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    status: pruefung.status || 'eingegangen',
+    bewertung: pruefung.bewertung || '',
+    pruef_freier_zaehlerplatz: pruefung.pruef_freier_zaehlerplatz || false,
+    pruef_sls: pruefung.pruef_sls || false,
+    pruef_ueberspannungsschutz: pruefung.pruef_ueberspannungsschutz || false,
+    pruef_apz: pruefung.pruef_apz || false,
+    pruef_platz_steuertechnik: pruefung.pruef_platz_steuertechnik || false,
+    pruef_aar_ausreichend: pruefung.pruef_aar_ausreichend || false,
+    pruef_erweiterung_zulaessig: pruefung.pruef_erweiterung_zulaessig || false,
+    pruef_kommentar: pruefung.pruef_kommentar || ''
+  })
+
+  useEffect(() => { loadFotos() }, [])
+
+  async function loadFotos() {
+    const { data } = await supabase.from('zs_fotos').select('*').eq('pruefung_id', pruefung.id)
+    setFotos(data || [])
+    const urls = {}
+    for (const f of (data || [])) {
+      const { data: signed } = await supabase.storage.from('zs-fotos').createSignedUrl(f.storage_path, 3600)
+      if (signed) urls[f.id] = signed.signedUrl
+    }
+    setFotoUrls(urls)
+  }
+
+  function update(feld, wert) { setForm(f => ({ ...f, [feld]: wert })) }
+
+  async function handleSave() {
+    setSaving(true)
+    const { error } = await supabase.from('zs_pruefungen').update({
+      ...form,
+      bewertung: form.bewertung || null,
+      geprueft_von: user.id,
+      updated_at: new Date().toISOString()
+    }).eq('id', pruefung.id)
+    setSaving(false)
+    if (error) { alert('Fehler: ' + error.message); return }
+    onRefresh()
+    onClose()
+  }
+
+  const checklistFelder = [
+    ['pruef_freier_zaehlerplatz', 'Freier Zählerplatz'],
+    ['pruef_sls', 'SLS vorhanden'],
+    ['pruef_ueberspannungsschutz', 'Überspannungsschutz'],
+    ['pruef_apz', 'APZ'],
+    ['pruef_platz_steuertechnik', 'Platz für Steuer-/Kommunikationstechnik'],
+    ['pruef_aar_ausreichend', 'AAR ausreichend'],
+    ['pruef_erweiterung_zulaessig', 'Erweiterung nach TAB zulässig']
+  ]
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet">
+      <div className="modal-handle"/>
+      <div className="modal-title">⚡ {pruefung.vorname} {pruefung.nachname}</div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem' }}>
+        <button className={`btn btn-sm ${tab==='daten'?'btn-primary':'btn-outline'}`} onClick={()=>setTab('daten')}>Daten</button>
+        <button className={`btn btn-sm ${tab==='fotos'?'btn-primary':'btn-outline'}`} onClick={()=>setTab('fotos')}>Fotos ({fotos.length}/4)</button>
+        <button className={`btn btn-sm ${tab==='pruefung'?'btn-primary':'btn-outline'}`} onClick={()=>setTab('pruefung')}>Prüfung</button>
+      </div>
+
+      {tab === 'daten' && (
+        <div>
+          <div style={{ fontWeight: 600, color: '#0A0A44', marginBottom: 6 }}>Kunde</div>
+          <div style={{ fontSize: '0.85rem', color: '#4a5568', marginBottom: '0.75rem' }}>
+            {pruefung.vorname} {pruefung.nachname}<br/>
+            {pruefung.strasse} {pruefung.hausnummer}<br/>
+            {pruefung.plz} {pruefung.ort}<br/>
+            {pruefung.telefon && <>Tel: {pruefung.telefon}<br/></>}
+            {pruefung.email && <>E-Mail: {pruefung.email}<br/></>}
+            {pruefung.eingereicht_von_firma && <>Eingereicht von: {pruefung.eingereicht_von_firma}<br/></>}
+          </div>
+
+          <div style={{ fontWeight: 600, color: '#0A0A44', marginBottom: 6, marginTop: '1rem' }}>Wärmepumpe</div>
+          <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>
+            {pruefung.wp_hersteller} {pruefung.wp_modell}<br/>
+            {pruefung.wp_leistung_kw && <>Leistung: {pruefung.wp_leistung_kw} kW<br/></>}
+            Heizstab: {pruefung.wp_heizstab ? 'Ja' : 'Nein'}<br/>
+            {pruefung.wp_schnittstelle && <>Schnittstelle: {pruefung.wp_schnittstelle}<br/></>}
+            {pruefung.notiz && <>Notiz: {pruefung.notiz}<br/></>}
+          </div>
+
+          <div style={{ marginTop: '1rem' }}>{zsStatusBadge(pruefung.status)} {zsBewertungBadge(pruefung.bewertung)}</div>
+        </div>
+      )}
+
+      {tab === 'fotos' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {fotos.length === 0 && <div style={{ color: '#a0aec0', gridColumn: '1 / -1', textAlign: 'center', padding: '1rem' }}>Noch keine Fotos hochgeladen.</div>}
+          {fotos.map(f => (
+            <div key={f.id} style={{ border: '1px solid var(--border2)', borderRadius: 8, overflow: 'hidden' }}>
+              {fotoUrls[f.id] ? <img src={fotoUrls[f.id]} alt={f.foto_typ} style={{ width: '100%', height: 140, objectFit: 'cover' }}/> : <div style={{ height: 140, background: '#f7fafc' }}/>}
+              <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.72rem', color: '#4a5568' }}>{ZS_FOTO_LABELS[f.foto_typ] || f.foto_typ}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'pruefung' && (
+        <div>
+          <div className="form-group"><label>Status</label>
+            <select value={form.status} onChange={e=>update('status', e.target.value)}>
+              {Object.entries(ZS_STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label>Bewertung</label>
+            <select value={form.bewertung} onChange={e=>update('bewertung', e.target.value)}>
+              <option value="">— keine —</option>
+              {Object.entries(ZS_BEWERTUNG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </div>
+
+          <div style={{ fontWeight: 600, color: '#0A0A44', margin: '0.75rem 0 0.4rem' }}>Checkliste</div>
+          {checklistFelder.map(([feld, label]) => (
+            <label key={feld} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: '#4a5568', marginBottom: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={form[feld]} onChange={e=>update(feld, e.target.checked)} />
+              {label}
+            </label>
+          ))}
+
+          <div className="form-group" style={{ marginTop: '0.5rem' }}><label>Kommentar</label>
+            <textarea value={form.pruef_kommentar} onChange={e=>update('pruef_kommentar', e.target.value)} rows={3} />
+          </div>
+
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ width: '100%' }}>
+            {saving ? 'Speichert...' : '✓ Speichern'}
+          </button>
+        </div>
+      )}
+
+      <button className="btn btn-secondary" onClick={onClose} style={{ marginTop: '0.75rem' }}>Schließen</button>
+    </div></div>
+  )
+}
+
+// ── Übersichtsliste ──────────────────────────────────────────────────────────
+function ZaehlerschrankPage({ user, isAdmin, isBuero }) {
+  const [pruefungen, setPruefungen] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [suche, setSuche] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [showLinks, setShowLinks] = useState(false)
+  const [detail, setDetail] = useState(null)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('zs_pruefungen').select('*').order('created_at', { ascending: false })
+    setPruefungen(data || [])
+    setLoading(false)
+  }
+
+  const gefiltert = pruefungen.filter(p => {
+    const name = `${p.vorname} ${p.nachname}`.toLowerCase()
+    if (suche && !name.includes(suche.toLowerCase())) return false
+    if (filterStatus && p.status !== filterStatus) return false
+    return true
+  })
+
+  return (
+    <div className="page-content">
+      <div className="section-header">
+        <h2>⚡ Zählerschrank-Prüfung</h2>
+        {(isAdmin || isBuero) && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-outline btn-sm" onClick={()=>setShowLinks(true)}>🔗 Links verwalten</button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <input placeholder="Kunde suchen..." value={suche} onChange={e=>setSuche(e.target.value)} style={{ flex: 1, minWidth: 160 }}/>
+        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
+          <option value="">Alle Status</option>
+          {Object.entries(ZS_STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </div>
+
+      {loading ? <div style={{ textAlign: 'center', padding: '2rem', color: '#a0aec0' }}>Lädt...</div> :
+       gefiltert.length === 0 ? <div style={{ textAlign: 'center', padding: '2rem', color: '#a0aec0' }}>Keine Einträge gefunden.</div> :
+       gefiltert.map(p => (
+        <div key={p.id} className="card" onClick={()=>setDetail(p)} style={{ cursor: 'pointer', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: '#0A0A44' }}>{p.vorname} {p.nachname}</div>
+              <div style={{ fontSize: '0.78rem', color: '#718096' }}>{p.plz} {p.ort}</div>
+              {p.eingereicht_von_firma && <div style={{ fontSize: '0.72rem', color: '#a0aec0' }}>via {p.eingereicht_von_firma}</div>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+              {zsStatusBadge(p.status)}
+              {zsBewertungBadge(p.bewertung)}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {showLinks && <ZaehlerschrankLinkModal user={user} onClose={()=>setShowLinks(false)}/>}
+      {detail && <ZaehlerschrankDetailModal pruefung={detail} user={user} onClose={()=>setDetail(null)} onRefresh={load}/>}
+    </div>
+  )
+}
 
 const WP_STATUS = {
   offen:        { label: 'Offen',        bg: '#e2e8f0', color: '#4a5568' },
