@@ -777,7 +777,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
     <div className="page-content">
       {msg&&<div className="alert alert-success">{msg}</div>}
       <div className="tab-row">
-        {[['freigabe',ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung'],['waermepumpen','🌡️ Wärmepumpe']].map(([key,label])=>(
+          [['freigabe',ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung'],['waermepumpen','🌡️ Wärmepumpe'],['zaehlerschrank','⚡ Zählerschrank']].map(([key,label])=>(
           <button key={key} className={`tab-btn ${tab===key?'active':''}`} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
@@ -1004,7 +1004,9 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
  {tab==='waermepumpen'&&(
         <WaermepumpenPage user={currentUser} allUsers={allUsers} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'} isExtern={false}/>
       )}
-   
+   {tab==='zaehlerschrank'&&(
+    <ZaehlerschrankPage user={currentUser} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'}/>
+)}
       {stundenDetail&&(
         <div className="modal-overlay open"><div className="modal-sheet">
           <div className="modal-handle"/>
