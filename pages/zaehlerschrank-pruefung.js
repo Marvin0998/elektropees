@@ -57,7 +57,15 @@ export default function ZaehlerschrankPruefung() {
       return
     }
     setSpeichern(true)
-    const { data, error } = await supabase.from('zs_pruefungen').insert([{
+    // ID selbst erzeugen statt sie per RETURNING zurückzulesen: anonyme
+    // Besucher dürfen laut RLS zwar eine Zeile einfügen, aber nicht lesen
+    // (nur admin/büro dürfen zs_pruefungen lesen). Würde man .select()
+    // anhängen, verlangt Postgres zusätzlich zur INSERT- auch die
+    // SELECT-Policy auf der zurückgegebenen Zeile — die für anon fehlt —
+    // und lehnt den kompletten Insert mit derselben RLS-Fehlermeldung ab.
+    const neueId = crypto.randomUUID()
+    const { error } = await supabase.from('zs_pruefungen').insert([{
+      id: neueId,
       link_token: token,
       vorname: form.vorname.trim(),
       nachname: form.nachname.trim(),
@@ -74,14 +82,14 @@ export default function ZaehlerschrankPruefung() {
       wp_heizstab: form.wp_heizstab,
       wp_schnittstelle: form.wp_schnittstelle.trim() || null,
       notiz: form.notiz.trim() || null
-    }]).select().single()
+    }])
 
     setSpeichern(false)
     if (error) {
       setFehler('Fehler beim Speichern: ' + error.message + ' — Bitte prüfe, ob der Link noch aktiv ist.')
       return
     }
-    setPruefungId(data.id)
+    setPruefungId(neueId)
     setSchritt(1)
   }
 
