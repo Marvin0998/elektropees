@@ -19,8 +19,18 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Netzwerk-First Strategie
+// Netzwerk-First Strategie — nur für eigene (same-origin) GET-Anfragen.
+// Fremde Domains (z.B. die Supabase-API) werden NICHT abgefangen, sondern
+// unberührt an den Browser weitergereicht. Würde der Service Worker auch
+// API-Aufrufe abfangen, können Header (z.B. "apikey", "authorization")
+// beim erneuten fetch() verloren gehen oder verfälscht werden.
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  const istEigeneDomain = url.origin === self.location.origin;
+  const istGet = event.request.method === 'GET';
+  if (!istEigeneDomain || !istGet) {
+    return; // Service Worker ignoriert diese Anfrage komplett
+  }
   event.respondWith(
     fetch(event.request).catch(() => caches.match(event.request))
   );
