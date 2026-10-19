@@ -494,7 +494,10 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
   )
 }
 
-function UrlaubPage({user,isAdmin,isBuero,allUsers}) {
+function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
+  // embedded=true: wird innerhalb von ProfilPage angezeigt, die die Urlaubszahlen
+  // (Gesamt/Genommen/Verbleibend) bereits in ihrer eigenen Karte zeigt — hier daher
+  // ohne die doppelte "Urlaubskonto"-Karte, nur Anträge + Beantragen-Button.
   const [antraege,setAntraege]=useState([])
   const [showNew,setShowNew]=useState(false)
   const [form,setForm]=useState({von:'',bis:'',notiz:''})
@@ -526,30 +529,37 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers}) {
     await loadAntraege(); setTimeout(()=>setMsg({text:'',type:''}),3000)
   }
   return (
-    <div className="page-content">
+    <div className={embedded?'':'page-content'}>
       {msg.text&&<div className={`alert alert-${msg.type}`}>{msg.text}</div>}
       {!(isAdmin||isBuero)&&(
         <>
-          <div className="section-header"><span className="section-title">Mein Urlaub</span><button className="btn btn-outline btn-sm" onClick={()=>setShowNew(true)}>+ Beantragen</button></div>
+          {!embedded&&(
+            <>
+              <div className="section-header"><span className="section-title">Mein Urlaub</span><button className="btn btn-outline btn-sm" onClick={()=>setShowNew(true)}>+ Beantragen</button></div>
+              <div className="card">
+                <div className="card-title">🏖️ Urlaubskonto {new Date().getFullYear()}</div>
+                {allUsers.filter(u2=>u2.id===user.id).map(u2=>{
+                  const ug=u2.urlaub_gesamt||24; const un=u2.urlaub_genommen||0; const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
+                  return (
+                    <div key={u2.id}>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
+                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{ug}</div><div className="text-xs text-muted">Gesamt</div></div>
+                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{un}</div><div className="text-xs text-muted">Genommen</div></div>
+                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#38a169'}}>{rest}</div><div className="text-xs text-muted">Verbleibend</div></div>
+                      </div>
+                      <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
+                      <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{pct}% verbraucht</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
           <div className="card">
-            <div className="card-title">🏖️ Urlaubskonto {new Date().getFullYear()}</div>
-            {allUsers.filter(u2=>u2.id===user.id).map(u2=>{
-              const ug=u2.urlaub_gesamt||24; const un=u2.urlaub_genommen||0; const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
-              return (
-                <div key={u2.id}>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
-                    <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{ug}</div><div className="text-xs text-muted">Gesamt</div></div>
-                    <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{un}</div><div className="text-xs text-muted">Genommen</div></div>
-                    <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#38a169'}}>{rest}</div><div className="text-xs text-muted">Verbleibend</div></div>
-                  </div>
-                  <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
-                  <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{pct}% verbraucht</div>
-                </div>
-              )
-            })}
-          </div>
-          <div className="card">
-            <div className="card-title">📋 Meine Anträge</div>
+            <div className="section-header" style={{marginBottom:embedded?'0.875rem':undefined}}>
+              <span className="card-title" style={{marginBottom:0}}>📋 Meine Anträge</span>
+              {embedded&&<button className="btn btn-outline btn-sm" onClick={()=>setShowNew(true)}>+ Beantragen</button>}
+            </div>
             {myAntraege.length===0?<p className="text-muted text-sm">Noch keine Anträge.</p>:myAntraege.map(a=>(
               <div key={a.id} className="list-item">
                 <div className="list-item-left">
@@ -687,7 +697,7 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
       </div>
       {kannUrlaubBeantragen&&showUrlaub&&(
         <div style={{marginTop:'-0.25rem'}}>
-          <UrlaubPage user={user} isAdmin={false} isBuero={false} allUsers={allUsers}/>
+          <UrlaubPage user={user} isAdmin={false} isBuero={false} allUsers={allUsers} embedded/>
         </div>
       )}
 
