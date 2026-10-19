@@ -609,7 +609,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
           </div>
           <div className="card" style={{marginTop:'0.75rem'}}>
             <div className="card-title">🏖️ Urlaubsübersicht</div>
-            {allUsers.filter(u=>u.role!=='admin').map(u=>{
+            {allUsers.filter(u=>u.role!=='admin'&&u.role!=='extern').map(u=>{
               const ug=u.urlaub_gesamt||24; const un=u.urlaub_genommen||0; const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
               return (
                 <div key={u.id} style={{marginBottom:'1rem',paddingBottom:'1rem',borderBottom:'1px solid #e2e8f0'}}>
@@ -819,7 +819,10 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
   const [newUser,setNewUser]=useState({name:'',email:'',password:'',rolle:'mitarbeiter',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const [stundenDetail,setStundenDetail]=useState(null)
-  const mitarbeiter=allUsers.filter(u=>u.role!=='admin')
+  // "Mitarbeiter" = echte Elektro-Pees-Angestellte — externe Partnerfirmen (role
+  // 'extern', z.B. über "Extern einladen" bei der Wärmepumpe) sind keine
+  // Mitarbeiter und gehören nicht in Freigaben/Auswertung/Mitarbeiter-Liste/Urlaub.
+  const mitarbeiter=allUsers.filter(u=>u.role!=='admin'&&u.role!=='extern')
   const bueroUserId=allUsers.find(u=>u.role==='buero')?.id
   const ausstehend=stunden.filter(s=>{
     if(s.freigabe_status!=='ausstehend') return false
@@ -1859,7 +1862,7 @@ function KalenderNeuModal({form,setForm,saving,handleSave,handleClose,baustellen
       <div className="form-group">
         <label>Mitarbeiter zuweisen</label>
         <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
-          {allUsers.filter(u=>u.role!=='admin').map(u=>(
+          {allUsers.filter(u=>u.role!=='admin'&&u.role!=='extern').map(u=>(
             <label key={u.id} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'6px 10px',borderRadius:8,background:form.zugewiesen_an.includes(u.id)?'var(--blue-pale)':'var(--bg)',border:`1px solid ${form.zugewiesen_an.includes(u.id)?'var(--blue)':'var(--border2)'}`}}>
               <input type="checkbox" checked={form.zugewiesen_an.includes(u.id)} onChange={()=>toggleZuweisung(u.id)} style={{accentColor:'var(--blue)'}}/>
               <div className="employee-avatar" style={{width:24,height:24,fontSize:'0.6rem'}}>{initials(u.name)}</div>
