@@ -137,7 +137,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,onKrank}) {
+function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -197,6 +197,16 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,on
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'Guten Morgen' : hour < 17 ? 'Guten Tag' : 'Guten Abend'
 
+  // ── Dashboard-Infos: nächster Termin, aktuelle/nächste Baustelle, heutige Stunden ──
+  const heuteStr=today()
+  const meineTermine=(termine||[]).filter(t=>t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)
+  const naechsterTermin=meineTermine.filter(t=>t.datum>=heuteStr).sort((a,b)=>a.datum.localeCompare(b.datum)||(a.uhrzeit||'').localeCompare(b.uhrzeit||''))[0]
+  const terminBaustelle=naechsterTermin?baustellen.find(b=>b.id===naechsterTermin.baustelle_id):null
+  const letzteStunde=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum))[0]
+  const letzteBaustelle=letzteStunde?baustellen.find(b=>b.id===letzteStunde.baustelle_id):null
+  const aktuelleBaustelle=terminBaustelle||letzteBaustelle
+  const heuteStunden=myStunden.filter(s=>s.datum===heuteStr).reduce((a,s)=>a+s.dauer,0)
+
   return (
     <div className="page-content">
       <div style={{marginBottom:'0.75rem',paddingTop:'0.25rem'}}>
@@ -220,6 +230,31 @@ function HomePage({user,stunden,baustellen,onStunden,onDelete,isAdmin,isBuero,on
         </div>
         <span style={{color:'#fca5a5',fontSize:'1rem'}}>›</span>
       </button>}
+      <div className="dash-row">
+        <div className="dash-card">
+          <div className="dash-card-icon" style={{background:'var(--blue-pale)'}}>🏗️</div>
+          <div className="dash-card-body">
+            <div className="dash-card-label">{naechsterTermin&&terminBaustelle?'Nächste Baustelle':'Zuletzt gebucht'}</div>
+            <div className="dash-card-title">{aktuelleBaustelle?.name||'Keine Baustelle zugeordnet'}</div>
+            {aktuelleBaustelle&&<div className="dash-card-sub">{aktuelleBaustelle.kunde}</div>}
+          </div>
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-icon" style={{background:'#FFF7ED'}}>📅</div>
+          <div className="dash-card-body">
+            <div className="dash-card-label">Nächster Termin</div>
+            <div className="dash-card-title">{naechsterTermin?naechsterTermin.titel:'Keine anstehenden Termine'}</div>
+            {naechsterTermin&&<div className="dash-card-sub">{getDayName(naechsterTermin.datum)}, {formatDate(naechsterTermin.datum)}{naechsterTermin.uhrzeit?` · ${naechsterTermin.uhrzeit.slice(0,5)} Uhr`:''}</div>}
+          </div>
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-icon" style={{background:'var(--green-pale)'}}>⏱</div>
+          <div className="dash-card-body">
+            <div className="dash-card-label">Heute erfasst</div>
+            <div className="dash-card-title">{heuteStunden>0?`${heuteStunden.toFixed(1)} Std.`:'Noch nichts erfasst'}</div>
+          </div>
+        </div>
+      </div>
       {ausstehend>0&&(
         <div style={{background:'#fef3c7',border:'1px solid #f6e05e',borderRadius:12,padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
           <span style={{fontSize:'0.85rem',color:'#92400e'}}>⏳ {ausstehend} Eintrag{ausstehend>1?'e':''} wartet auf Freigabe</span>
@@ -387,6 +422,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
               </div>
             ))}
           </div>
+          <MaterialCounterEditor baustelleId={showDetail} user={user}/>
           <BaustellenCounterOverview baustelleId={showDetail}/>
           {!editMode&&(
             <button className="btn btn-secondary" style={{marginBottom:'0.5rem'}} onClick={()=>setEditMode(true)}>✏️ Baustelle bearbeiten</button>
@@ -597,8 +633,13 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers}) {
   )
 }
 
-function ProfilPage({user,stunden,baustellen,isBuero,setPage}) {
+function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,onLogout,installAvailable,onInstall}) {
   const profile=user.profile||{}
+  const isAzubi=profile.role==='azubi'
+  const kannUrlaubBeantragen=!isAdmin&&!isBuero
+  const [showUrlaub,setShowUrlaub]=useState(false)
+  const [showAusbildung,setShowAusbildung]=useState(false)
+  const [showEinstellungen,setShowEinstellungen]=useState(false)
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const freigegebene=myStunden.filter(s=>s.freigabe_status==='freigegeben')
   const total=freigegebene.reduce((a,s)=>a+s.dauer,0)
@@ -634,7 +675,7 @@ function ProfilPage({user,stunden,baustellen,isBuero,setPage}) {
       <div className="card">
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
           <div className="card-title" style={{marginBottom:0}}>🏖️ Urlaub {new Date().getFullYear()}</div>
-          {!isBuero&&<button onClick={()=>setPage('urlaub')} style={{fontSize:'0.75rem',padding:'4px 12px',background:'var(--blue)',color:'white',border:'none',borderRadius:20,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>+ Beantragen</button>}
+          {kannUrlaubBeantragen&&<button onClick={()=>setShowUrlaub(s=>!s)} style={{fontSize:'0.75rem',padding:'4px 12px',background:'var(--blue)',color:'white',border:'none',borderRadius:20,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>{showUrlaub?'Ausblenden':'+ Beantragen'}</button>}
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{urlaubGesamt}</div><div className="text-xs text-muted">Gesamt</div></div>
@@ -644,6 +685,11 @@ function ProfilPage({user,stunden,baustellen,isBuero,setPage}) {
         <div className="progress-bar"><div className="progress-fill" style={{width:`${urlaubPct}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
         <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{urlaubPct}% verbraucht</div>
       </div>
+      {kannUrlaubBeantragen&&showUrlaub&&(
+        <div style={{marginTop:'-0.25rem'}}>
+          <UrlaubPage user={user} isAdmin={false} isBuero={false} allUsers={allUsers}/>
+        </div>
+      )}
 
       {/* ── STUNDENKONTO ── */}
       {!isBuero&&(()=>{
@@ -717,12 +763,46 @@ function ProfilPage({user,stunden,baustellen,isBuero,setPage}) {
           )
         })}
       </div>
+
+      {isAzubi&&(
+        <>
+          <button className="profil-section-toggle" onClick={()=>setShowAusbildung(s=>!s)}>
+            <div className="profil-section-toggle-icon">📘</div>
+            <div style={{flex:1}}>
+              <div className="profil-section-toggle-label">Ausbildungsheft</div>
+              <div className="profil-section-toggle-sub">Wochenberichte eintragen &amp; einreichen</div>
+            </div>
+            <span className="profil-section-toggle-chev">{showAusbildung?'▲':'▼'}</span>
+          </button>
+          {showAusbildung&&(
+            <div className="profil-section-body">
+              <BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>
+            </div>
+          )}
+        </>
+      )}
+
+      <button className="profil-section-toggle" onClick={()=>setShowEinstellungen(s=>!s)}>
+        <div className="profil-section-toggle-icon">⚙️</div>
+        <div style={{flex:1}}>
+          <div className="profil-section-toggle-label">Einstellungen</div>
+          <div className="profil-section-toggle-sub">App &amp; Konto</div>
+        </div>
+        <span className="profil-section-toggle-chev">{showEinstellungen?'▲':'▼'}</span>
+      </button>
+      {showEinstellungen&&(
+        <div className="profil-section-body card">
+          {installAvailable&&<button className="btn btn-secondary" onClick={onInstall}>📱 App auf Homescreen installieren</button>}
+          <button className="btn" style={{background:'var(--red-pale)',color:'var(--red)',border:'1px solid rgba(214,62,62,0.2)'}} onClick={onLogout}>🚪 Abmelden</button>
+        </div>
+      )}
     </div>
   )
 }
 
 function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) {
   const [tab,setTab]=useState('freigabe')
+  const [menuOpen,setMenuOpen]=useState(false)
   const [showNewUser,setShowNewUser]=useState(false)
   const [selectedMitarbeiter,setSelectedMitarbeiter]=useState(null)
   const [weekOffsets,setWeekOffsets]=useState({})
@@ -773,13 +853,62 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
     setShowNewUser(false); setSaving(false)
   }
 
+  // Gruppierte Admin-Navigation: ersetzt die frühere Reihe nebeneinanderstehender
+  // Buttons durch ein strukturiertes Dropdown-Menü. Jede bestehende Admin-Funktion
+  // bleibt erreichbar — nur anders gruppiert. "Urlaub" und "Ausbildungsheft" waren
+  // vorher eigene Top-Level-Tabs der Haupt-App und sind hier neu eingegliedert.
+  const ADMIN_MENU=[
+    {
+      label:'Mitarbeiter',
+      items:[
+        {key:'freigabe',label:ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'},
+        {key:'mitarbeiter',label:'Mitarbeiter'},
+        {key:'urlaub',label:'Urlaub'},
+        {key:'ausbildung',label:'Ausbildungsheft'},
+        {key:'auswertung',label:'Auswertung'},
+      ]
+    },
+    {
+      label:'Formulare & Anmeldungen',
+      items:[
+        {key:'waermepumpen',label:'🌡️ Wärmepumpe'},
+        {key:'zaehlerschrank',label:'⚡ Zählerschrank'},
+      ]
+    }
+  ]
+  const currentItem=ADMIN_MENU.flatMap(g=>g.items.map(i=>({...i,group:g.label}))).find(i=>i.key===tab)
+
   return (
     <div className="page-content">
       {msg&&<div className="alert alert-success">{msg}</div>}
-      <div className="tab-row">
-  {[['freigabe',ausstehend.length>0?`Freigaben (${ausstehend.length})`:'Freigaben ✓'],['mitarbeiter','Mitarbeiter'],['auswertung','Auswertung'],['waermepumpen','🌡️ Wärmepumpe'],['zaehlerschrank','⚡ Zählerschrank']].map(([key,label])=>(
-          <button key={key} className={`tab-btn ${tab===key?'active':''}`} onClick={()=>setTab(key)}>{label}</button>
-        ))}
+      <div className="admin-nav-wrap">
+        <button className="admin-nav-trigger" onClick={()=>setMenuOpen(o=>!o)}>
+          <div className="admin-nav-trigger-icon">☰</div>
+          <div className="admin-nav-trigger-label">
+            <div className="admin-nav-trigger-group">{currentItem?.group||'Verwaltung'}</div>
+            <div className="admin-nav-trigger-current">{currentItem?.label||'Menü'}</div>
+          </div>
+          <span className={`admin-nav-trigger-chevron ${menuOpen?'open':''}`}>▼</span>
+        </button>
+        {menuOpen&&<div className="admin-nav-backdrop" onClick={()=>setMenuOpen(false)}/>}
+        {menuOpen&&(
+          <div className="admin-nav-panel">
+            {ADMIN_MENU.map((group,gi)=>(
+              <div key={group.label}>
+                <div className="admin-nav-group">
+                  <div className="admin-nav-group-label">{group.label}</div>
+                  {group.items.map(item=>(
+                    <button key={item.key} className={`admin-nav-item ${tab===item.key?'active':''}`} onClick={()=>{setTab(item.key);setMenuOpen(false)}}>
+                      <span className="admin-nav-item-dot"/>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+                {gi<ADMIN_MENU.length-1&&<div className="admin-nav-divider"/>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {tab==='freigabe'&&(
@@ -1000,6 +1129,12 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
             })}
           </div>
         </>
+      )}
+      {tab==='urlaub'&&(
+        <UrlaubPage user={currentUser} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'} allUsers={allUsers}/>
+      )}
+      {tab==='ausbildung'&&(
+        <BerichtsheftPage user={currentUser} allUsers={allUsers} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'}/>
       )}
  {tab==='waermepumpen'&&(
         <WaermepumpenPage user={currentUser} allUsers={allUsers} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'} isExtern={false}/>
@@ -1313,9 +1448,13 @@ const MATERIALS_WAERMEPUMPE = [
   { id: 'k510', label: 'Kabel 5×10 mm²', icon: 'kabel', unit: 'm' },
 ]
 
-function CounterPage({ baustellen, user }) {
+function MaterialCounterEditor({ baustelleId, user }) {
+  // Material-Counter einer Baustelle — früher eigene "Counter"-Seite, jetzt direkt
+  // in die Baustellen-Detailansicht integriert (siehe UI/UX-Rework). Jeder Nutzer
+  // führt pro Baustelle+Modus seine eigene Zählung (upsert-Key user_id+baustelle_id+mode);
+  // die Summe aller Nutzer bleibt weiterhin über <BaustellenCounterOverview> sichtbar.
+  const [collapsed, setCollapsed] = useState(true)
   const [mode, setMode] = useState('baustelle')
-  const [selectedBs, setSelectedBs] = useState('')
   const [counts, setCounts] = useState({})
   const [custom, setCustom] = useState([])
   const [newCustom, setNewCustom] = useState('')
@@ -1325,17 +1464,17 @@ function CounterPage({ baustellen, user }) {
   const saveTimerRef = useRef(null)
 
   const materials = mode === 'baustelle' ? MATERIALS_BAUSTELLE : MATERIALS_WAERMEPUMPE
-  const storageKey = 'counter_' + mode + '_' + selectedBs
+  const storageKey = 'counter_' + mode + '_' + baustelleId
 
   // Laden: gemeinsamer Eintrag pro Baustelle+Mode (neuester Stand, egal wer gespeichert hat)
   useEffect(() => {
-    if (!selectedBs) return
+    if (!baustelleId) return
     async function loadCounter() {
       setCloudStatus('')
       // Neuesten Eintrag fuer diese Baustelle laden (egal von welchem User)
       const { data: rows } = await supabase.from('counter_saves')
         .select('counts,custom,updated_at,user_id')
-        .eq('baustelle_id', selectedBs)
+        .eq('baustelle_id', baustelleId)
         .eq('mode', mode)
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -1352,18 +1491,18 @@ function CounterPage({ baustellen, user }) {
       }
     }
     loadCounter()
-  }, [selectedBs, mode])
+  }, [baustelleId, mode])
 
   function saveLocal(nc, ncu) {
-    if (!selectedBs || typeof window === 'undefined') return
+    if (!baustelleId || typeof window === 'undefined') return
     try { window.localStorage.setItem(storageKey, JSON.stringify({counts:nc,custom:ncu})) } catch(e) {}
   }
 
   async function saveCloud(nc, ncu) {
-    if (!user?.id || !selectedBs) return
+    if (!user?.id || !baustelleId) return
     setCloudStatus('saving')
     const { error } = await supabase.from('counter_saves').upsert(
-      { user_id: user.id, baustelle_id: selectedBs, mode, counts: nc, custom: ncu, updated_at: new Date().toISOString() },
+      { user_id: user.id, baustelle_id: baustelleId, mode, counts: nc, custom: ncu, updated_at: new Date().toISOString() },
       { onConflict: 'user_id,baustelle_id,mode' }
     )
     if (error) { setCloudStatus('error') } else { setCloudStatus('saved') }
@@ -1392,29 +1531,25 @@ function CounterPage({ baustellen, user }) {
     setCustom(ncu); setCounts(nc); autoSave(nc,ncu)
   }
 
-  const aktiveBaustellen = baustellen.filter(b => b.status === 'aktiv')
+  const belegteFelder = Object.values(counts).filter(v=>v>0).length
 
   return (
-    <div className="page-content">
+    <div style={{marginBottom:'0.75rem'}}>
+      <button onClick={()=>setCollapsed(c=>!c)} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid var(--border2)',borderRadius:'var(--r-md)',padding:'0.75rem 1rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
+        <div style={{width:34,height:34,borderRadius:'50%',background:'var(--blue-pale)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'var(--blue)'}}><IconCounter/></div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:'0.88rem',fontWeight:600,color:'var(--dark)'}}>📦 Material zählen</div>
+          {belegteFelder>0&&<div style={{fontSize:'0.72rem',color:'var(--text3)',marginTop:1}}>{belegteFelder} Position{belegteFelder>1?'en':''} erfasst</div>}
+        </div>
+        <span style={{color:'var(--text3)',fontSize:'0.85rem'}}>{collapsed?'▼':'▲'}</span>
+      </button>
+      {!collapsed&&(
+      <div style={{marginTop:'0.625rem'}}>
       <div style={{display:'flex',background:'white',borderRadius:'var(--r-xl)',padding:4,marginBottom:'1rem',boxShadow:'var(--shadow-sm)',border:'1px solid var(--border)'}}>
         <button onClick={()=>{setMode('baustelle');setCounts({});setCustom([])}} style={{flex:1,padding:'0.625rem',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.85rem',fontWeight:600,transition:'all 0.2s',background:mode==='baustelle'?'var(--dark)':'transparent',color:mode==='baustelle'?'white':'var(--text2)'}}>🏗️ Baustelle</button>
         <button onClick={()=>{setMode('waermepumpe');setCounts({});setCustom([])}} style={{flex:1,padding:'0.625rem',borderRadius:'var(--r-lg)',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:'0.85rem',fontWeight:600,transition:'all 0.2s',background:mode==='waermepumpe'?'var(--dark)':'transparent',color:mode==='waermepumpe'?'white':'var(--text2)'}}>🌡️ Wärmepumpe</button>
       </div>
-      <div className="form-group" style={{marginBottom:'1rem'}}>
-        <label>Baustelle auswählen</label>
-        <select value={selectedBs} onChange={e=>setSelectedBs(e.target.value)}>
-          <option value="">— Bitte auswählen —</option>
-          {aktiveBaustellen.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-      </div>
-      {!selectedBs&&(
-        <div className="empty-state">
-          <div className="empty-icon"><IconCounter/></div>
-          <div className="empty-title">Baustelle auswählen</div>
-          <div className="empty-sub">Wähle eine Baustelle um den Counter zu starten.</div>
-        </div>
-      )}
-      {selectedBs&&(
+      {(
         <>
           <div className="section-header" style={{marginBottom:'0.75rem'}}>
             <span className="section-title">{mode==='baustelle'?'Elektro-Material':'Wärmepumpen-Material'}</span>
@@ -1467,6 +1602,8 @@ function CounterPage({ baustellen, user }) {
             )}
           </div>
         </>
+      )}
+      </div>
       )}
     </div>
   )
@@ -4213,29 +4350,29 @@ export default function App() {
           <button onClick={handleLogout} style={{height:30,padding:'0 10px',fontSize:'0.72rem',background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',color:'rgba(255,255,255,0.7)',borderRadius:6,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>Abmelden</button>
         </div>
       </div>
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)}/>}
+      {/* ── UI/UX-Rework: max. 4 Haupt-Tabs (+ Admin für Admin/Büro) ──────────
+          "Counter" (Material-Zähler) lebt jetzt in Baustellen → Detail.
+          "Urlaub" und "Ausbildungsheft/Heft" leben jetzt in Profil (Selbstbedienung)
+          bzw. im Admin-Menü (Freigabe/Signatur) — keine eigenen Top-Level-Tabs mehr.
+          Das Ausblenden der Navigation ersetzt keine Server-Rechte: alle Supabase-
+          RLS-Policies und Rollen-Prüfungen in den Unterseiten bleiben unverändert. */}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
-      {page==='urlaub'&&<UrlaubPage user={user} isAdmin={isAdmin} isBuero={isBuero} allUsers={allUsers}/>}
-      {page==='counter'&&<CounterPage baustellen={baustellen} user={user}/>}
-      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} isBuero={isBuero} setPage={setPage}/>}
+      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
-      {page==='berichtsheft'&&<BerichtsheftPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
         {!isExtern&&<button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>}
         {!isExtern&&<button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>}
-        {!isExtern&&<button className={`nav-item ${page==='counter'?'active':''}`} onClick={()=>setPage('counter')}><IconCounter/><span>Counter</span></button>}
         {!isExtern&&<button className={`nav-item ${page==='kalender'?'active':''}`} onClick={()=>setPage('kalender')} style={{position:'relative'}}>
           <IconKalender/>
           {kalenderBadge>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#d69e2e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{kalenderBadge}</span>}
           <span>Kalender</span>
         </button>}
         {!isExtern&&<button className={`nav-item ${page==='profil'?'active':''}`} onClick={()=>setPage('profil')}><IconUser/><span>Profil</span></button>}
-        {!isExtern&&(isAzubi||isAdmin||isBuero)&&<button className={`nav-item ${page==='berichtsheft'?'active':''}`} onClick={()=>setPage('berichtsheft')}><IconBuch/><span>Heft</span></button>}
-        {!isExtern&&(isAdmin||isBuero)&&<button className={`nav-item ${page==='urlaub'?'active':''}`} onClick={()=>setPage('urlaub')}><IconSun/><span>Urlaub</span></button>}
         {isExtern&&(
           <button className={`nav-item ${page==='waermepumpen'?'active':''}`} onClick={()=>setPage('waermepumpen')}>
             <span style={{fontSize:'1.2rem',lineHeight:1}}>🌡️</span><span>Wärmepumpe</span>
