@@ -3379,6 +3379,20 @@ const WP_DOKUMENT_TYPEN = [
   { id: 'sonstiges', label: 'Sonstiges' },
 ]
 
+// Feste Liste, damit der Filter in der Vorgangsliste nicht durch Tippvarianten
+// (z.B. "ENO" vs. "Energienetze Offenbach") auseinanderfällt. Bei Bedarf hier erweitern.
+const NETZBETREIBER_LISTE = [
+  'ENO (Energienetze Offenbach)',
+  'e-netz Südhessen (ENTEGA)',
+  'Süwag Netz',
+  'Mainova Netzservice',
+  'Stadtwerke Mühlheim',
+  'Hanau Netz',
+  'EAM Netz',
+  'Bayernwerk Netz',
+  'Sonstige',
+]
+
 function wpStatusBadge(status) {
   const cfg = WP_STATUS[status] || WP_STATUS.offen
   return <span style={{background:cfg.bg,color:cfg.color,padding:'3px 10px',borderRadius:20,fontSize:'0.72rem',fontWeight:700}}>{cfg.label}</span>
@@ -3523,7 +3537,7 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
     projektnummer:'', vorname:'', nachname:'', strasse:'', hausnummer:'', plz:'', ort:'',
     geburtsdatum:'', telefon:'', email:'', modell_id:'', zustaendig_user_id: user.id,
     rechnungsadresse_abweichend: false, rechnung_name:'', rechnung_strasse:'', rechnung_hausnummer:'', rechnung_plz:'', rechnung_ort:'',
-    kommentar: '', prioritaet: false, heizstab: true
+    kommentar: '', prioritaet: false, heizstab: true, netzbetreiber: ''
   })
   const [saving, setSaving] = useState(false)
 
@@ -3536,6 +3550,7 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
       ...form,
       geburtsdatum: form.geburtsdatum || null,
       modell_id: form.modell_id || null,
+      netzbetreiber: form.netzbetreiber || null,
       status: 'offen',
       erstellt_von: user.id
     }]).select().single()
@@ -3616,6 +3631,13 @@ function WaermepumpenNeuModal({ user, allUsers, modelle, onClose, onSaved }) {
           {allUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
       </div>
+      <div className="form-group">
+        <label>Netzbetreiber (optional)</label>
+        <select value={form.netzbetreiber} onChange={e=>setForm(f=>({...f,netzbetreiber:e.target.value}))}>
+          <option value="">— noch nicht zugeordnet —</option>
+          {NETZBETREIBER_LISTE.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
 
       <div className="form-group">
         <label>Kommentar / Sonstiges (optional)</label>
@@ -3659,6 +3681,7 @@ function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, on
       changes.push(`Status von "${alt}" auf "${neu}" geändert`)
     }
     if(editForm.modell_id !== vorgang.modell_id) changes.push('Wärmepumpe geändert')
+    if(editForm.netzbetreiber !== vorgang.netzbetreiber) changes.push(`Netzbetreiber auf "${editForm.netzbetreiber||'—'}" gesetzt`)
     await supabase.from('wp_vorgaenge').update({
       ...editForm, updated_at: new Date().toISOString()
     }).eq('id', vorgang.id)
@@ -3808,6 +3831,13 @@ function WaermepumpenDetailModal({ vorgang, user, allUsers, modelle, onClose, on
               {allUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
+          <div className="form-group">
+            <label>Netzbetreiber</label>
+            <select value={editForm.netzbetreiber||''} onChange={e=>setEditForm(f=>({...f,netzbetreiber:e.target.value}))}>
+              <option value="">— noch nicht zugeordnet —</option>
+              {NETZBETREIBER_LISTE.map(n=><option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
 
          <div className="form-group">
             <label>Kommentar / Sonstiges</label>
@@ -3873,6 +3903,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
   const [suche, setSuche] = useState('')
   const [filterStatus, setFilterStatus] = useState('alle')
   const [filterModell, setFilterModell] = useState('alle')
+  const [filterNetzbetreiber, setFilterNetzbetreiber] = useState('alle')
   const [showNeu, setShowNeu] = useState(false)
   const [showVerwaltung, setShowVerwaltung] = useState(false)
   const [showEinladen, setShowEinladen] = useState(false)
@@ -3899,6 +3930,8 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
     if(filterStatus!=='alle' && v.status!==filterStatus) return false
     if(nurPrioritaet && !v.prioritaet) return false
     if(filterModell!=='alle' && v.modell_id!==filterModell) return false
+    if(filterNetzbetreiber==='_offen' && v.netzbetreiber) return false
+    if(filterNetzbetreiber!=='alle' && filterNetzbetreiber!=='_offen' && v.netzbetreiber!==filterNetzbetreiber) return false
     if(suche.trim()){
       const s = suche.toLowerCase()
       const text = `${v.vorname} ${v.nachname} ${v.projektnummer}`.toLowerCase()
@@ -3950,6 +3983,14 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
           </button>
         ))}
       </div>
+      <div className="form-group" style={{marginBottom:'0.75rem'}}>
+        <label>⚡ Netzbetreiber</label>
+        <select value={filterNetzbetreiber} onChange={e=>setFilterNetzbetreiber(e.target.value)}>
+          <option value="alle">Alle Netzbetreiber</option>
+          <option value="_offen">— noch nicht zugeordnet —</option>
+          {NETZBETREIBER_LISTE.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
 
       {loading?<p className="text-muted text-sm">Lädt...</p>:gefiltert.length===0?(
         <div className="empty-state">
@@ -3979,6 +4020,7 @@ function WaermepumpenPage({ user, allUsers, isAdmin, isBuero, isExtern }) {
                 <div className="text-xs text-muted" style={{marginTop:2}}>Projekt {v.projektnummer} · {v.plz} {v.ort}</div>
                 {modell&&<div className="text-xs" style={{color:'var(--blue)',marginTop:2}}>🌡️ {modell.hersteller_name} · {modell.modell}</div>}
                 {zustaendig&&<div className="text-xs text-muted" style={{marginTop:2}}>👤 {zustaendig.name}</div>}
+                <div className="text-xs" style={{marginTop:2,color:v.netzbetreiber?'var(--text2)':'#c05621'}}>⚡ {v.netzbetreiber||'noch nicht zugeordnet'}</div>
               </div>
               {wpStatusBadge(v.status)}
             </div>
