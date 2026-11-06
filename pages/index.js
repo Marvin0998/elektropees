@@ -17,7 +17,25 @@ function calcDauer(start,end) { const [sh,sm]=start.split(':').map(Number); cons
 function initials(name) { return name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) }
 function today() { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0') }
 function getDayName(dateStr) { const days=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; return days[new Date(dateStr).getDay()] }
-function countWorkdays(from,to) { let count=0; const d=new Date(from); while(d<=new Date(to)){const dow=d.getDay(); if(dow>=1&&dow<=4)count++; d.setDate(d.getDate()+1)} return count }
+// Datums-Mathe läuft bewusst über UTC-Kalendertage statt über lokale Uhrzeit: bei der
+// Zeitumstellung (Ende Oktober/März) rutscht sonst der letzte Tag eines Zeitraums raus
+// (z.B. wurden 14.09.–30.11. als 44 statt 45 Arbeitstage gezählt).
+const TAG_MS=86400000
+function utcTag(s) { const [y,m,d]=String(s).slice(0,10).split('-').map(Number); return Date.UTC(y,m-1,d) }
+function tagString(ms) { return new Date(ms).toISOString().slice(0,10) }
+function countWorkdays(from,to) { let count=0; for(let t=utcTag(from); t<=utcTag(to); t+=TAG_MS){const dow=new Date(t).getUTCDay(); if(dow>=1&&dow<=4)count++} return count }
+// Genommener Urlaub = Arbeitstage (Mo–Do) aller GENEHMIGTEN Anträge im Kalenderjahr. Wird direkt
+// aus den Anträgen berechnet statt über einen hochgezählten Zähler im Profil: so hängt der Wert
+// nicht davon ab, ob ein Schreibzugriff beim Genehmigen geklappt hat, und eine spätere
+// Korrektur/Ablehnung stimmt automatisch.
+function urlaubTageImJahr(antrag, jahr) {
+  const von = antrag.von_datum < `${jahr}-01-01` ? `${jahr}-01-01` : antrag.von_datum
+  const bis = antrag.bis_datum > `${jahr}-12-31` ? `${jahr}-12-31` : antrag.bis_datum
+  return von > bis ? 0 : countWorkdays(von, bis)
+}
+function urlaubTageGenommen(antraege, userId, jahr = new Date().getFullYear()) {
+  return (antraege||[]).filter(a=>a.user_id===userId && a.status==='genehmigt').reduce((sum,a)=>sum+urlaubTageImJahr(a,jahr),0)
+}
 function fmtStd(h) {
   // Deutsche Stundenformatierung: 9,5 Std. / 0,0 Std.
   return h.toFixed(1).replace('.',',') + ' Std.'
@@ -37,41 +55,78 @@ function vergangeneArbeitstageDieseWoche() {
 }
 
 // ─── STUNDENKONTO ─────────────────────────────────────────────────────────────
-function berechneStundenkonto(stunden) {
-  const freigegeben = stunden.filter(s => s.freigabe_status === 'freigegeben')
-  const wochenMap = {}
-  freigegeben.forEach(s => {
-    const d = new Date(s.datum)
-    const montag = new Date(d)
-    const tag = d.getDay()
-    const diffZumMontag = (tag === 0 ? -6 : 1 - tag)
-    montag.setDate(d.getDate() + diffZumMontag)
-    const key = montag.toISOString().split('T')[0]
-    if (!wochenMap[key]) wochenMap[key] = { geleistet: 0, montag: new Date(montag) }
-    wochenMap[key].geleistet += parseFloat(s.dauer) || 0
+// Vergleicht pro Woche die geleisteten (freigegebenen) Stunden mit der Regelarbeitszeit
+// (regelStunden pro Woche, verteilt auf Mo–Do). Optionen:
+//   regelStunden – Wochenstunden laut Profil (Standard 38)
+//   urlaub       – GENEHMIGTE Urlaubsanträge dieses Mitarbeiters ({von_datum, bis_datum});
+//                  Urlaubstage (Mo–Do) ohne eigenen Eintrag senken das Soll der Woche
+//   leereWochen  – true: komplett vergangene Wochen OHNE jeden Eintrag zählen ab der Woche
+//                  des ersten Eintrags als Minusstunden. Wochen mit nur ausstehenden
+//                  (noch nicht freigegebenen) Einträgen bleiben neutral, bis entschieden ist.
+//   heute        – nur für Tests ('YYYY-MM-DD')
+function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], leereWochen = false, heute = today() } = {}) {
+  const tagesSoll = regelStunden / 4
+  const heuteMs = utcTag(heute)
+  const montagVon = (datum) => { const t = utcTag(datum); return tagString(t - ((new Date(t).getUTCDay() + 6) % 7) * TAG_MS) }
+  const ddmm = (key) => key.slice(8, 10) + '.' + key.slice(5, 7) + '.'
+
+  const wochen = {}              // Montag → { geleistet, freigegeben }
+  const tageMitEintrag = new Set() // Urlaub wird nie zusätzlich zu einem eingetragenen Tag gutgeschrieben
+  let start = null               // Montag der ersten Woche mit Eintrag
+  stunden.forEach(s => {
+    if (s.freigabe_status === 'abgelehnt') return
+    const key = montagVon(s.datum)
+    const w = wochen[key] || (wochen[key] = { geleistet: 0, freigegeben: false })
+    if (s.freigabe_status === 'freigegeben') { w.freigegeben = true; w.geleistet += parseFloat(s.dauer) || 0 }
+    tageMitEintrag.add(String(s.datum).slice(0, 10))
+    if (start === null || key < start) start = key
   })
-  const heute = new Date()
-  heute.setHours(0, 0, 0, 0)
+
+  // Urlaubstage (Mo–Do, bis einschließlich bisTag) dieser Woche ohne eigenen Eintrag
+  const urlaubsTage = (key, bisTag) => {
+    let n = 0
+    for (let i = 0; i < 4; i++) {
+      const tag = tagString(utcTag(key) + i * TAG_MS)
+      if (tag > bisTag) break
+      if (tageMitEintrag.has(tag)) continue
+      if (urlaub.some(a => a.von_datum <= tag && tag <= a.bis_datum)) n++
+    }
+    return n
+  }
+
+  const keys = new Set(Object.keys(wochen).filter(k => wochen[k].freigegeben))
+  if (leereWochen && start !== null) {
+    for (let t = utcTag(start); t + 6 * TAG_MS < heuteMs; t += 7 * TAG_MS) {
+      const key = tagString(t)
+      if (!wochen[key]) keys.add(key) // gar nichts eingetragen (auch nichts Ausstehendes)
+    }
+  }
+
   let saldo = 0
   const verlauf = []
-  Object.entries(wochenMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .forEach(([key, { geleistet, montag }]) => {
-      const donnerstag = new Date(montag)
-      donnerstag.setDate(montag.getDate() + 3)
-      let regelstunden = 38
-      if (montag > heute) {
-        regelstunden = 0
-      } else if (donnerstag >= heute) {
-        const wochentag = heute.getDay()
-        const vergangeneArbeitstage = Math.min(wochentag === 0 ? 4 : Math.min(wochentag, 4), 4)
-        regelstunden = vergangeneArbeitstage * 9.5
-      }
-      const differenz = geleistet - regelstunden
-      saldo += differenz
-      const label = `KW ${montag.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}–${donnerstag.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`
-      verlauf.push({ key, label, geleistet, regelstunden, differenz })
-    })
+  Array.from(keys).sort().forEach(key => {
+    const leer = !wochen[key]
+    const geleistet = leer ? 0 : wochen[key].geleistet
+    const montagMs = utcTag(key)
+    const donnerstagMs = montagMs + 3 * TAG_MS
+    let regel = regelStunden
+    let bisTag = tagString(donnerstagMs)
+    if (montagMs > heuteMs) {
+      regel = 0
+    } else if (donnerstagMs >= heuteMs) {
+      // laufende Woche: nur die bisher vergangenen Arbeitstage (Mo–Do) zählen
+      const wochentag = new Date(heuteMs).getUTCDay()
+      regel = (wochentag === 0 ? 4 : Math.min(wochentag, 4)) * tagesSoll
+      bisTag = heute
+    }
+    const uTage = regel > 0 ? urlaubsTage(key, bisTag) : 0
+    regel = Math.max(0, regel - uTage * tagesSoll)
+    if (leer && regel <= 0) return // ganze Woche Urlaub → neutral, kein Eintrag nötig
+    const differenz = geleistet - regel
+    saldo += differenz
+    const label = `KW ${ddmm(key)}–${ddmm(tagString(donnerstagMs))}`
+    verlauf.push({ key, label, geleistet, regelstunden: regel, differenz, leer, urlaubTage: uTage })
+  })
   return { saldo, verlauf }
 }
 
@@ -494,7 +549,7 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
   )
 }
 
-function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
+function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false,onChanged}) {
   // embedded=true: wird innerhalb von ProfilPage angezeigt, die die Urlaubszahlen
   // (Gesamt/Genommen/Verbleibend) bereits in ihrer eigenen Karte zeigt — hier daher
   // ohne die doppelte "Urlaubskonto"-Karte, nur Anträge + Beantragen-Button.
@@ -514,19 +569,20 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
     if(!form.von||!form.bis){alert('Bitte Von- und Bis-Datum angeben!');return}
     if(tage<=0){alert('Ungültiger Zeitraum!');return}
     setSaving(true)
-    await supabase.from('urlaubsantraege').insert([{user_id:user.id,von_datum:form.von,bis_datum:form.bis,tage,notiz:form.notiz,status:'ausstehend'}])
+    const {error}=await supabase.from('urlaubsantraege').insert([{user_id:user.id,von_datum:form.von,bis_datum:form.bis,tage,notiz:form.notiz,status:'ausstehend'}])
+    if(error){alert('Antrag konnte nicht gespeichert werden: '+error.message); setSaving(false); return}
     setMsg({text:'✓ Urlaubsantrag wurde eingereicht!',type:'success'})
     setForm({von:'',bis:'',notiz:''}); setShowNew(false); await loadAntraege(); setSaving(false)
+    onChanged&&onChanged()
     setTimeout(()=>setMsg({text:'',type:''}),3000)
   }
-  async function handleEntscheidung(id,userId,tage,entscheidung) {
-    await supabase.from('urlaubsantraege').update({status:entscheidung}).eq('id',id)
-    if(entscheidung==='genehmigt'){
-      const {data:profile}=await supabase.from('profiles').select('urlaub_genommen').eq('id',userId).single()
-      await supabase.from('profiles').update({urlaub_genommen:(profile?.urlaub_genommen||0)+tage}).eq('id',userId)
-    }
+  async function handleEntscheidung(id,entscheidung) {
+    // Der genommene Urlaub wird aus den genehmigten Anträgen berechnet (urlaubTageGenommen) —
+    // hier wird daher nur noch der Status gesetzt, kein Zähler im Profil mehr hochgezählt.
+    const {error}=await supabase.from('urlaubsantraege').update({status:entscheidung}).eq('id',id)
+    if(error){setMsg({text:'Fehler beim Speichern: '+error.message,type:'error'}); return}
     setMsg({text:entscheidung==='genehmigt'?'✓ Urlaub genehmigt!':'Urlaub abgelehnt.',type:entscheidung==='genehmigt'?'success':'error'})
-    await loadAntraege(); setTimeout(()=>setMsg({text:'',type:''}),3000)
+    await loadAntraege(); onChanged&&onChanged(); setTimeout(()=>setMsg({text:'',type:''}),3000)
   }
   return (
     <div className={embedded?'':'page-content'}>
@@ -539,15 +595,15 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
               <div className="card">
                 <div className="card-title">🏖️ Urlaubskonto {new Date().getFullYear()}</div>
                 {allUsers.filter(u2=>u2.id===user.id).map(u2=>{
-                  const ug=u2.urlaub_gesamt||24; const un=u2.urlaub_genommen||0; const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
+                  const ug=u2.urlaub_gesamt||24; const un=urlaubTageGenommen(antraege,u2.id); const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
                   return (
                     <div key={u2.id}>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
                         <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{ug}</div><div className="text-xs text-muted">Gesamt</div></div>
                         <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{un}</div><div className="text-xs text-muted">Genommen</div></div>
-                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#38a169'}}>{rest}</div><div className="text-xs text-muted">Verbleibend</div></div>
+                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:rest<0?'#e53e3e':'#38a169'}}>{rest}</div><div className="text-xs text-muted">Verbleibend</div></div>
                       </div>
-                      <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
+                      <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,pct)}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
                       <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{pct}% verbraucht</div>
                     </div>
                   )
@@ -564,7 +620,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
               <div key={a.id} className="list-item">
                 <div className="list-item-left">
                   <span className="list-item-title text-sm">{formatDate(a.von_datum)} – {formatDate(a.bis_datum)}</span>
-                  <span className="list-item-sub">{a.tage} Arbeitstage (Mo–Do){a.notiz&&` · ${a.notiz}`}</span>
+                  <span className="list-item-sub">{countWorkdays(a.von_datum,a.bis_datum)} Arbeitstage (Mo–Do){a.notiz&&` · ${a.notiz}`}</span>
                   <div style={{marginTop:3}}>{urlaubBadge(a.status)}</div>
                 </div>
               </div>
@@ -583,14 +639,14 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
                   <div>
                     <div className="font-bold" style={{color:'#0A0A44'}}>{a.profiles?.name||'—'}</div>
                     <div className="text-sm text-muted">{formatDate(a.von_datum)} – {formatDate(a.bis_datum)}</div>
-                    <div className="text-sm" style={{color:'#1B52DD',fontWeight:600}}>{a.tage} Arbeitstage (Mo–Do)</div>
+                    <div className="text-sm" style={{color:'#1B52DD',fontWeight:600}}>{countWorkdays(a.von_datum,a.bis_datum)} Arbeitstage (Mo–Do)</div>
                     {a.notiz&&<div className="text-xs text-muted" style={{marginTop:2}}>📝 {a.notiz}</div>}
                   </div>
                   {urlaubBadge(a.status)}
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
-                  <button className="btn btn-success" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleEntscheidung(a.id,a.user_id,a.tage,'genehmigt')}>✓ Genehmigen</button>
-                  <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleEntscheidung(a.id,a.user_id,a.tage,'abgelehnt')}>✗ Ablehnen</button>
+                  <button className="btn btn-success" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleEntscheidung(a.id,'genehmigt')}>✓ Genehmigen</button>
+                  <button className="btn btn-danger" style={{marginBottom:0,padding:'0.6rem'}} onClick={()=>handleEntscheidung(a.id,'abgelehnt')}>✗ Ablehnen</button>
                 </div>
               </div>
             ))
@@ -601,7 +657,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
               <div key={a.id} className="list-item">
                 <div className="list-item-left">
                   <span className="list-item-title text-sm">{a.profiles?.name||'—'}</span>
-                  <span className="list-item-sub">{formatDate(a.von_datum)} – {formatDate(a.bis_datum)} · {a.tage} Tage</span>
+                  <span className="list-item-sub">{formatDate(a.von_datum)} – {formatDate(a.bis_datum)} · {countWorkdays(a.von_datum,a.bis_datum)} Tage</span>
                   <div style={{marginTop:3}}>{urlaubBadge(a.status)}</div>
                 </div>
               </div>
@@ -610,15 +666,15 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
           <div className="card" style={{marginTop:'0.75rem'}}>
             <div className="card-title">🏖️ Urlaubsübersicht</div>
             {allUsers.filter(u=>u.role!=='admin'&&u.role!=='extern').map(u=>{
-              const ug=u.urlaub_gesamt||24; const un=u.urlaub_genommen||0; const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
+              const ug=u.urlaub_gesamt||24; const un=urlaubTageGenommen(antraege,u.id); const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
               return (
                 <div key={u.id} style={{marginBottom:'1rem',paddingBottom:'1rem',borderBottom:'1px solid #e2e8f0'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
                     <span className="font-bold">{u.name}</span><span className="text-sm text-muted">{un}/{ug} Tage</span>
                   </div>
-                  <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`}}/></div>
+                  <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,pct)}%`}}/></div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.72rem',marginTop:4}}>
-                    <span className="text-muted">Verbraucht: {pct}%</span><span className="text-green font-bold">Rest: {rest} Tage</span>
+                    <span className="text-muted">Verbraucht: {pct}%</span><span className={rest<0?'font-bold':'text-green font-bold'} style={rest<0?{color:'var(--red)'}:undefined}>Rest: {rest} Tage</span>
                   </div>
                 </div>
               )
@@ -643,7 +699,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false}) {
   )
 }
 
-function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,onLogout,installAvailable,onInstall}) {
+function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,setPage,onLogout,installAvailable,onInstall}) {
   const profile=user.profile||{}
   const isAzubi=profile.role==='azubi'
   const kannUrlaubBeantragen=!isAdmin&&!isBuero
@@ -657,7 +713,7 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const woche=freigegebene.filter(s=>{const d=new Date(s.datum);return d>=weekStart&&d<=weekEnd}).reduce((a,s)=>a+s.dauer,0)
   const diff=woche-regelStunden
-  const urlaubGesamt=profile.urlaub_gesamt||24; const urlaubGenommen=profile.urlaub_genommen||0
+  const urlaubGesamt=profile.urlaub_gesamt||24; const urlaubGenommen=urlaubTageGenommen(urlaub,user.id)
   const resturlaub=urlaubGesamt-urlaubGenommen; const urlaubPct=((urlaubGenommen/urlaubGesamt)*100).toFixed(0)
   const recent=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,8)
   return (
@@ -690,9 +746,9 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{urlaubGesamt}</div><div className="text-xs text-muted">Gesamt</div></div>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{urlaubGenommen}</div><div className="text-xs text-muted">Genommen</div></div>
-          <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#38a169'}}>{resturlaub}</div><div className="text-xs text-muted">Verbleibend</div></div>
+          <div><div style={{fontSize:'1.3rem',fontWeight:800,color:resturlaub<0?'#e53e3e':'#38a169'}}>{resturlaub}</div><div className="text-xs text-muted">Verbleibend</div></div>
         </div>
-        <div className="progress-bar"><div className="progress-fill" style={{width:`${urlaubPct}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
+        <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,urlaubPct)}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
         <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{urlaubPct}% verbraucht</div>
       </div>
       {kannUrlaubBeantragen&&showUrlaub&&(
@@ -703,7 +759,12 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
 
       {/* ── STUNDENKONTO ── */}
       {!isBuero&&(()=>{
-        const { saldo, verlauf } = berechneStundenkonto(myStunden)
+        const mitLeerWochen = profile.role === 'mitarbeiter'
+        const { saldo, verlauf } = berechneStundenkonto(myStunden, {
+          regelStunden,
+          urlaub: urlaub.filter(a=>a.user_id===user.id && a.status==='genehmigt'),
+          leereWochen: mitLeerWochen
+        })
         const positiv = saldo >= 0
         return (
           <div className="card">
@@ -719,7 +780,8 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
               </span>
             </div>
             <div style={{fontSize:'0.72rem',color:'#888',marginBottom:10}}>
-              Alle freigegebenen Stunden vs. Regelarbeitszeit (38h/Woche Mo–Do)
+              Alle freigegebenen Stunden vs. Regelarbeitszeit ({regelStunden}h/Woche Mo–Do)
+              {mitLeerWochen&&' · Wochen ohne Einträge zählen als Minusstunden, genehmigter Urlaub wird gutgeschrieben'}
             </div>
             {verlauf.length === 0
               ? <p className="text-muted text-sm">Noch keine freigegebenen Einträge.</p>
@@ -728,7 +790,11 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
                     const pos = w.differenz >= 0
                     return (
                       <div key={w.key} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f0f0f0',fontSize:'0.82rem'}}>
-                        <span style={{color:'#555'}}>{w.label}</span>
+                        <span style={{color:'#555'}}>
+                          {w.label}
+                          {w.leer&&<span style={{display:'block',fontSize:'0.68rem',color:'var(--red)'}}>nicht ausgefüllt</span>}
+                          {w.urlaubTage>0&&<span style={{display:'block',fontSize:'0.68rem',color:'#b7791f'}}>🏖️ {w.urlaubTage} {w.urlaubTage===1?'Urlaubstag':'Urlaubstage'} gutgeschrieben</span>}
+                        </span>
                         <div style={{display:'flex',gap:10,alignItems:'center'}}>
                           <span style={{color:'#aaa',fontFamily:"'DM Mono',monospace"}}>{w.geleistet.toFixed(1)}h</span>
                           <span style={{fontWeight:700,minWidth:54,textAlign:'right',color:pos?'var(--green)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>
@@ -810,7 +876,7 @@ function ProfilPage({user,stunden,baustellen,allUsers,isAdmin,isBuero,setPage,on
   )
 }
 
-function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) {
+function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,isAdmin}) {
   const [tab,setTab]=useState('freigabe')
   const [menuOpen,setMenuOpen]=useState(false)
   const [showNewUser,setShowNewUser]=useState(false)
@@ -1011,7 +1077,12 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
             const isOpen=selectedMitarbeiter===u.id
             const myStunden=[...stunden.filter(s=>s.user_id===u.id)].sort((a,b)=>b.datum.localeCompare(a.datum))
             // Stundenkonto für diesen Mitarbeiter
-            const { saldo: maKonto } = berechneStundenkonto(myStunden)
+            const { saldo: maKonto } = berechneStundenkonto(myStunden, {
+              regelStunden: u.regel_stunden||38,
+              urlaub: urlaub.filter(a=>a.user_id===u.id && a.status==='genehmigt'),
+              leereWochen: u.role==='mitarbeiter'
+            })
+            const maResturlaub = (u.urlaub_gesamt||24) - urlaubTageGenommen(urlaub,u.id)
             const maKontoPos = maKonto >= 0
             return (
               <div key={u.id} className="card" style={{padding:0,overflow:'hidden'}}>
@@ -1040,7 +1111,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{diff>=0?'Überstunden':'Fehlstunden'}</div>
                       </div>
                       <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
-                        <div style={{fontSize:'1.1rem',fontWeight:700,color:'#d69e2e',fontFamily:"'DM Mono',monospace"}}>{(u.urlaub_gesamt||24)-(u.urlaub_genommen||0)}</div>
+                        <div style={{fontSize:'1.1rem',fontWeight:700,color:maResturlaub<0?'var(--red)':'#d69e2e',fontFamily:"'DM Mono',monospace"}}>{maResturlaub}</div>
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub</div>
                       </div>
                       <div style={{padding:'0.75rem',textAlign:'center'}}>
@@ -1144,7 +1215,7 @@ function AdminPage({stunden,baustellen,allUsers,onRefresh,currentUser,isAdmin}) 
         </>
       )}
       {tab==='urlaub'&&(
-        <UrlaubPage user={currentUser} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'} allUsers={allUsers}/>
+        <UrlaubPage user={currentUser} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'} allUsers={allUsers} onChanged={onRefresh}/>
       )}
       {tab==='ausbildung'&&(
         <BerichtsheftPage user={currentUser} allUsers={allUsers} isAdmin={isAdmin} isBuero={currentUser?.profile?.role==='buero'}/>
@@ -4313,6 +4384,7 @@ export default function App() {
   useEffect(()=>{ if(user?.profile?.role==='extern' && page==='home') setPage('waermepumpen') }, [user, page])
   const [baustellen,setBaustellen]=useState([]); const [stunden,setStunden]=useState([]); const [allUsers,setAllUsers]=useState([])
   const [termine,setTermine]=useState([])
+  const [urlaub,setUrlaub]=useState([])
   const [showStunden,setShowStunden]=useState(false)
   const [showKrank,setShowKrank]=useState(false)
   const [installPrompt,setInstallPrompt]=useState(null)
@@ -4356,13 +4428,16 @@ export default function App() {
   },[user])
 
   async function loadData() {
-    const [{data:bs},{data:st},{data:users},{data:term}]=await Promise.all([
+    const [{data:bs},{data:st},{data:users},{data:term},{data:ua}]=await Promise.all([
       supabase.from('baustellen').select('*').order('created_at',{ascending:false}).limit(1000),
       supabase.from('stunden').select('*, profiles(name), baustellen(name)').order('datum',{ascending:false}).limit(2000),
       supabase.from('profiles').select('*'),
-      supabase.from('termine').select('*').order('datum',{ascending:true}).limit(500)
+      supabase.from('termine').select('*').order('datum',{ascending:true}).limit(500),
+      supabase.from('urlaubsantraege').select('id,user_id,von_datum,bis_datum,status').limit(2000)
     ])
     setBaustellen(bs||[]); setStunden(st||[]); setAllUsers(users||[]); setTermine(term||[])
+    // Nur überschreiben, wenn die Abfrage geklappt hat — sonst bliebe bei einem Fehler Urlaub fälschlich "ungenommen"
+    if(ua) setUrlaub(ua)
   }
   async function handleLogout(){await supabase.auth.signOut(); setUser(null); setPage('home')}
   async function handleDelete(id) {
@@ -4417,9 +4492,9 @@ export default function App() {
           RLS-Policies und Rollen-Prüfungen in den Unterseiten bleiben unverändert. */}
       {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
-      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
+      {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
-      {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
+      {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
