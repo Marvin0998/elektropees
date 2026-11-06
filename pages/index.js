@@ -127,7 +127,8 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
 
   const keys = new Set(Object.keys(wochen).filter(k => wochen[k].freigegeben))
   if (leereWochen && start !== null) {
-    for (let t = utcTag(start); t + 6 * TAG_MS < heuteMs; t += 7 * TAG_MS) {
+    // inkl. laufender Woche: dort zählen nur die bereits abgeschlossenen Arbeitstage (ohne heute)
+    for (let t = utcTag(start); t <= heuteMs; t += 7 * TAG_MS) {
       const key = tagString(t)
       if (!wochen[key]) keys.add(key) // gar nichts eingetragen (auch nichts Ausstehendes)
     }
@@ -145,10 +146,12 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
     if (montagMs > heuteMs) {
       regel = 0
     } else if (donnerstagMs >= heuteMs) {
-      // laufende Woche: nur die bisher vergangenen Arbeitstage (Mo–Do) zählen
-      const wochentag = new Date(heuteMs).getUTCDay()
-      regel = (wochentag === 0 ? 4 : Math.min(wochentag, 4)) * tagesSoll
-      bisTag = heute
+      // laufende Woche (heute ist Mo–Do): nur die bisher vergangenen Arbeitstage zählen.
+      // Bei einer Woche ohne jeden Eintrag nur die abgeschlossenen (ohne heute), damit jemand
+      // montags nicht schon vor dem ersten Eintrag im Minus steht.
+      const wt = new Date(heuteMs).getUTCDay() || 7 // Mo=1 … So=7
+      regel = (leer ? wt - 1 : Math.min(wt, 4)) * tagesSoll
+      bisTag = leer ? tagString(heuteMs - TAG_MS) : heute
     }
     const [uTage, uUeber] = regel > 0 ? urlaubsTage(key, bisTag) : [0, 0]
     regel = Math.max(0, regel - uTage * tagesSoll)
@@ -1124,7 +1127,7 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
             const isOpen=selectedMitarbeiter===u.id
             const myStunden=[...stunden.filter(s=>s.user_id===u.id)].sort((a,b)=>b.datum.localeCompare(a.datum))
             // Stundenkonto für diesen Mitarbeiter
-            const { saldo: maKonto } = berechneStundenkonto(myStunden, {
+            const { saldo: maKonto, verlauf: maVerlauf } = berechneStundenkonto(myStunden, {
               regelStunden: u.regel_stunden||38,
               urlaub: urlaub.filter(a=>a.user_id===u.id && a.status==='genehmigt'),
               urlaubAnspruch: u.urlaub_gesamt||24,
@@ -1169,6 +1172,30 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>⏱ Konto</div>
                       </div>
                     </div>
+                    <details style={{borderBottom:'1px solid var(--border)'}}>
+                      <summary style={{padding:'0.7rem 1rem',cursor:'pointer',fontSize:'0.78rem',fontWeight:600,color:'var(--text2)'}}>⏱ Konto Woche für Woche ({maVerlauf.length} {maVerlauf.length===1?'Woche':'Wochen'} seit {formatDate(KONTO_START)})</summary>
+                      <div style={{maxHeight:260,overflowY:'auto',padding:'0 1rem 0.5rem'}}>
+                        {maVerlauf.length===0
+                          ? <p style={{fontSize:'0.78rem',color:'var(--text3)',margin:'0.25rem 0'}}>Noch keine gewerteten Wochen.</p>
+                          : maVerlauf.slice().reverse().map(w=>{
+                              const pos=w.differenz>=0
+                              return (
+                                <div key={w.key} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border2)',fontSize:'0.78rem'}}>
+                                  <span style={{color:'var(--text2)'}}>
+                                    {w.label}
+                                    {w.leer&&<span style={{display:'block',fontSize:'0.66rem',color:'var(--red)'}}>nicht ausgefüllt</span>}
+                                    {w.urlaubTage>0&&<span style={{display:'block',fontSize:'0.66rem',color:'#b7791f'}}>🏖️ {w.urlaubTage} Urlaubstag(e) gutgeschrieben</span>}
+                                    {w.urlaubUeberAnspruch>0&&<span style={{display:'block',fontSize:'0.66rem',color:'var(--red)'}}>⚠️ {w.urlaubUeberAnspruch} Urlaubstag(e) über Anspruch</span>}
+                                  </span>
+                                  <span style={{display:'flex',gap:10,alignItems:'center',fontFamily:"'DM Mono',monospace"}}>
+                                    <span style={{color:'var(--text3)'}}>{w.geleistet.toFixed(1)} / {w.regelstunden.toFixed(1)}h</span>
+                                    <span style={{fontWeight:700,minWidth:52,textAlign:'right',color:pos?'var(--green)':'var(--red)'}}>{pos?'+':''}{w.differenz.toFixed(1)}h</span>
+                                  </span>
+                                </div>
+                              )
+                            })}
+                      </div>
+                    </details>
                     {(()=>{
                       const byWeek = {}
                       myStunden.forEach(s => {
