@@ -112,17 +112,19 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
   })
 
   // Urlaubstage (Mo–Do, bis einschließlich bisTag) dieser Woche ohne eigenen Eintrag:
-  // [gutgeschrieben, über dem Jahresanspruch und deshalb nicht gutgeschrieben]
+  // [gutgeschrieben, über dem Jahresanspruch und deshalb nicht gutgeschrieben,
+  //  offene Tage = weder Eintrag noch gutgeschriebener Urlaub (z.B. für den Berufsschule-Nachtrag)]
   const urlaubsTage = (key, bisTag) => {
     let ok = 0, ueber = 0
+    const offen = []
     for (let i = 0; i < 4; i++) {
       const tag = tagString(utcTag(key) + i * TAG_MS)
       if (tag > bisTag) break
       if (tageMitEintrag.has(tag)) continue
       if (urlaubGutgeschrieben.has(tag)) ok++
-      else if (urlaubAlle.has(tag)) ueber++
+      else { offen.push(tag); if (urlaubAlle.has(tag)) ueber++ }
     }
-    return [ok, ueber]
+    return [ok, ueber, offen]
   }
 
   const keys = new Set(Object.keys(wochen).filter(k => wochen[k].freigegeben))
@@ -153,13 +155,13 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
       regel = (leer ? wt - 1 : Math.min(wt, 4)) * tagesSoll
       bisTag = leer ? tagString(heuteMs - TAG_MS) : heute
     }
-    const [uTage, uUeber] = regel > 0 ? urlaubsTage(key, bisTag) : [0, 0]
+    const [uTage, uUeber, offeneTage] = regel > 0 ? urlaubsTage(key, bisTag) : [0, 0, []]
     regel = Math.max(0, regel - uTage * tagesSoll)
     if (leer && regel <= 0) return // ganze Woche Urlaub → neutral, kein Eintrag nötig
     const differenz = geleistet - regel
     saldo += differenz
     const label = `KW ${isoKalenderwoche(key)} · ${ddmm(key)}–${ddmm(tagString(donnerstagMs))}`
-    verlauf.push({ key, label, geleistet, regelstunden: regel, differenz, leer, urlaubTage: uTage, urlaubUeberAnspruch: uUeber })
+    verlauf.push({ key, label, geleistet, regelstunden: regel, differenz, leer, urlaubTage: uTage, urlaubUeberAnspruch: uUeber, offeneTage })
   })
   return { saldo, verlauf }
 }
@@ -935,6 +937,7 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
   const [newUser,setNewUser]=useState({name:'',email:'',password:'',rolle:'mitarbeiter',regel_stunden:38,urlaub_gesamt:24})
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const [stundenDetail,setStundenDetail]=useState(null)
+  const [bsSaving,setBsSaving]=useState(null) // Montag der Woche, die gerade als Berufsschule eingetragen wird
   // "Mitarbeiter" = echte Elektro-Pees-Angestellte — externe Partnerfirmen (role
   // 'extern', z.B. über "Extern einladen" bei der Wärmepumpe) sind keine
   // Mitarbeiter und gehören nicht in Freigaben/Auswertung/Mitarbeiter-Liste/Urlaub.
@@ -951,6 +954,24 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
   async function handleFreigabe(id,entscheidung) {
     await supabase.from('stunden').update({freigabe_status:entscheidung}).eq('id',id)
     setMsg(entscheidung==='freigegeben'?'✓ Stunden freigegeben!':'Stunden abgelehnt.')
+    await onRefresh(); setTimeout(()=>setMsg(''),3000)
+  }
+  // Admin trägt eine nicht ausgefüllte Azubi-Woche als Berufsschule ein: je offenem Mo–Do-Tag 9,5 Std.,
+  // direkt freigegeben (der Admin entscheidet ja selbst).
+  async function berufsschuleNachtragen(u,w) {
+    if(isAdmin!==true||!w.offeneTage||w.offeneTage.length===0) return
+    const stunden_=w.offeneTage.length*9.5
+    if(!confirm(`${u.name}: ${w.label}\n${w.offeneTage.length} Tage Berufsschule × 9,5 Std. = ${stunden_.toFixed(1).replace('.',',')} Std. eintragen und direkt freigeben?`)) return
+    setBsSaving(w.key)
+    const schulBaustelle=baustellen.find(b=>b.name==='Büro')||baustellen.find(b=>b.status==='aktiv')
+    const {error}=await supabase.from('stunden').insert(w.offeneTage.map(datum=>({
+      user_id:u.id, baustelle_id:schulBaustelle?.id||null, datum,
+      start_zeit:'07:30', end_zeit:'17:00', pause_min:45, dauer:9.5,
+      notiz:'🎓 Berufsschule', freigabe_status:'freigegeben'
+    })))
+    setBsSaving(null)
+    if(error){alert('Konnte nicht eingetragen werden: '+error.message+'\n\nFalls hier „row-level security“ steht, fehlt in Supabase die Admin-Berechtigung zum Anlegen von Stunden für andere Mitarbeiter.');return}
+    setMsg(`✓ ${w.offeneTage.length} Berufsschultage für ${u.name} eingetragen`)
     await onRefresh(); setTimeout(()=>setMsg(''),3000)
   }
   async function handleAlleFreigeben() {
@@ -1186,6 +1207,11 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                                     {w.leer&&<span style={{display:'block',fontSize:'0.66rem',color:'var(--red)'}}>nicht ausgefüllt</span>}
                                     {w.urlaubTage>0&&<span style={{display:'block',fontSize:'0.66rem',color:'#b7791f'}}>🏖️ {w.urlaubTage} Urlaubstag(e) gutgeschrieben</span>}
                                     {w.urlaubUeberAnspruch>0&&<span style={{display:'block',fontSize:'0.66rem',color:'var(--red)'}}>⚠️ {w.urlaubUeberAnspruch} Urlaubstag(e) über Anspruch</span>}
+                                    {w.leer&&u.role==='azubi'&&isAdmin===true&&w.offeneTage&&w.offeneTage.length>0&&(
+                                      <button onClick={()=>berufsschuleNachtragen(u,w)} disabled={bsSaving===w.key} style={{marginTop:4,fontSize:'0.68rem',fontWeight:600,padding:'3px 10px',borderRadius:20,border:'1px solid #bee3f8',background:'#ebf8ff',color:'#2c5282',cursor:'pointer',fontFamily:'inherit'}}>
+                                        {bsSaving===w.key?'Wird eingetragen…':`🎓 Als Berufsschule eintragen (${(w.offeneTage.length*9.5).toFixed(1).replace('.',',')} Std.)`}
+                                      </button>
+                                    )}
                                   </span>
                                   <span style={{display:'flex',gap:10,alignItems:'center',fontFamily:"'DM Mono',monospace"}}>
                                     <span style={{color:'var(--text3)'}}>{w.geleistet.toFixed(1)} / {w.regelstunden.toFixed(1)}h</span>
