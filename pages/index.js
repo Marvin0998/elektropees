@@ -59,14 +59,33 @@ function vergangeneArbeitstageDieseWoche() {
 // (regelStunden pro Woche, verteilt auf Mo–Do). Optionen:
 //   regelStunden – Wochenstunden laut Profil (Standard 38)
 //   urlaub       – GENEHMIGTE Urlaubsanträge dieses Mitarbeiters ({von_datum, bis_datum});
-//                  Urlaubstage (Mo–Do) ohne eigenen Eintrag senken das Soll der Woche
+//                  Urlaubstage (Mo–Do) ohne eigenen Eintrag senken das Soll der Woche –
+//                  aber pro Kalenderjahr nur bis zum Urlaubsanspruch, in zeitlicher Reihenfolge.
+//                  Genehmigte Tage darüber hinaus werden nicht gutgeschrieben (→ Minus).
+//   urlaubAnspruch – Urlaubstage pro Jahr laut Profil (Standard 24)
 //   leereWochen  – true: komplett vergangene Wochen OHNE jeden Eintrag zählen ab der Woche
 //                  des ersten Eintrags als Minusstunden. Wochen mit nur ausstehenden
 //                  (noch nicht freigegebenen) Einträgen bleiben neutral, bis entschieden ist.
 //   heute        – nur für Tests ('YYYY-MM-DD')
-function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], leereWochen = false, heute = today() } = {}) {
+function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubAnspruch = 24, leereWochen = false, heute = today() } = {}) {
   const tagesSoll = regelStunden / 4
   const heuteMs = utcTag(heute)
+
+  // Gutgeschriebene Urlaubstage: je Jahr die ersten `urlaubAnspruch` genehmigten Mo–Do-Tage
+  const urlaubAlle = new Set()
+  urlaub.forEach(a => {
+    for (let t = utcTag(a.von_datum); t <= utcTag(a.bis_datum); t += TAG_MS) {
+      const dow = new Date(t).getUTCDay()
+      if (dow >= 1 && dow <= 4) urlaubAlle.add(tagString(t))
+    }
+  })
+  const urlaubGutgeschrieben = new Set()
+  const proJahr = {}
+  Array.from(urlaubAlle).sort().forEach(tag => {
+    const jahr = tag.slice(0, 4)
+    proJahr[jahr] = (proJahr[jahr] || 0) + 1
+    if (proJahr[jahr] <= urlaubAnspruch) urlaubGutgeschrieben.add(tag)
+  })
   const montagVon = (datum) => { const t = utcTag(datum); return tagString(t - ((new Date(t).getUTCDay() + 6) % 7) * TAG_MS) }
   const ddmm = (key) => key.slice(8, 10) + '.' + key.slice(5, 7) + '.'
 
@@ -82,16 +101,18 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], leereWo
     if (start === null || key < start) start = key
   })
 
-  // Urlaubstage (Mo–Do, bis einschließlich bisTag) dieser Woche ohne eigenen Eintrag
+  // Urlaubstage (Mo–Do, bis einschließlich bisTag) dieser Woche ohne eigenen Eintrag:
+  // [gutgeschrieben, über dem Jahresanspruch und deshalb nicht gutgeschrieben]
   const urlaubsTage = (key, bisTag) => {
-    let n = 0
+    let ok = 0, ueber = 0
     for (let i = 0; i < 4; i++) {
       const tag = tagString(utcTag(key) + i * TAG_MS)
       if (tag > bisTag) break
       if (tageMitEintrag.has(tag)) continue
-      if (urlaub.some(a => a.von_datum <= tag && tag <= a.bis_datum)) n++
+      if (urlaubGutgeschrieben.has(tag)) ok++
+      else if (urlaubAlle.has(tag)) ueber++
     }
-    return n
+    return [ok, ueber]
   }
 
   const keys = new Set(Object.keys(wochen).filter(k => wochen[k].freigegeben))
@@ -119,16 +140,19 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], leereWo
       regel = (wochentag === 0 ? 4 : Math.min(wochentag, 4)) * tagesSoll
       bisTag = heute
     }
-    const uTage = regel > 0 ? urlaubsTage(key, bisTag) : 0
+    const [uTage, uUeber] = regel > 0 ? urlaubsTage(key, bisTag) : [0, 0]
     regel = Math.max(0, regel - uTage * tagesSoll)
     if (leer && regel <= 0) return // ganze Woche Urlaub → neutral, kein Eintrag nötig
     const differenz = geleistet - regel
     saldo += differenz
     const label = `KW ${ddmm(key)}–${ddmm(tagString(donnerstagMs))}`
-    verlauf.push({ key, label, geleistet, regelstunden: regel, differenz, leer, urlaubTage: uTage })
+    verlauf.push({ key, label, geleistet, regelstunden: regel, differenz, leer, urlaubTage: uTage, urlaubUeberAnspruch: uUeber })
   })
   return { saldo, verlauf }
 }
+
+// Für wen zählen Wochen ohne Eintrag automatisch als Minusstunden? (Büro/Minijob und Admin: nein)
+const hatAutoMinus = (role) => role === 'mitarbeiter' || role === 'azubi'
 
 const freigabeBadge=(s)=>{
   if(s==='freigegeben')return <span style={{background:'#c6f6d5',color:'#276749',padding:'2px 8px',borderRadius:20,fontSize:'0.68rem',fontWeight:600}}>✓ Freigegeben</span>
@@ -192,7 +216,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank}) {
+function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -222,10 +246,10 @@ function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,is
         <div className={`entry-dot ${dotClass}`}/>
         <div className="entry-info">
           <div className="entry-site">
-            {s.notiz==='🤒 Krank'?<span style={{color:'#c53030',fontWeight:700}}>🤒 Krankmeldung</span>:(b?.name||'—')}
+            {s.notiz==='🤒 Krank'?<span style={{color:'#c53030',fontWeight:700}}>🤒 Krankmeldung</span>:s.notiz==='🎓 Berufsschule'?<span style={{color:'var(--blue)',fontWeight:700}}>🎓 Berufsschule</span>:(b?.name||'—')}
             {isFri&&s.notiz!=='🤒 Krank'&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}
           </div>
-          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&s.notiz!=='🤒 Krank'?` · ${s.notiz}`:''}</div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&s.notiz!=='🤒 Krank'&&s.notiz!=='🎓 Berufsschule'?` · ${s.notiz}`:''}</div>
         </div>
         <div className="entry-right">
           <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
@@ -284,6 +308,14 @@ function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,is
           <div style={{fontSize:'0.72rem',color:'#9ca3af',marginTop:1}}>Arbeitszeit wird nach Prüfung berücksichtigt</div>
         </div>
         <span style={{color:'#fca5a5',fontSize:'1rem'}}>›</span>
+      </button>}
+      {user.profile?.role==='azubi'&&<button onClick={onBerufsschule} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid #bee3f8',borderRadius:'var(--r-lg)',padding:'0.625rem 1rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
+        <div style={{width:32,height:32,borderRadius:'50%',background:'#ebf8ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>🎓</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:'0.85rem',fontWeight:600,color:'#2c5282'}}>Berufsschule eintragen</div>
+          <div style={{fontSize:'0.72rem',color:'#9ca3af',marginTop:1}}>Schultag oder Block: automatisch 9,5 Std. pro Tag</div>
+        </div>
+        <span style={{color:'#90cdf4',fontSize:'1rem'}}>›</span>
       </button>}
       <div className="dash-row">
         <div className="dash-card">
@@ -759,10 +791,11 @@ function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,
 
       {/* ── STUNDENKONTO ── */}
       {!isBuero&&(()=>{
-        const mitLeerWochen = profile.role === 'mitarbeiter'
+        const mitLeerWochen = hatAutoMinus(profile.role)
         const { saldo, verlauf } = berechneStundenkonto(myStunden, {
           regelStunden,
           urlaub: urlaub.filter(a=>a.user_id===user.id && a.status==='genehmigt'),
+          urlaubAnspruch: urlaubGesamt,
           leereWochen: mitLeerWochen
         })
         const positiv = saldo >= 0
@@ -781,7 +814,8 @@ function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,
             </div>
             <div style={{fontSize:'0.72rem',color:'#888',marginBottom:10}}>
               Alle freigegebenen Stunden vs. Regelarbeitszeit ({regelStunden}h/Woche Mo–Do)
-              {mitLeerWochen&&' · Wochen ohne Einträge zählen als Minusstunden, genehmigter Urlaub wird gutgeschrieben'}
+              {mitLeerWochen&&` · Wochen ohne Einträge zählen als Minusstunden, genehmigter Urlaub wird bis zu deinen ${urlaubGesamt} Tagen/Jahr gutgeschrieben`}
+              {isAzubi&&' · Berufsschultage bitte über „Berufsschule eintragen“ auf der Startseite dokumentieren'}
             </div>
             {verlauf.length === 0
               ? <p className="text-muted text-sm">Noch keine freigegebenen Einträge.</p>
@@ -794,6 +828,7 @@ function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,
                           {w.label}
                           {w.leer&&<span style={{display:'block',fontSize:'0.68rem',color:'var(--red)'}}>nicht ausgefüllt</span>}
                           {w.urlaubTage>0&&<span style={{display:'block',fontSize:'0.68rem',color:'#b7791f'}}>🏖️ {w.urlaubTage} {w.urlaubTage===1?'Urlaubstag':'Urlaubstage'} gutgeschrieben</span>}
+                          {w.urlaubUeberAnspruch>0&&<span style={{display:'block',fontSize:'0.68rem',color:'var(--red)'}}>⚠️ {w.urlaubUeberAnspruch} {w.urlaubUeberAnspruch===1?'Urlaubstag':'Urlaubstage'} über dem Anspruch – nicht gutgeschrieben</span>}
                         </span>
                         <div style={{display:'flex',gap:10,alignItems:'center'}}>
                           <span style={{color:'#aaa',fontFamily:"'DM Mono',monospace"}}>{w.geleistet.toFixed(1)}h</span>
@@ -1080,7 +1115,8 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
             const { saldo: maKonto } = berechneStundenkonto(myStunden, {
               regelStunden: u.regel_stunden||38,
               urlaub: urlaub.filter(a=>a.user_id===u.id && a.status==='genehmigt'),
-              leereWochen: u.role==='mitarbeiter'
+              urlaubAnspruch: u.urlaub_gesamt||24,
+              leereWochen: hatAutoMinus(u.role)
             })
             const maResturlaub = (u.urlaub_gesamt||24) - urlaubTageGenommen(urlaub,u.id)
             const maKontoPos = maKonto >= 0
@@ -1373,6 +1409,90 @@ function KrankModal({user,baustellen,onClose,onSaved}) {
         </div>
       )}
       <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
+    </div></div>
+  )
+}
+
+// Berufsschule: Azubis tragen Schultage (Mo–Do) mit je 9,5 Std. ein – einzelner Tag oder Zeitraum (Blockunterricht).
+// Wie bei Krank landen die Einträge als „ausstehend“ beim Admin zur Freigabe.
+function BerufsschuleModal({user,baustellen,onClose,onSaved}) {
+  const [von,setVon]=useState(today())
+  const [bis,setBis]=useState(today())
+  const [saving,setSaving]=useState(false)
+  const [ergebnis,setErgebnis]=useState(null)
+  const schulBaustelle=baustellen.find(b=>b.name==='Büro')||baustellen.find(b=>b.status==='aktiv')
+  const heute=today()
+
+  const tage=[]
+  if(von&&bis&&von<=bis){
+    for(let t=utcTag(von); t<=utcTag(bis); t+=TAG_MS){
+      const dow=new Date(t).getUTCDay()
+      if(dow>=1&&dow<=4) tage.push(tagString(t))
+    }
+  }
+  const fehler=!von||!bis?'Bitte Datum wählen'
+    :bis<von?'„Bis“ liegt vor „Von“'
+    :bis>heute?'Nur bis heute möglich – spätere Tage bitte erst nachträglich eintragen'
+    :tage.length>62?'Zeitraum zu lang (max. 62 Arbeitstage)'
+    :tage.length===0?'Im gewählten Zeitraum liegt kein Arbeitstag (Mo–Do)'
+    :null
+
+  async function handleSave() {
+    if(fehler) return
+    setSaving(true)
+    const {data:existing,error:e1}=await supabase.from('stunden').select('datum').eq('user_id',user.id).gte('datum',von).lte('datum',bis)
+    if(e1){alert('Fehler beim Prüfen: '+e1.message);setSaving(false);return}
+    const belegt=new Set((existing||[]).map(s=>String(s.datum).slice(0,10)))
+    const neu=tage.filter(t=>!belegt.has(t))
+    if(neu.length>0){
+      const {error:e2}=await supabase.from('stunden').insert(neu.map(datum=>({
+        user_id:user.id,
+        baustelle_id:schulBaustelle?.id||null,
+        datum,
+        start_zeit:'07:30',
+        end_zeit:'17:00',
+        pause_min:45,
+        dauer:9.5,
+        notiz:'🎓 Berufsschule',
+        freigabe_status:'ausstehend'
+      })))
+      if(e2){alert('Fehler beim Speichern: '+e2.message);setSaving(false);return}
+    }
+    await onSaved()
+    setSaving(false)
+    setErgebnis({neu:neu.length,uebersprungen:tage.length-neu.length})
+  }
+
+  return (
+    <div className="modal-overlay open"><div className="modal-sheet">
+      <div className="modal-handle"/>
+      <div className="modal-title">🎓 Berufsschule eintragen</div>
+      {ergebnis?(
+        <>
+          <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:'#276749',fontWeight:600}}>
+            ✓ {ergebnis.neu} {ergebnis.neu===1?'Berufsschultag':'Berufsschultage'} eingetragen (je 9,5 Std.), wartet auf Freigabe.
+            {ergebnis.uebersprungen>0&&<div style={{fontWeight:400,marginTop:4}}>{ergebnis.uebersprungen} {ergebnis.uebersprungen===1?'Tag wurde':'Tage wurden'} übersprungen, weil dafür schon ein Eintrag existiert.</div>}
+          </div>
+          <button className="btn btn-primary" onClick={onClose}>Fertig</button>
+        </>
+      ):(
+        <>
+          <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:'#2c5282'}}>
+            Pro Berufsschultag werden automatisch <strong>9,5 Stunden</strong> eingetragen und müssen vom Admin freigegeben werden. Nur Mo–Do, bereits belegte Tage werden übersprungen.
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+            <div className="form-group"><label>Von</label><input type="date" value={von} max={heute} onChange={e=>{setVon(e.target.value);if(bis<e.target.value)setBis(e.target.value)}}/></div>
+            <div className="form-group"><label>Bis</label><input type="date" value={bis} max={heute} min={von} onChange={e=>setBis(e.target.value)}/></div>
+          </div>
+          <div style={{background:fehler?'#fff5f5':'#f0fff4',border:`1px solid ${fehler?'#feb2b2':'#9ae6b4'}`,borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:fehler?'#c53030':'#276749',textAlign:'center',fontWeight:600}}>
+            {fehler?`✗ ${fehler}`:`✓ ${tage.length} ${tage.length===1?'Tag':'Tage'} × 9,5 Std. = ${(tage.length*9.5).toFixed(1).replace('.',',')} Std.`}
+          </div>
+          <button className="btn btn-primary" disabled={!!fehler||saving} onClick={handleSave} style={{marginBottom:'0.5rem'}}>
+            {saving?'Wird gespeichert...':'🎓 Berufsschule eintragen'}
+          </button>
+          <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+        </>
+      )}
     </div></div>
   )
 }
@@ -4387,6 +4507,7 @@ export default function App() {
   const [urlaub,setUrlaub]=useState([])
   const [showStunden,setShowStunden]=useState(false)
   const [showKrank,setShowKrank]=useState(false)
+  const [showBerufsschule,setShowBerufsschule]=useState(false)
   const [installPrompt,setInstallPrompt]=useState(null)
   const [showInstallBanner,setShowInstallBanner]=useState(false)
 
@@ -4490,7 +4611,7 @@ export default function App() {
           bzw. im Admin-Menü (Freigabe/Signatur) — keine eigenen Top-Level-Tabs mehr.
           Das Ausblenden der Navigation ersetzt keine Server-Rechte: alle Supabase-
           RLS-Policies und Rollen-Prüfungen in den Unterseiten bleiben unverändert. */}
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
@@ -4498,6 +4619,7 @@ export default function App() {
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
+      {showBerufsschule&&<BerufsschuleModal user={user} baustellen={baustellen} onClose={()=>setShowBerufsschule(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
         {!isExtern&&<button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>}
         {!isExtern&&<button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>}
