@@ -938,6 +938,7 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
   const [saving,setSaving]=useState(false); const [msg,setMsg]=useState('')
   const [stundenDetail,setStundenDetail]=useState(null)
   const [bsSaving,setBsSaving]=useState(null) // Montag der Woche, die gerade als Berufsschule eingetragen wird
+  const [nachtragFuer,setNachtragFuer]=useState(null) // Mitarbeiter-ID, für die gerade Krank/Berufsschule nachgetragen wird
   // "Mitarbeiter" = echte Elektro-Pees-Angestellte — externe Partnerfirmen (role
   // 'extern', z.B. über "Extern einladen" bei der Wärmepumpe) sind keine
   // Mitarbeiter und gehören nicht in Freigaben/Auswertung/Mitarbeiter-Liste/Urlaub.
@@ -1193,6 +1194,14 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>⏱ Konto</div>
                       </div>
                     </div>
+                    {isAdmin===true&&(u.role==='azubi'||u.role==='mitarbeiter')&&(
+                      <div style={{padding:'0.6rem 1rem',borderBottom:'1px solid var(--border)'}}>
+                        <button onClick={()=>setNachtragFuer(u.id)} style={{fontSize:'0.78rem',fontWeight:600,padding:'6px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'white',color:'var(--dark)',cursor:'pointer',fontFamily:'inherit'}}>
+                          ＋ {u.role==='azubi'?'Krank / Berufsschule':'Krank'} nachtragen
+                        </button>
+                      </div>
+                    )}
+                    {nachtragFuer===u.id&&<AbwesenheitModal user={currentUser} ziel={u} admin typen={u.role==='azubi'?['krank','berufsschule']:['krank']} baustellen={baustellen} onClose={()=>setNachtragFuer(null)} onSaved={onRefresh}/>}
                     <details style={{borderBottom:'1px solid var(--border)'}}>
                       <summary style={{padding:'0.7rem 1rem',cursor:'pointer',fontSize:'0.78rem',fontWeight:600,color:'var(--text2)'}}>⏱ Konto Woche für Woche ({maVerlauf.length} {maVerlauf.length===1?'Woche':'Wochen'} seit {formatDate(KONTO_START)})</summary>
                       <div style={{maxHeight:260,overflowY:'auto',padding:'0 1rem 0.5rem'}}>
@@ -1479,13 +1488,23 @@ function KrankModal({user,baustellen,onClose,onSaved}) {
   )
 }
 
-// Berufsschule: Azubis tragen Schultage (Mo–Do) mit je 9,5 Std. ein – einzelner Tag oder Zeitraum (Blockunterricht).
-// Wie bei Krank landen die Einträge als „ausstehend“ beim Admin zur Freigabe.
-function BerufsschuleModal({user,baustellen,onClose,onSaved}) {
+// Abwesenheit nachtragen (Krank / Berufsschule): je Arbeitstag Mo–Do 9,5 Std., einzelner Tag oder Zeitraum.
+//  - Azubi selbst (Berufsschule): landet als „ausstehend“ beim Admin zur Freigabe, wie bei Krank.
+//  - Admin für einen Mitarbeiter/Azubi (admin=true): wird direkt „freigegeben“; so lassen sich vergessene
+//    Krank-/Schultage korrigieren.
+// Abgelehnte Einträge blockieren einen Tag nicht; alles andere (auch Ausstehendes) schon.
+const ABWESENHEIT_TYPEN = {
+  krank:        { notiz:'🤒 Krank',        label:'Krank',        icon:'🤒', farbe:'#c53030', bg:'#fff5f5', rand:'#feb2b2' },
+  berufsschule: { notiz:'🎓 Berufsschule', label:'Berufsschule', icon:'🎓', farbe:'#2c5282', bg:'#ebf8ff', rand:'#bee3f8' },
+}
+function AbwesenheitModal({user,ziel,admin=false,typen=['berufsschule'],baustellen,onClose,onSaved}) {
+  const zielUser=ziel||user
+  const [typ,setTyp]=useState(typen[0])
   const [von,setVon]=useState(today())
   const [bis,setBis]=useState(today())
   const [saving,setSaving]=useState(false)
   const [ergebnis,setErgebnis]=useState(null)
+  const T=ABWESENHEIT_TYPEN[typ]
   const schulBaustelle=baustellen.find(b=>b.name==='Büro')||baustellen.find(b=>b.status==='aktiv')
   const heute=today()
 
@@ -1506,23 +1525,26 @@ function BerufsschuleModal({user,baustellen,onClose,onSaved}) {
   async function handleSave() {
     if(fehler) return
     setSaving(true)
-    const {data:existing,error:e1}=await supabase.from('stunden').select('datum').eq('user_id',user.id).gte('datum',von).lte('datum',bis)
+    const {data:existing,error:e1}=await supabase.from('stunden').select('datum,freigabe_status').eq('user_id',zielUser.id).gte('datum',von).lte('datum',bis)
     if(e1){alert('Fehler beim Prüfen: '+e1.message);setSaving(false);return}
-    const belegt=new Set((existing||[]).map(s=>String(s.datum).slice(0,10)))
+    const belegt=new Set((existing||[]).filter(s=>s.freigabe_status!=='abgelehnt').map(s=>String(s.datum).slice(0,10)))
     const neu=tage.filter(t=>!belegt.has(t))
     if(neu.length>0){
       const {error:e2}=await supabase.from('stunden').insert(neu.map(datum=>({
-        user_id:user.id,
+        user_id:zielUser.id,
         baustelle_id:schulBaustelle?.id||null,
         datum,
         start_zeit:'07:30',
         end_zeit:'17:00',
         pause_min:45,
         dauer:9.5,
-        notiz:'🎓 Berufsschule',
-        freigabe_status:'ausstehend'
+        notiz:T.notiz,
+        freigabe_status:admin?'freigegeben':'ausstehend'
       })))
-      if(e2){alert('Fehler beim Speichern: '+e2.message);setSaving(false);return}
+      if(e2){
+        alert('Fehler beim Speichern: '+e2.message+(admin&&/row-level security/i.test(e2.message)?'\n\nIn Supabase fehlt die Berechtigung für Admins, Stunden für andere Mitarbeiter anzulegen (Policy „stunden_insert_admin“).':''))
+        setSaving(false);return
+      }
     }
     await onSaved()
     setSaving(false)
@@ -1532,19 +1554,27 @@ function BerufsschuleModal({user,baustellen,onClose,onSaved}) {
   return (
     <div className="modal-overlay open"><div className="modal-sheet">
       <div className="modal-handle"/>
-      <div className="modal-title">🎓 Berufsschule eintragen</div>
+      <div className="modal-title">{T.icon} {admin?`${T.label} nachtragen`:`${T.label} eintragen`}</div>
+      {admin&&<div style={{fontSize:'0.85rem',fontWeight:600,color:'var(--dark)',marginBottom:'0.75rem'}}>für {zielUser.name}</div>}
       {ergebnis?(
         <>
           <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:'#276749',fontWeight:600}}>
-            ✓ {ergebnis.neu} {ergebnis.neu===1?'Berufsschultag':'Berufsschultage'} eingetragen (je 9,5 Std.), wartet auf Freigabe.
+            ✓ {ergebnis.neu} {ergebnis.neu===1?'Tag':'Tage'} {T.label} eingetragen (je 9,5 Std.){admin?', direkt freigegeben.':', wartet auf Freigabe.'}
             {ergebnis.uebersprungen>0&&<div style={{fontWeight:400,marginTop:4}}>{ergebnis.uebersprungen} {ergebnis.uebersprungen===1?'Tag wurde':'Tage wurden'} übersprungen, weil dafür schon ein Eintrag existiert.</div>}
           </div>
           <button className="btn btn-primary" onClick={onClose}>Fertig</button>
         </>
       ):(
         <>
-          <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:'#2c5282'}}>
-            Pro Berufsschultag werden automatisch <strong>9,5 Stunden</strong> eingetragen und müssen vom Admin freigegeben werden. Nur Mo–Do, bereits belegte Tage werden übersprungen.
+          {typen.length>1&&(
+            <div style={{display:'grid',gridTemplateColumns:`repeat(${typen.length},1fr)`,gap:'0.5rem',marginBottom:'0.75rem'}}>
+              {typen.map(k=>{const t=ABWESENHEIT_TYPEN[k];const aktiv=k===typ;return (
+                <button key={k} onClick={()=>setTyp(k)} style={{padding:'0.55rem',borderRadius:'var(--r-sm)',border:`1.5px solid ${aktiv?t.farbe:'var(--border2)'}`,background:aktiv?t.bg:'white',color:aktiv?t.farbe:'var(--text2)',fontWeight:aktiv?700:500,cursor:'pointer',fontFamily:'inherit'}}>{t.icon} {t.label}</button>
+              )})}
+            </div>
+          )}
+          <div style={{background:T.bg,border:`1px solid ${T.rand}`,borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:T.farbe}}>
+            Pro Tag werden automatisch <strong>9,5 Stunden</strong> eingetragen{admin?' und direkt freigegeben':' und müssen vom Admin freigegeben werden'}. Nur Mo–Do, bereits belegte Tage werden übersprungen.
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
             <div className="form-group"><label>Von</label><input type="date" value={von} max={heute} onChange={e=>{setVon(e.target.value);if(bis<e.target.value)setBis(e.target.value)}}/></div>
@@ -1553,8 +1583,8 @@ function BerufsschuleModal({user,baustellen,onClose,onSaved}) {
           <div style={{background:fehler?'#fff5f5':'#f0fff4',border:`1px solid ${fehler?'#feb2b2':'#9ae6b4'}`,borderRadius:10,padding:'0.75rem 1rem',marginBottom:'1rem',fontSize:'0.85rem',color:fehler?'#c53030':'#276749',textAlign:'center',fontWeight:600}}>
             {fehler?`✗ ${fehler}`:`✓ ${tage.length} ${tage.length===1?'Tag':'Tage'} × 9,5 Std. = ${(tage.length*9.5).toFixed(1).replace('.',',')} Std.`}
           </div>
-          <button className="btn btn-primary" disabled={!!fehler||saving} onClick={handleSave} style={{marginBottom:'0.5rem'}}>
-            {saving?'Wird gespeichert...':'🎓 Berufsschule eintragen'}
+          <button className="btn btn-primary" disabled={!!fehler||saving} onClick={handleSave} style={{marginBottom:'0.5rem',background:typ==='krank'?'#c53030':undefined}}>
+            {saving?'Wird gespeichert...':`${T.icon} ${T.label} ${admin?'nachtragen':'eintragen'}`}
           </button>
           <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
         </>
@@ -4685,7 +4715,7 @@ export default function App() {
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
-      {showBerufsschule&&<BerufsschuleModal user={user} baustellen={baustellen} onClose={()=>setShowBerufsschule(false)} onSaved={loadData}/>}
+      {showBerufsschule&&<AbwesenheitModal user={user} typen={['berufsschule']} baustellen={baustellen} onClose={()=>setShowBerufsschule(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
         {!isExtern&&<button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>}
         {!isExtern&&<button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>}
