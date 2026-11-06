@@ -24,6 +24,13 @@ const TAG_MS=86400000
 function utcTag(s) { const [y,m,d]=String(s).slice(0,10).split('-').map(Number); return Date.UTC(y,m-1,d) }
 function tagString(ms) { return new Date(ms).toISOString().slice(0,10) }
 function countWorkdays(from,to) { let count=0; for(let t=utcTag(from); t<=utcTag(to); t+=TAG_MS){const dow=new Date(t).getUTCDay(); if(dow>=1&&dow<=4)count++} return count }
+// Montag der Woche eines Datums ('YYYY-MM-DD') und ISO-Kalenderwoche dieses Montags.
+// (Nicht über toISOString() auf lokaler Mitternacht: das rutscht in Deutschland auf den Vortag = Sonntag.)
+function montagVonDatum(datum) { const t = utcTag(datum); return tagString(t - ((new Date(t).getUTCDay() + 6) % 7) * TAG_MS) }
+function isoKalenderwoche(montag) { const donnerstag = utcTag(montag) + 3 * TAG_MS; const jahr = new Date(donnerstag).getUTCFullYear(); return Math.floor((donnerstag - Date.UTC(jahr, 0, 1)) / (7 * TAG_MS)) + 1 }
+// Das Stundenkonto beginnt am 01.06.2026 (ab da wurde die App genutzt): frühere Einträge und
+// Wochen ohne Eintrag davor werden nicht gewertet.
+const KONTO_START = '2026-06-01'
 // Genommener Urlaub = Arbeitstage (Mo–Do) aller GENEHMIGTEN Anträge im Kalenderjahr. Wird direkt
 // aus den Anträgen berechnet statt über einen hochgezählten Zähler im Profil: so hängt der Wert
 // nicht davon ab, ob ein Schreibzugriff beim Genehmigen geklappt hat, und eine spätere
@@ -66,10 +73,12 @@ function vergangeneArbeitstageDieseWoche() {
 //   leereWochen  – true: komplett vergangene Wochen OHNE jeden Eintrag zählen ab der Woche
 //                  des ersten Eintrags als Minusstunden. Wochen mit nur ausstehenden
 //                  (noch nicht freigegebenen) Einträgen bleiben neutral, bis entschieden ist.
+//   kontoStart   – erster gewerteter Tag (Standard KONTO_START); alles davor zählt nicht
 //   heute        – nur für Tests ('YYYY-MM-DD')
-function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubAnspruch = 24, leereWochen = false, heute = today() } = {}) {
+function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubAnspruch = 24, leereWochen = false, kontoStart = KONTO_START, heute = today() } = {}) {
   const tagesSoll = regelStunden / 4
   const heuteMs = utcTag(heute)
+  const startMontag = montagVonDatum(kontoStart)
 
   // Gutgeschriebene Urlaubstage: je Jahr die ersten `urlaubAnspruch` genehmigten Mo–Do-Tage
   const urlaubAlle = new Set()
@@ -86,7 +95,7 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
     proJahr[jahr] = (proJahr[jahr] || 0) + 1
     if (proJahr[jahr] <= urlaubAnspruch) urlaubGutgeschrieben.add(tag)
   })
-  const montagVon = (datum) => { const t = utcTag(datum); return tagString(t - ((new Date(t).getUTCDay() + 6) % 7) * TAG_MS) }
+  const montagVon = montagVonDatum
   const ddmm = (key) => key.slice(8, 10) + '.' + key.slice(5, 7) + '.'
 
   const wochen = {}              // Montag → { geleistet, freigegeben }
@@ -95,6 +104,7 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
   stunden.forEach(s => {
     if (s.freigabe_status === 'abgelehnt') return
     const key = montagVon(s.datum)
+    if (key < startMontag) return // vor Kontostart: nicht gewertet
     const w = wochen[key] || (wochen[key] = { geleistet: 0, freigegeben: false })
     if (s.freigabe_status === 'freigegeben') { w.freigegeben = true; w.geleistet += parseFloat(s.dauer) || 0 }
     tageMitEintrag.add(String(s.datum).slice(0, 10))
@@ -145,7 +155,7 @@ function berechneStundenkonto(stunden, { regelStunden = 38, urlaub = [], urlaubA
     if (leer && regel <= 0) return // ganze Woche Urlaub → neutral, kein Eintrag nötig
     const differenz = geleistet - regel
     saldo += differenz
-    const label = `KW ${ddmm(key)}–${ddmm(tagString(donnerstagMs))}`
+    const label = `KW ${isoKalenderwoche(key)} · ${ddmm(key)}–${ddmm(tagString(donnerstagMs))}`
     verlauf.push({ key, label, geleistet, regelstunden: regel, differenz, leer, urlaubTage: uTage, urlaubUeberAnspruch: uUeber })
   })
   return { saldo, verlauf }
@@ -627,16 +637,17 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false,onChanged}) {
               <div className="card">
                 <div className="card-title">🏖️ Urlaubskonto {new Date().getFullYear()}</div>
                 {allUsers.filter(u2=>u2.id===user.id).map(u2=>{
-                  const ug=u2.urlaub_gesamt||24; const un=urlaubTageGenommen(antraege,u2.id); const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
+                  const ug=u2.urlaub_gesamt||24; const un=urlaubTageGenommen(antraege,u2.id); const rest=Math.max(0,ug-un); const ueber=Math.max(0,un-ug); const pct=((un/ug)*100).toFixed(0)
                   return (
                     <div key={u2.id}>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
                         <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{ug}</div><div className="text-xs text-muted">Gesamt</div></div>
                         <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{un}</div><div className="text-xs text-muted">Genommen</div></div>
-                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:rest<0?'#e53e3e':'#38a169'}}>{rest}</div><div className="text-xs text-muted">Verbleibend</div></div>
+                        <div><div style={{fontSize:'1.3rem',fontWeight:800,color:rest>0?'#38a169':'#d69e2e'}}>{rest}</div><div className="text-xs text-muted">Verbleibend</div></div>
                       </div>
                       <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,pct)}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
                       <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{pct}% verbraucht</div>
+                      {ueber>0&&<div className="text-xs" style={{marginTop:6,color:'#b7791f'}}>⚠️ {ueber} {ueber===1?'Tag':'Tage'} über dem Anspruch – wird im Stundenkonto als Minusstunden verrechnet.</div>}
                     </div>
                   )
                 })}
@@ -698,7 +709,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false,onChanged}) {
           <div className="card" style={{marginTop:'0.75rem'}}>
             <div className="card-title">🏖️ Urlaubsübersicht</div>
             {allUsers.filter(u=>u.role!=='admin'&&u.role!=='extern').map(u=>{
-              const ug=u.urlaub_gesamt||24; const un=urlaubTageGenommen(antraege,u.id); const rest=ug-un; const pct=((un/ug)*100).toFixed(0)
+              const ug=u.urlaub_gesamt||24; const un=urlaubTageGenommen(antraege,u.id); const rest=Math.max(0,ug-un); const ueber=Math.max(0,un-ug); const pct=((un/ug)*100).toFixed(0)
               return (
                 <div key={u.id} style={{marginBottom:'1rem',paddingBottom:'1rem',borderBottom:'1px solid #e2e8f0'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
@@ -706,7 +717,7 @@ function UrlaubPage({user,isAdmin,isBuero,allUsers,embedded=false,onChanged}) {
                   </div>
                   <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,pct)}%`}}/></div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.72rem',marginTop:4}}>
-                    <span className="text-muted">Verbraucht: {pct}%</span><span className={rest<0?'font-bold':'text-green font-bold'} style={rest<0?{color:'var(--red)'}:undefined}>Rest: {rest} Tage</span>
+                    <span className="text-muted">Verbraucht: {pct}%</span><span className={ueber>0?'font-bold':'text-green font-bold'} style={ueber>0?{color:'#b7791f'}:undefined}>Rest: {rest} Tage{ueber>0?` · ${ueber} über Anspruch → Minusstunden`:''}</span>
                   </div>
                 </div>
               )
@@ -746,7 +757,7 @@ function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,
   const woche=freigegebene.filter(s=>{const d=new Date(s.datum);return d>=weekStart&&d<=weekEnd}).reduce((a,s)=>a+s.dauer,0)
   const diff=woche-regelStunden
   const urlaubGesamt=profile.urlaub_gesamt||24; const urlaubGenommen=urlaubTageGenommen(urlaub,user.id)
-  const resturlaub=urlaubGesamt-urlaubGenommen; const urlaubPct=((urlaubGenommen/urlaubGesamt)*100).toFixed(0)
+  const resturlaub=Math.max(0,urlaubGesamt-urlaubGenommen); const urlaubUeber=Math.max(0,urlaubGenommen-urlaubGesamt); const urlaubPct=((urlaubGenommen/urlaubGesamt)*100).toFixed(0)
   const recent=[...myStunden].sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,8)
   return (
     <div className="page-content">
@@ -778,10 +789,11 @@ function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',textAlign:'center',marginBottom:'0.75rem'}}>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#0A0A44'}}>{urlaubGesamt}</div><div className="text-xs text-muted">Gesamt</div></div>
           <div><div style={{fontSize:'1.3rem',fontWeight:800,color:'#e53e3e'}}>{urlaubGenommen}</div><div className="text-xs text-muted">Genommen</div></div>
-          <div><div style={{fontSize:'1.3rem',fontWeight:800,color:resturlaub<0?'#e53e3e':'#38a169'}}>{resturlaub}</div><div className="text-xs text-muted">Verbleibend</div></div>
+          <div><div style={{fontSize:'1.3rem',fontWeight:800,color:resturlaub>0?'#38a169':'#d69e2e'}}>{resturlaub}</div><div className="text-xs text-muted">Verbleibend</div></div>
         </div>
         <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,urlaubPct)}%`,background:'linear-gradient(90deg,#38a169,#68d391)'}}/></div>
         <div className="text-xs text-muted" style={{textAlign:'right',marginTop:4}}>{urlaubPct}% verbraucht</div>
+        {urlaubUeber>0&&<div className="text-xs" style={{marginTop:6,color:'#b7791f'}}>⚠️ {urlaubUeber} {urlaubUeber===1?'Tag':'Tage'} über dem Anspruch – wird im Stundenkonto als Minusstunden verrechnet.</div>}
       </div>
       {kannUrlaubBeantragen&&showUrlaub&&(
         <div style={{marginTop:'-0.25rem'}}>
@@ -813,7 +825,7 @@ function ProfilPage({user,stunden,baustellen,allUsers,urlaub=[],isAdmin,isBuero,
               </span>
             </div>
             <div style={{fontSize:'0.72rem',color:'#888',marginBottom:10}}>
-              Alle freigegebenen Stunden vs. Regelarbeitszeit ({regelStunden}h/Woche Mo–Do)
+              Freigegebene Stunden ab {formatDate(KONTO_START)} vs. Regelarbeitszeit ({regelStunden}h/Woche Mo–Do)
               {mitLeerWochen&&` · Wochen ohne Einträge zählen als Minusstunden, genehmigter Urlaub wird bis zu deinen ${urlaubGesamt} Tagen/Jahr gutgeschrieben`}
               {isAzubi&&' · Berufsschultage bitte über „Berufsschule eintragen“ auf der Startseite dokumentieren'}
             </div>
@@ -1118,7 +1130,9 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
               urlaubAnspruch: u.urlaub_gesamt||24,
               leereWochen: hatAutoMinus(u.role)
             })
-            const maResturlaub = (u.urlaub_gesamt||24) - urlaubTageGenommen(urlaub,u.id)
+            const maUrlaubGenommen = urlaubTageGenommen(urlaub,u.id)
+            const maResturlaub = Math.max(0,(u.urlaub_gesamt||24) - maUrlaubGenommen)
+            const maUrlaubUeber = Math.max(0,maUrlaubGenommen - (u.urlaub_gesamt||24))
             const maKontoPos = maKonto >= 0
             return (
               <div key={u.id} className="card" style={{padding:0,overflow:'hidden'}}>
@@ -1147,8 +1161,8 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                         <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>{diff>=0?'Überstunden':'Fehlstunden'}</div>
                       </div>
                       <div style={{padding:'0.75rem',textAlign:'center',borderRight:'1px solid var(--border)'}}>
-                        <div style={{fontSize:'1.1rem',fontWeight:700,color:maResturlaub<0?'var(--red)':'#d69e2e',fontFamily:"'DM Mono',monospace"}}>{maResturlaub}</div>
-                        <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub</div>
+                        <div style={{fontSize:'1.1rem',fontWeight:700,color:'#d69e2e',fontFamily:"'DM Mono',monospace"}}>{maResturlaub}</div>
+                        <div style={{fontSize:'0.65rem',color:'var(--text3)'}}>Resturlaub{maUrlaubUeber>0&&<span style={{display:'block',color:'#b7791f'}}>+{maUrlaubUeber} zu viel</span>}</div>
                       </div>
                       <div style={{padding:'0.75rem',textAlign:'center'}}>
                         <div style={{fontSize:'1.1rem',fontWeight:700,color:maKontoPos?'var(--green)':'var(--red)',fontFamily:"'DM Mono',monospace"}}>{maKontoPos?'+':''}{maKonto.toFixed(1)}</div>
@@ -1158,8 +1172,7 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                     {(()=>{
                       const byWeek = {}
                       myStunden.forEach(s => {
-                        const ws = getWeekStart(new Date(s.datum))
-                        const key = ws.toISOString().split('T')[0]
+                        const key = montagVonDatum(s.datum)
                         if(!byWeek[key]) byWeek[key] = {days:{}}
                         if(!byWeek[key].days[s.datum]) byWeek[key].days[s.datum] = []
                         byWeek[key].days[s.datum].push(s)
@@ -1167,14 +1180,14 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                       const weekKeys = Object.keys(byWeek).sort((a,b)=>b.localeCompare(a))
                       if(weekKeys.length===0) return <p style={{fontSize:'0.82rem',color:'var(--text3)',padding:'0.75rem 1rem'}}>Noch keine Einträge.</p>
 
-                      const currentWkKey = getWeekStart(new Date()).toISOString().split('T')[0]
+                      const currentWkKey = montagVonDatum(today())
                       const defaultIdx = weekKeys.indexOf(currentWkKey) >= 0 ? weekKeys.indexOf(currentWkKey) : 0
                       const wkIdx = weekOffsets[u.id] ?? defaultIdx
                       const safeIdx = Math.min(Math.max(wkIdx,0), weekKeys.length-1)
                       const wk = weekKeys[safeIdx]
                       const week = byWeek[wk]
                       const weekTotal = Object.values(week.days).flat().reduce((a,s)=>a+s.dauer,0)
-                      const weEnd = new Date(new Date(wk).setDate(new Date(wk).getDate()+6)).toISOString().split('T')[0]
+                      const weEnd = tagString(utcTag(wk) + 6 * TAG_MS)
                       const isCurrentWeek = wk===currentWkKey
 
                       return (
@@ -1183,7 +1196,7 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                             <button onClick={e=>{e.stopPropagation();setWeekOffsets(o=>({...o,[u.id]:safeIdx+1}))}} disabled={safeIdx>=weekKeys.length-1} style={{width:32,height:32,borderRadius:'50%',border:'1.5px solid var(--border2)',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',color:safeIdx>=weekKeys.length-1?'var(--text3)':'var(--dark)',flexShrink:0}}>‹</button>
                             <div style={{flex:1,textAlign:'center'}}>
                               <div style={{fontSize:'0.72rem',fontWeight:700,color:isCurrentWeek?'var(--blue)':'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>
-                                {isCurrentWeek?'📅 Aktuelle Woche':'KW '+safeIdx} · {formatDate(wk)} – {formatDate(weEnd)}
+                                {isCurrentWeek?'📅 Aktuelle Woche':'KW '+isoKalenderwoche(wk)} · {formatDate(wk)} – {formatDate(weEnd)}
                               </div>
                               <div style={{fontSize:'1rem',fontWeight:700,color:'var(--dark)',fontFamily:"'DM Mono',monospace"}}>{weekTotal.toFixed(1)}h</div>
                             </div>
