@@ -36,7 +36,7 @@ export default function TeamErfassung({ baustelle: b, user, allUsers, isAdmin = 
 
   const z = P.pruefeTeamZeit({ mitglieder: team, datum, start, end, pause })
   const dauer = P.dauerStunden(start, end)
-  const netto = z.netto
+  const netto = z.brutto // Schritte decken die komplette Arbeitszeit (Pause zählt mit)
   const fotosLaden = schritte.some(s => s.fotos.some(f => f.status === 'laedt'))
   const ctx = { baustelleId: b.id, userId: user.id }
   const namen = P.teamNamen(allUsers, team)

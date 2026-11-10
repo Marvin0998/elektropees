@@ -1650,7 +1650,7 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero,presetBaustelleId
   const [schritte,setSchritte]=useState([])
   const [zeigeFehler,setZeigeFehler]=useState(false)
   const bruttoMin=Math.round(dauer*60)
-  const nettoMin=PRJ.nettoMinuten(dauer,45)
+  const nettoMin=bruttoMin // Projektmodus: Schritte decken die komplette Arbeitszeit (Pause ist bezahlt und zählt mit)
   const pruefung=dokuModus?PRJ.pruefeSchritte(schritte,nettoMin):null
   const fotosLaden=dokuModus&&schritte.some(s=>s.fotos.some(f=>f.status==='laedt'))
   const entwurf=useDokuEntwurf({
@@ -1722,8 +1722,8 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero,presetBaustelleId
       </div>
       <div className="calc-box">
         <div>
-          <div className="calc-label">Arbeitszeit{isBuero?' (ohne Pausenabzug)':' (inkl. 45 Min Pause)'}</div>
-          <div className="calc-note">{isBuero?'📋 Büro-Zeiterfassung · Freigabe erforderlich':'✓ Pause ist bezahlt · Freigabe durch Chef erforderlich'}</div>
+          <div className="calc-label">Arbeitszeit{isBuero?' (ohne Pausenabzug)':dokuModus?'':' (inkl. 45 Min Pause)'}</div>
+          <div className="calc-note">{isBuero?'📋 Büro-Zeiterfassung · Freigabe erforderlich':dokuModus?'Freigabe durch Chef erforderlich':'✓ Pause ist bezahlt · Freigabe durch Chef erforderlich'}</div>
         </div>
         <div className="calc-value">{dauer.toFixed(2)} Std</div>
       </div>

@@ -148,14 +148,9 @@ export default function ProjektExport() {
 
           <div className="exp-optionen">
             <div>
-              <div className="proj-label">Pause</div>
-              <label className="exp-radio"><input type="radio" name="pause" checked={opt.pause === 'brutto'} onChange={() => setOpt(o => ({ ...o, pause: 'brutto' }))} /> Mitberechnen (brutto) <em>Standard</em></label>
-              <label className="exp-radio"><input type="radio" name="pause" checked={opt.pause === 'netto'} onChange={() => setOpt(o => ({ ...o, pause: 'netto' }))} /> Abziehen (netto)</label>
-            </div>
-            <div>
               <div className="proj-label">Namen</div>
               <label className="exp-radio"><input type="radio" name="namen" checked={opt.namen === 'voll'} onChange={() => setOpt(o => ({ ...o, namen: 'voll' }))} /> Voller Name</label>
-              <label className="exp-radio"><input type="radio" name="namen" checked={opt.namen === 'kurz'} onChange={() => setOpt(o => ({ ...o, namen: 'kurz' }))} /> Vorname N.</label>
+              <label className="exp-radio"><input type="radio" name="namen" checked={opt.namen === 'kurz'} onChange={() => setOpt(o => ({ ...o, namen: 'kurz' }))} /> V. Nachname</label>
             </div>
             <div>
               <div className="proj-label">Anlage</div>

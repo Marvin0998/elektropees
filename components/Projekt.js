@@ -173,14 +173,14 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
       {/* Dauer */}
       <div className="proj-label">Wie lange? </div>
       <div className="proj-stepper">
-        <button onClick={() => set({ min: Math.max(15, (Number(s.min) || 0) - 15) })} aria-label="15 Minuten weniger">−</button>
+        <button onClick={() => set({ min: Math.max(15, (Number(s.min) || 0) - 15), minManuell: true })} aria-label="15 Minuten weniger">−</button>
         <div className="proj-stepper-mitte">
-          <input inputMode="numeric" value={s.min === 0 ? '' : s.min} onChange={e => set({ min: Math.min(720, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0) })} aria-label="Minuten" />
+          <input inputMode="numeric" value={s.min === 0 ? '' : s.min} onChange={e => set({ min: Math.min(720, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0), minManuell: true })} aria-label="Minuten" />
           <span>Min · {P.fmtMin(s.min)}</span>
         </div>
-        <button onClick={() => set({ min: Math.min(720, (Number(s.min) || 0) + 15) })} aria-label="15 Minuten mehr">+</button>
+        <button onClick={() => set({ min: Math.min(720, (Number(s.min) || 0) + 15), minManuell: true })} aria-label="15 Minuten mehr">+</button>
       </div>
-      {restMin > 0 && restMin !== s.min && restMin <= 720 && <button className="proj-link" onClick={() => set({ min: restMin })}>= Rest der Arbeitszeit übernehmen ({P.fmtMin(restMin)})</button>}
+      {restMin > 0 && restMin !== s.min && restMin <= 720 && <button className="proj-link" onClick={() => set({ min: restMin, minManuell: true })}>= Rest der Arbeitszeit übernehmen ({P.fmtMin(restMin)})</button>}
       </>)}
 
       {/* Fotos */}
@@ -227,6 +227,20 @@ export function ProjektSchrittForm({ schritte, setSchritte, netto, brutto, pause
   const stufe = netto <= 0 ? 'neutral' : summe > netto ? 'rot' : rest > tol ? 'gelb' : 'gruen'
   const pct = netto > 0 ? Math.min(100, Math.round((summe / netto) * 100)) : 0
   const update = (key, fn) => setSchritte(l => l.map(s => (s.key === key ? fn(s) : s)))
+  // Ein einzelner Schritt übernimmt automatisch die Arbeitszeit von oben, solange er nicht von Hand geändert wurde.
+  const autoSync = schritte.length === 1 && !schritte[0].minManuell && netto > 0
+  const autoZiel = Math.max(1, Math.min(720, Math.round(netto)))
+  useEffect(() => {
+    if (autoSync && schritte[0].min !== autoZiel) setSchritte(l => (l.length === 1 && !l[0].minManuell ? [{ ...l[0], min: autoZiel }] : l))
+  }, [autoSync, autoZiel, schritte, setSchritte])
+  // Weiterer Schritt: ist der erste noch automatisch, wird die Zeit sinnvoll geteilt (15-Min-Raster), sonst Rest vorschlagen.
+  const weitererSchritt = () => setSchritte(l => {
+    if (l.length === 1 && !l[0].minManuell && autoZiel >= 30) {
+      const erste = Math.max(15, Math.round(autoZiel / 2 / 15) * 15)
+      return [{ ...l[0], min: erste, minManuell: true }, P.neuerSchritt(autoZiel - erste)]
+    }
+    return [...l, P.neuerSchritt(P.vorschlagMinuten(netto, l))]
+  })
   if (modus === 'fotos') {
     return (
       <div className="proj-form">
@@ -254,7 +268,7 @@ export function ProjektSchrittForm({ schritte, setSchritte, netto, brutto, pause
           onChange={fn => update(s.key, fn)}
           onRemove={() => { D.loescheFotoDateien(s.fotos.filter(f => f.status === 'ok' && f.neu)); setSchritte(l => l.filter(x => x.key !== s.key)) }} />
       ))}
-      <button className="btn btn-secondary proj-add" onClick={() => setSchritte(l => [...l, P.neuerSchritt(P.vorschlagMinuten(netto, l))])}>＋ Weiteren Arbeitsschritt hinzufügen</button>
+      <button className="btn btn-secondary proj-add" onClick={weitererSchritt}>＋ Weiteren Arbeitsschritt hinzufügen</button>
     </div>
   )
 }
