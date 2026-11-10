@@ -59,3 +59,8 @@ Eigener Tab, XLSX/PDF-Bibliothek, Offline-Queue mit IndexedDB-Fotos, Leistungsve
 - `lib/projekt.js` (Logik, getestet) · `lib/projektdaten.js` (Datenbank/Fotos) · `components/Projekt.js` (Projektseite, Erfassung, Foto-Betrachter, Gastzugang-Verwaltung) · `components/ProjektTeam.js` (Team-Assistent) · `components/NachweisBlatt.js` (Nachweis-Dokument, gemeinsam für Export und Gast) · `pages/projekt-export.js` (Export) · `pages/nachweise.js` + `lib/gast.js` (Gastseite) · Hooks in `pages/index.js` (Start, Baustellen, Stunden-Dialog, Freigabe) · Styles `proj-*`/`exp-*` in `styles/globals.css`.
 - Geprüft: 175 Logik-Tests (3 Zeitzonen) + 59 Daten-Tests + 20 Pfad-Tests, Speicher-Reihenfolge mit Rückabwicklung (auch für Team-Einträge), Browser-Durchläufe (Mitarbeiter, Admin, Export, PDF, CSV, Archiv, Team-Assistent, Gastlink erstellen/öffnen/sperren/ablaufen, ungültige Links), Verhalten VOR dem SQL, SQL zweimal auf PostgreSQL 16 (uuid- und bigint-IDs) inkl. Rechte-Tests (RLS, Storage, Constraints, Cascade, Protokoll, Gast-Funktionen, Gast-Storage). Nicht gegen echtes Supabase geprüft: anonyme signierte Foto-Links (Storage-Regel `projekt_fotos_obj_gast`) – beim ersten echten Gastlink kurz kontrollieren.
 - Rückfall: Tag `vor-rhenus` auf dem alten Stand von `main`; Projekt-Modus ist je Baustelle abschaltbar.
+
+## Feinschliff 10.11.2026 (Marvin)
+- Kein Infofeld „Arbeitszeit inkl. N Min Pause“ im Zeit-Schritt des Assistenten und kein Hinweis „Arbeitszeit ohne Pause …“ in der Summenleiste (Pause-Eingabe selbst bleibt).
+- „Wo? (Bereich)“: nur **Halle** und **Außenbereich** plus „+ Neu“ (eigener Bereich wird nach Auswahl als aktiver Chip angezeigt).
+- „Wie lange“: Schritte à **15 Min** (Stepper ±15, Minimum 15, Restvorschlag auf 15 gerundet).

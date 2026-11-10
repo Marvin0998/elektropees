@@ -173,7 +173,7 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
       {/* Dauer */}
       <div className="proj-label">Wie lange? </div>
       <div className="proj-stepper">
-        <button onClick={() => set({ min: Math.max(5, (Number(s.min) || 0) - 15) })} aria-label="15 Minuten weniger">−</button>
+        <button onClick={() => set({ min: Math.max(15, (Number(s.min) || 0) - 15) })} aria-label="15 Minuten weniger">−</button>
         <div className="proj-stepper-mitte">
           <input inputMode="numeric" value={s.min === 0 ? '' : s.min} onChange={e => set({ min: Math.min(720, parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0) })} aria-label="Minuten" />
           <span>Min · {P.fmtMin(s.min)}</span>
@@ -247,7 +247,6 @@ export function ProjektSchrittForm({ schritte, setSchritte, netto, brutto, pause
           <span>{stufe === 'rot' ? `${P.fmtMin(-rest)} zu viel` : rest > 0 ? `noch ${P.fmtMin(rest)}` : '✓'}</span>
         </div>
         <div className="proj-bar"><div style={{ width: `${pct}%` }} /></div>
-        <div className="proj-summe-hinweis">Arbeitszeit ohne Pause ({P.fmtMin(brutto)} − {pause} Min Pause){personenText ? ` · ${personenText}` : ''}</div>
       </div>
       {schritte.map((s, i) => (
         <SchrittEditor key={s.key} schritt={s} index={i} anzahl={schritte.length} phase={phase} bereiche={bereiche} ctx={ctx} zeigeFehler={zeigeFehler} modus={modus}

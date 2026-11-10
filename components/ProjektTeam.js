@@ -196,13 +196,6 @@ export default function TeamErfassung({ baustelle: b, user, allUsers, isAdmin = 
               </div>
               <div className="form-group"><label>Pause (Min, bezahlt)</label><input inputMode="numeric" value={pause} onChange={e => setPause(String(e.target.value).replace(/\D/g, '').slice(0, 3))} /></div>
               {istFreitag && <div className="team-freitag">🟡 <strong>Freitag</strong> — wird als Überstunden gewertet</div>}
-              <div className="calc-box">
-                <div>
-                  <div className="calc-label">Arbeitszeit je Person (inkl. {Number(pause) || 0} Min Pause)</div>
-                  <div className="calc-note">Pause ist bezahlt und wird mitgerechnet · {team.length} {team.length === 1 ? 'Person' : 'Personen'}: {String((dauer * team.length).toFixed(2)).replace('.', ',')} Std</div>
-                </div>
-                <div className="calc-value">{dauer.toFixed(2)} Std</div>
-              </div>
               <div className="team-info">Personen: {P.namenListe(namen)}</div>
             </>
           )}
