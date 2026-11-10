@@ -6,15 +6,15 @@ import * as P from '../lib/projekt'
 import * as D from '../lib/projektdaten'
 
 // ─── Kleinteile ──────────────────────────────────────────────────────────────
-export function useSignedUrls(paths) {
+export function useSignedUrls(paths, db) {
   const key = (paths || []).filter(Boolean).join('|')
   const [map, setMap] = useState({})
   useEffect(() => {
     let live = true
     if (!key) { setMap({}); return }
-    D.signierteUrls(key.split('|')).then(m => { if (live) setMap(m) })
+    D.signierteUrls(key.split('|'), db).then(m => { if (live) setMap(m) })
     return () => { live = false }
-  }, [key])
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
   return map
 }
 export function PhasePill({ phase }) {
@@ -26,7 +26,7 @@ function istProjekt(b) { return !!(b && b.doku_pflicht === true) }
 export { istProjekt }
 
 // ─── Karte (Start + Baustellen) ──────────────────────────────────────────────
-export function ProjektKarte({ baustelle: b, stunden, onOpen, onErfassen }) {
+export function ProjektKarte({ baustelle: b, stunden, onOpen, onErfassen, onTeam }) {
   const std = stunden.filter(s => s.baustelle_id === b.id && s.freigabe_status === 'freigegeben' && !P.istAbwesenheit(s)).reduce((a, s) => a + (Number(s.dauer) || 0), 0)
   return (
     <div className="proj-karte">
@@ -37,16 +37,17 @@ export function ProjektKarte({ baustelle: b, stunden, onOpen, onErfassen }) {
         <div className="proj-karte-foot"><span>{stdKomma(std)} Std freigegeben</span><span className="proj-karte-go">Öffnen ›</span></div>
       </button>
       {onErfassen && <button className="proj-karte-cta" onClick={onErfassen}>⏱️ Stunden + Arbeitsschritte erfassen</button>}
+      {onTeam && <button className="proj-karte-cta proj-karte-cta2" onClick={onTeam}>👥 Team-Stunden erfassen</button>}
     </div>
   )
 }
 
 // ─── Foto-Betrachter ─────────────────────────────────────────────────────────
 // items: [{ path, caption }]
-export function FotoViewer({ items, start = 0, onClose }) {
+export function FotoViewer({ items, start = 0, onClose, db }) {
   const [i, setI] = useState(start)
   const aktuell = items[i]
-  const urls = useSignedUrls([items[i]?.path, items[i + 1]?.path, items[i - 1]?.path])
+  const urls = useSignedUrls([items[i]?.path, items[i + 1]?.path, items[i - 1]?.path], db)
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') setI(x => Math.min(items.length - 1, x + 1)); if (e.key === 'ArrowLeft') setI(x => Math.max(0, x - 1)) }
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
@@ -89,7 +90,8 @@ function FotoThumb({ foto, url, onRemove, onRetry, onOpen }) {
 
 // ─── Ein Arbeitsschritt (Karte) ──────────────────────────────────────────────
 // onChange(fn): fn bekommt den aktuellen Schritt und liefert den neuen (async-sicher).
-export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, phase, bereiche, ctx, restMin, onFotoEntfernt, zeigeFehler }) {
+// modus: 'alle' (Standard) · 'text' (Beschreibung + Dauer) · 'fotos' (nur Fotos, mit kurzer Zusammenfassung) – für den Team-Assistenten
+export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, phase, bereiche, ctx, restMin, onFotoEntfernt, zeigeFehler, modus = 'alle' }) {
   const kat = useMemo(() => P.katalogFuerPhase(phase), [phase])
   const [kachelnOffen, setKachelnOffen] = useState(!s.taetigkeit)
   const [weitere, setWeitere] = useState(false)
@@ -99,7 +101,8 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
   const thumbPfade = s.fotos.filter(f => !f.preview && f.thumbPath).map(f => f.thumbPath)
   const urls = useSignedUrls(thumbPfade)
   const okFotos = s.fotos.filter(f => f.status === 'ok').length
-  const fehler = zeigeFehler ? P.pruefeSchritte([s], 0).fehler : []
+  const fehler = zeigeFehler ? P.pruefeSchritte([s], 0, { teil: modus === 'alle' ? 'alle' : modus }).fehler : []
+  const zeigeText = modus !== 'fotos'; const zeigeFotos = modus !== 'text'
 
   const set = patch => onChange(x => ({ ...x, ...patch }))
   const setFoto = (id, patch) => onChange(x => ({ ...x, fotos: x.fotos.map(f => (f.id === id ? { ...f, ...patch } : f)) }))
@@ -132,10 +135,13 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
     <div className={`proj-schritt ${fehler.length ? 'proj-schritt-fehler' : ''}`}>
       <div className="proj-schritt-kopf">
         <span className="proj-schritt-nr">Schritt {index + 1}</span>
-        {anzahl > 1 && onRemove && <button className="proj-icon-btn" onClick={onRemove} aria-label="Schritt entfernen">🗑️</button>}
+        {anzahl > 1 && onRemove && zeigeText && <button className="proj-icon-btn" onClick={onRemove} aria-label="Schritt entfernen">🗑️</button>}
       </div>
 
+      {!zeigeText && <div className="proj-schritt-zusammen"><strong>{P.schrittText(s) || 'Ohne Beschreibung'}</strong><span>⏱ {P.fmtMin(s.min)}</span></div>}
+
       {/* Tätigkeit */}
+      {zeigeText && (<>
       {k && !kachelnOffen ? (
         <div className="proj-gewaehlt"><span>{k.icon} {k.freitext ? 'Sonstiges' : k.label}</span><button onClick={() => setKachelnOffen(true)}>Ändern</button></div>
       ) : (
@@ -175,8 +181,10 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
         <button onClick={() => set({ min: Math.min(720, (Number(s.min) || 0) + 15) })} aria-label="15 Minuten mehr">+</button>
       </div>
       {restMin > 0 && restMin !== s.min && restMin <= 720 && <button className="proj-link" onClick={() => set({ min: restMin })}>= Rest der Arbeitszeit übernehmen ({P.fmtMin(restMin)})</button>}
+      </>)}
 
       {/* Fotos */}
+      {zeigeFotos && (<>
       <div className="proj-label">Fotos {okFotos === 0 && !s.keinFoto && <span className="proj-pflicht">Pflicht</span>}</div>
       <div className="proj-fotobtns">
         <button className="proj-foto-btn" onClick={() => { artRef.current = 'vorher'; kameraRef.current && kameraRef.current.click() }}>📷 Vorher</button>
@@ -194,6 +202,7 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
         <label className="proj-check"><input type="checkbox" checked={!!s.keinFoto} onChange={e => set({ keinFoto: e.target.checked })} /> Kein Foto möglich</label>
       )}
       {okFotos === 0 && s.keinFoto && <input className="proj-grund" value={s.keinFotoGrund} onChange={e => set({ keinFotoGrund: e.target.value })} placeholder="Warum? (z. B. Fotoverbot, zu dunkel)" />}
+      </>)}
 
       {fehler.length > 0 && <ul className="proj-fehlerliste">{fehler.map(f => <li key={f}>{f}</li>)}</ul>}
     </div>
@@ -201,7 +210,8 @@ export function SchrittEditor({ schritt: s, index, anzahl, onChange, onRemove, p
 }
 
 // ─── Formular im Stunden-Dialog ──────────────────────────────────────────────
-export function ProjektSchrittForm({ schritte, setSchritte, netto, brutto, pause, phase, ctx, zeigeFehler }) {
+// modus: 'alle' (Stunden-Dialog) · 'text' / 'fotos' (Team-Assistent: Beschreibung und Fotos getrennt) · info: eigener Hinweistext
+export function ProjektSchrittForm({ schritte, setSchritte, netto, brutto, pause, phase, ctx, zeigeFehler, modus = 'alle', info, personenText }) {
   const [vorhandene, setVorhandene] = useState([])
   useEffect(() => {
     let live = true
@@ -217,20 +227,30 @@ export function ProjektSchrittForm({ schritte, setSchritte, netto, brutto, pause
   const stufe = netto <= 0 ? 'neutral' : summe > netto ? 'rot' : rest > tol ? 'gelb' : 'gruen'
   const pct = netto > 0 ? Math.min(100, Math.round((summe / netto) * 100)) : 0
   const update = (key, fn) => setSchritte(l => l.map(s => (s.key === key ? fn(s) : s)))
+  if (modus === 'fotos') {
+    return (
+      <div className="proj-form">
+        {schritte.map((s, i) => (
+          <SchrittEditor key={s.key} schritt={s} index={i} anzahl={schritte.length} phase={phase} bereiche={bereiche} ctx={ctx} zeigeFehler={zeigeFehler} modus="fotos"
+            restMin={0} onChange={fn => update(s.key, fn)} />
+        ))}
+      </div>
+    )
+  }
   return (
     <div className="proj-form">
       <div className="proj-form-titel">📋 Arbeitsschritte <span className="proj-pflicht">Pflicht</span></div>
-      <div className="proj-form-info">Beschreibe, was du gemacht hast – jeweils mit Foto und Dauer. Zusammen müssen die Schritte deine Arbeitszeit abdecken.</div>
+      <div className="proj-form-info">{info || 'Beschreibe, was du gemacht hast – jeweils mit Foto und Dauer. Zusammen müssen die Schritte deine Arbeitszeit abdecken.'}</div>
       <div className={`proj-summe proj-summe-${stufe}`}>
         <div className="proj-summe-zeile">
           <span>Beschrieben: <strong>{P.fmtMin(summe)}</strong> von {P.fmtMin(netto)}</span>
           <span>{stufe === 'rot' ? `${P.fmtMin(-rest)} zu viel` : rest > 0 ? `noch ${P.fmtMin(rest)}` : '✓'}</span>
         </div>
         <div className="proj-bar"><div style={{ width: `${pct}%` }} /></div>
-        <div className="proj-summe-hinweis">Arbeitszeit ohne Pause ({P.fmtMin(brutto)} − {pause} Min Pause)</div>
+        <div className="proj-summe-hinweis">Arbeitszeit ohne Pause ({P.fmtMin(brutto)} − {pause} Min Pause){personenText ? ` · ${personenText}` : ''}</div>
       </div>
       {schritte.map((s, i) => (
-        <SchrittEditor key={s.key} schritt={s} index={i} anzahl={schritte.length} phase={phase} bereiche={bereiche} ctx={ctx} zeigeFehler={zeigeFehler}
+        <SchrittEditor key={s.key} schritt={s} index={i} anzahl={schritte.length} phase={phase} bereiche={bereiche} ctx={ctx} zeigeFehler={zeigeFehler} modus={modus}
           restMin={netto - (summe - (Number(s.min) || 0))}
           onChange={fn => update(s.key, fn)}
           onRemove={() => { D.loescheFotoDateien(s.fotos.filter(f => f.status === 'ok' && f.neu)); setSchritte(l => l.filter(x => x.key !== s.key)) }} />
@@ -391,8 +411,79 @@ export function ProjektModusAdmin({ baustelle: b, onRefresh }) {
   )
 }
 
+// ─── Gastzugang (Admin): Link für Rhenus-Mitarbeiter – nur Ansicht der gespeicherten Nachweise ─────
+export function ProjektGastzugang({ baustelle: b }) {
+  const [st, setSt] = useState({ lade: true, links: [], fehlt: false, fehler: '' })
+  const [label, setLabel] = useState('')
+  const [gueltig, setGueltig] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const laden = useCallback(async () => {
+    const r = await D.ladeGastlinks(b.id)
+    setSt({ lade: false, links: r.data, fehlt: r.fehlt, fehler: r.error && !r.fehlt ? r.error.message : '' })
+  }, [b.id])
+  useEffect(() => { laden() }, [laden])
+  const heuteIso = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}` }
+  const url = t => P.gastLinkUrl(typeof window !== 'undefined' ? window.location.origin : '', t)
+  const abgelaufen = l => !!l.gueltig_bis && String(l.gueltig_bis).slice(0, 10) < heuteIso()
+  async function kopieren(t) {
+    try { await navigator.clipboard.writeText(url(t)); setMsg('✓ Link kopiert') } catch (e) { window.prompt('Link zum Kopieren:', url(t)) }
+  }
+  async function erstellen() {
+    if (label.trim().length < 2) { setMsg('Bitte einen Namen angeben, z. B. „Rhenus – Einkauf“.'); return }
+    setSaving(true); setMsg('')
+    let bis = null
+    if (gueltig) { const d = new Date(); d.setDate(d.getDate() + Number(gueltig)); bis = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+    const r = await D.erstelleGastlink({ baustelleId: b.id, label, gueltigBis: bis })
+    setSaving(false)
+    if (r.error || !r.data) { setMsg('Link konnte nicht erstellt werden: ' + ((r.error && r.error.message) || 'unbekannter Fehler')); return }
+    setLabel(''); await laden()
+    await kopieren(r.data.token)
+  }
+  async function umschalten(l) { const r = await D.aendereGastlink(l.id, { aktiv: !l.aktiv }); if (r.error) setMsg('Fehler: ' + r.error.message); await laden() }
+  async function loeschen(l) {
+    if (!window.confirm(`Link „${l.label}“ endgültig löschen? Wer ihn bekommen hat, kommt danach nicht mehr rein.`)) return
+    const r = await D.loescheGastlink(l.id); if (r.error) setMsg('Fehler: ' + r.error.message); await laden()
+  }
+  if (st.fehlt) return <div className="proj-admin proj-admin-hint">👥 <strong>Gastzugang</strong> ist noch nicht freigeschaltet: Das Datenbank-Update (SQL „2026-11-projekt-modul“) muss einmal (erneut) im Supabase-SQL-Editor ausgeführt werden.</div>
+  return (
+    <div className="proj-admin gast-admin">
+      <div className="proj-admin-kopf"><div><strong>👥 Gastzugang für den Kunden</strong><div className="proj-admin-sub">Mitarbeiter von {b.kunde || 'Kunde'} sehen per Link nur die gespeicherten Nachweise – kein Login, nur Ansicht.</div></div></div>
+      {st.fehler && <div className="proj-fehlerbox">Laden fehlgeschlagen: {st.fehler}</div>}
+      {st.links.map(l => (
+        <div key={l.id} className={`gast-link ${l.aktiv && !abgelaufen(l) ? '' : 'inaktiv'}`}>
+          <div className="gast-link-kopf">
+            <strong>{l.label}</strong>
+            <span className={`proj-status ${l.aktiv && !abgelaufen(l) ? 'proj-status-freigegeben' : 'proj-status-abgelehnt'}`}>{!l.aktiv ? 'gesperrt' : abgelaufen(l) ? 'abgelaufen' : 'aktiv'}</span>
+          </div>
+          <div className="gast-link-meta">
+            {l.aufrufe > 0 ? `${l.aufrufe}× geöffnet · zuletzt ${P.fmtDatum(String(l.zuletzt_geoeffnet).slice(0, 10))}` : 'noch nicht geöffnet'}
+            {l.gueltig_bis ? ` · gültig bis ${P.fmtDatum(l.gueltig_bis)}` : ''}
+          </div>
+          <div className="gast-link-btns">
+            <button className="btn btn-outline btn-sm" onClick={() => kopieren(l.token)}>🔗 Link kopieren</button>
+            <button className="btn btn-outline btn-sm" onClick={() => umschalten(l)}>{l.aktiv ? '⏸ Sperren' : '▶ Aktivieren'}</button>
+            <button className="btn btn-outline btn-sm" style={{ color: 'var(--red)' }} onClick={() => loeschen(l)}>🗑️</button>
+          </div>
+        </div>
+      ))}
+      {!st.lade && st.links.length === 0 && <p className="text-muted text-sm" style={{ margin: '0.5rem 0' }}>Noch kein Link angelegt.</p>}
+      <div className="proj-label">Neuen Link erstellen</div>
+      <div className="proj-nr-zeile"><input value={label} onChange={e => setLabel(e.target.value)} placeholder="Name, z. B. Rhenus – Einkauf" maxLength={60} /></div>
+      <div className="proj-nr-zeile" style={{ marginTop: 6 }}>
+        <select value={gueltig} onChange={e => setGueltig(e.target.value)} aria-label="Gültigkeit">
+          <option value="">Unbegrenzt gültig</option><option value="30">30 Tage gültig</option><option value="90">90 Tage gültig</option><option value="365">1 Jahr gültig</option>
+        </select>
+        <button className="btn btn-primary btn-sm" disabled={saving} onClick={erstellen}>{saving ? '…' : '＋ Erstellen'}</button>
+      </div>
+      <div className="proj-admin-sub" style={{ marginTop: 6 }}>Der Gast sieht nur Nachweise, die du im Export mit „Als Nachweis speichern“ eingefroren hast. Link weitergeben = Zugang gewähren; bei Bedarf einfach sperren.</div>
+      {msg && <div className="proj-admin-msg">{msg}</div>}
+    </div>
+  )
+}
+
 // ─── Projektseite ────────────────────────────────────────────────────────────
-export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, isBuero, onBack, onErfassen, onRefresh }) {
+export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, isBuero, onBack, onErfassen, onTeam, onRefresh }) {
   const [tab, setTab] = useState('uebersicht')
   const [daten, setDaten] = useState({ lade: true, schritte: [], fehlt: false, fehler: null })
   const [nurMeine, setNurMeine] = useState(false)
@@ -401,9 +492,13 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
   const [fotoLimit, setFotoLimit] = useState(60)
   const leitung = isAdmin || isBuero
   const nameVon = id => (allUsers.find(u => u.id === id) || {}).name || '—'
+  const personenText = row => [nameVon(row.eintrag.user_id), ...mitglieder(row).map(m => nameVon(m.user_id))].join(', ')
 
   const bsStunden = useMemo(() => stunden.filter(s => s.baustelle_id === b.id && !P.istAbwesenheit(s)), [stunden, b.id])
   const sig = bsStunden.map(s => `${s.id}${s.freigabe_status[0]}`).join(',')
+  // Team-Einträge: Schritt hängt an der Zeile der ersten Person, weitere_stunden_ids nennt die übrigen
+  const stundeNachId = useMemo(() => new Map(bsStunden.map(x => [String(x.id), x])), [bsStunden])
+  const mitglieder = row => (row.weitere_stunden_ids || []).map(id => stundeNachId.get(String(id))).filter(Boolean)
   const laden = useCallback(async () => {
     const r = await D.ladeProjektSchritte(b.id)
     setDaten({ lade: false, schritte: r.schritte, fehlt: !!r.fehlt, fehler: r.error && !r.fehlt ? r.error.message : null })
@@ -415,7 +510,7 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
   const netto = frei.reduce((a, s) => a + P.eintragNetto(s), 0)
   const offen = bsStunden.filter(s => s.freigabe_status === 'ausstehend').length
   const fotoAnzahl = daten.schritte.reduce((a, s) => a + s.fotos.length, 0)
-  const bereiche = useMemo(() => P.aggregiereBereiche(daten.schritte.map(s => ({ bereich: s.bereich, dauer_min: s.dauer_min, fotoAnzahl: s.fotos.length }))), [daten.schritte])
+  const bereiche = useMemo(() => P.aggregiereBereiche(daten.schritte.map(s => ({ bereich: s.bereich, dauer_min: s.dauer_min * (1 + mitglieder(s).length), fotoAnzahl: s.fotos.length }))), [daten.schritte, stundeNachId]) // eslint-disable-line react-hooks/exhaustive-deps
   const ctx = { baustelleId: b.id, userId: user.id }
 
   const eintraege = useMemo(() => {
@@ -423,9 +518,9 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
     daten.schritte.forEach(s => { const l = m.get(s.eintrag.id) || { eintrag: s.eintrag, schritte: [] }; l.schritte.push(s); m.set(s.eintrag.id, l) })
     let liste = [...m.values()]
     liste.forEach(l => l.schritte.sort((a, c) => (a.nr || 0) - (c.nr || 0)))
-    if (nurMeine) liste = liste.filter(l => l.eintrag.user_id === user.id)
+    if (nurMeine) liste = liste.filter(l => l.eintrag.user_id === user.id || mitglieder(l.schritte[0]).some(m => m.user_id === user.id))
     return liste.sort((a, c) => c.eintrag.datum.localeCompare(a.eintrag.datum) || String(c.eintrag.start_zeit).localeCompare(String(a.eintrag.start_zeit)))
-  }, [daten.schritte, nurMeine, user.id])
+  }, [daten.schritte, nurMeine, user.id, stundeNachId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const alleFotos = useMemo(() => {
     const out = []
@@ -451,12 +546,13 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
       </div>
       <div className="page-content" style={{ paddingTop: '1rem' }}>
         <button className="btn btn-primary proj-cta" onClick={onErfassen}>⏱️ Stunden + Arbeitsschritte erfassen</button>
+        {isAdmin && onTeam && <button className="btn btn-secondary proj-cta" onClick={() => onTeam(b)}>👥 Team-Stunden erfassen (mehrere Mitarbeiter)</button>}
         <div className="tab-row">
           {[['uebersicht', 'Übersicht'], ['schritte', 'Schritte'], ['fotos', `Fotos${fotoAnzahl ? ` (${fotoAnzahl})` : ''}`]].map(([id, l]) => <button key={id} className={`tab-btn ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{l}</button>)}
         </div>
 
         {daten.fehlt && <div className="proj-fehlerbox">Die Projekt-Datenbank ist noch nicht eingerichtet (SQL „2026-11-projekt-modul“ fehlt). Stunden lassen sich trotzdem wie gewohnt erfassen.</div>}
-        {daten.fehler && <div className="proj-fehlerbox">Laden fehlgeschlagen: {daten.fehler} <button className="proj-link" onClick={laden}>Nochmal versuchen</button></div>}
+        {daten.fehler && <div className="proj-fehlerbox">Laden fehlgeschlagen: {daten.fehler}{/weitere_stunden_ids/.test(daten.fehler) ? ' – bitte das aktualisierte SQL „2026-11-projekt-modul“ im Supabase-SQL-Editor noch einmal ausführen.' : ''} <button className="proj-link" onClick={laden}>Nochmal versuchen</button></div>}
 
         {tab === 'uebersicht' && (
           <>
@@ -475,6 +571,7 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
               <>
                 <a className="btn btn-secondary proj-export" href={`/projekt-export?b=${b.id}`}>📄 Zeitnachweis &amp; Dokumentation exportieren</a>
                 {isAdmin && <ProjektModusAdmin baustelle={b} onRefresh={onRefresh} />}
+                {isAdmin && <ProjektGastzugang baustelle={b} />}
               </>
             )}
           </>
@@ -491,7 +588,7 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
             {eintraege.map(l => (
               <div key={l.eintrag.id} className="card proj-eintrag">
                 <div className="proj-eintrag-kopf">
-                  <div><div className="proj-eintrag-tag">{P.wochentagKurz(l.eintrag.datum)} {P.fmtDatum(l.eintrag.datum)}</div><div className="proj-eintrag-sub">{nameVon(l.eintrag.user_id)} · {P.hhmm(l.eintrag.start_zeit)}–{P.hhmm(l.eintrag.end_zeit)}</div></div>
+                  <div><div className="proj-eintrag-tag">{P.wochentagKurz(l.eintrag.datum)} {P.fmtDatum(l.eintrag.datum)}</div><div className="proj-eintrag-sub">{mitglieder(l.schritte[0]).length > 0 ? '👥 ' : ''}{personenText(l)} · {P.hhmm(l.eintrag.start_zeit)}–{P.hhmm(l.eintrag.end_zeit)}</div></div>
                   <span className={`proj-status proj-status-${l.eintrag.freigabe_status}`}>{l.eintrag.freigabe_status === 'freigegeben' ? '✓ Freigegeben' : l.eintrag.freigabe_status === 'abgelehnt' ? '✗ Abgelehnt' : '⏳ Ausstehend'}</span>
                 </div>
                 {l.schritte.map(s => (
@@ -522,7 +619,7 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
       </div>
 
       {detail && detailEintrag && (
-        <SchrittSheet row={detail} eintragSchritte={detailEintrag.schritte} kannBearbeiten={kannBearbeiten(detail)} personName={nameVon(detail.eintrag.user_id)}
+        <SchrittSheet row={detail} eintragSchritte={detailEintrag.schritte} kannBearbeiten={kannBearbeiten(detail)} personName={personenText(detail)}
           phase={detail.phase || b.projekt_phase} ctx={ctx} alleSchritte={daten.schritte}
           onClose={() => setDetail(null)} onGeaendert={async () => { setDetail(null); await laden(); await onRefresh() }} onFoto={oeffneFoto} />
       )}

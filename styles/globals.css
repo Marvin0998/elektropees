@@ -629,3 +629,53 @@ body {
   .exp-sign { grid-template-columns: 1fr 1fr; }
   .exp-kw { break-inside: avoid-page; }
 }
+
+/* ───────── Team-Erfassung (Assistent) ───────── */
+.proj-karte-cta2 { background: var(--blue-mid, #1642b5); }
+.proj-schritt-zusammen { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--bg); border-radius: var(--r-sm); padding: 0.6rem 0.75rem; margin-bottom: 0.6rem; font-size: 0.88rem; }
+.proj-schritt-zusammen span { white-space: nowrap; color: var(--text2); font-size: 0.8rem; }
+.team-sheet { max-height: 94vh; overflow-y: auto; }
+.team-bs { font-size: 0.85rem; color: var(--text2); margin: -0.4rem 0 0.75rem; }
+.team-steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 1rem; }
+.team-step { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; min-height: 52px; border: 0; border-bottom: 3px solid var(--border2); background: none; font-family: inherit; font-size: 0.68rem; color: var(--text2); cursor: default; }
+.team-step span { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--bg); font-weight: 700; font-size: 0.75rem; }
+.team-step.aktiv { border-bottom-color: var(--blue); color: var(--blue); font-weight: 700; }
+.team-step.aktiv span { background: var(--blue); color: white; }
+.team-step.fertig { border-bottom-color: var(--green); cursor: pointer; }
+.team-step.fertig span { background: var(--green-pale); color: #0B5B36; }
+.team-select { width: 100%; height: 52px; border: 1.5px solid var(--border2); border-radius: var(--r-sm); padding: 0 0.8rem; font-size: 16px; font-family: inherit; background: white; margin-bottom: 0.5rem; }
+.team-chips { margin: 0.25rem 0 0.5rem; }
+.team-info { font-size: 0.78rem; color: var(--text2); margin: 0.5rem 0 0.75rem; line-height: 1.45; }
+.team-freitag { background: #FEF3C7; border: 1px solid #F6E05E; border-radius: 10px; padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.82rem; color: #92400E; }
+.team-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 1rem 0 0.25rem; }
+.team-nav .btn { margin: 0; }
+.team-nav > span { display: block; }
+.team-zus { background: var(--bg); border-radius: var(--r-md); padding: 0.6rem 0.9rem; margin-bottom: 0.9rem; }
+.team-zus-zeile { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+.team-zus-zeile:last-child { border-bottom: 0; }
+.team-zus-zeile span { color: var(--text2); white-space: nowrap; }
+.team-zus-zeile strong { text-align: right; }
+.team-zus-schritt { border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 0.55rem 0.75rem; margin-bottom: 6px; font-size: 0.85rem; }
+.team-zus-meta { font-size: 0.75rem; color: var(--text2); margin-top: 2px; }
+.team-ok { background: var(--green-pale); border: 1px solid #9AE6B4; border-radius: var(--r-md); padding: 1rem; margin-bottom: 1rem; font-size: 0.88rem; color: #0B5B36; line-height: 1.6; }
+.team-ok-gross { font-size: 1.1rem; font-weight: 700; }
+.team-ok-klein { font-size: 0.78rem; opacity: 0.85; margin-top: 4px; }
+.proj-nr-zeile select { flex: 1; height: 48px; border: 1.5px solid var(--border2); border-radius: var(--r-sm); padding: 0 0.6rem; font-size: 16px; font-family: inherit; background: white; }
+
+/* ───────── Gastzugang ───────── */
+.gast-admin { background: #F7FAFF; }
+.gast-link { border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 0.6rem 0.75rem; margin: 0.6rem 0; background: white; }
+.gast-link.inaktiv { opacity: 0.7; }
+.gast-link-kopf { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gast-link-meta { font-size: 0.75rem; color: var(--text2); margin: 3px 0 8px; }
+.gast-link-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.gast-seite .gast-panel { margin-left: auto; margin-right: auto; }
+.gast-logo { height: 48px; width: auto; display: block; margin: 0 0 0.75rem; }
+.gast-bs { background: var(--bg); border-radius: var(--r-sm); padding: 0.6rem 0.8rem; margin: 0.5rem 0 0.75rem; font-size: 0.85rem; line-height: 1.5; }
+.gast-klein { font-size: 0.7rem; opacity: 0.7; }
+.exp-archiv-zeile small { color: var(--text2); font-size: 0.72rem; }
+
+/* Nachweis auf dem Handy: Zeitnachweis-Tabelle behält ihre Breite und scrollt im Blatt seitwärts, statt Spalten zu quetschen */
+@media screen and (max-width: 640px) {
+  .exp-kw .exp-tab { min-width: 520px; }
+}

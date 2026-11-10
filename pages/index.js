@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { ProjektPage, ProjektKarte, ProjektSchrittForm, ProjektModusAdmin, useDokuEntwurf, istProjekt } from '../components/Projekt'
+import TeamErfassung from '../components/ProjektTeam'
 import * as PRJ from '../lib/projekt'
 import * as PRJD from '../lib/projektdaten'
 
@@ -234,7 +235,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule,onProjekt,onErfassenProjekt}) {
+function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule,onProjekt,onErfassenProjekt,onTeamProjekt}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -319,7 +320,7 @@ function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,is
         </div>
         <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
       </button>
-      {baustellen.filter(b=>b.status==='aktiv'&&istProjekt(b)).map(b=><ProjektKarte key={b.id} baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)} onErfassen={isBuero?null:()=>onErfassenProjekt(b.id)}/>)}
+      {baustellen.filter(b=>b.status==='aktiv'&&istProjekt(b)).map(b=><ProjektKarte key={b.id} baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)} onErfassen={isBuero?null:()=>onErfassenProjekt(b.id)} onTeam={isAdmin&&onTeamProjekt?()=>onTeamProjekt(b):null}/>)}
       {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid #fecaca',borderRadius:'var(--r-lg)',padding:'0.625rem 1rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
         <div style={{width:32,height:32,borderRadius:'50%',background:'#fee2e2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>🤒</div>
         <div style={{flex:1}}>
@@ -975,9 +976,17 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
   useEffect(()=>{
     if(!dokuKey){setDokuInfo(null);return}
     let live=true
-    supabase.from('projekt_schritte').select('stunden_id,dauer_min,projekt_fotos(id)').in('stunden_id',dokuKey.split(',')).then(({data,error})=>{
-      if(!live||error||!data) return
-      const m={}; data.forEach(r=>{const e=m[r.stunden_id]||(m[r.stunden_id]={n:0,min:0,fotos:0}); e.n++; e.min+=r.dauer_min; e.fotos+=(r.projekt_fotos||[]).length})
+    const ids=dokuKey.split(',')
+    const felder='id,stunden_id,weitere_stunden_ids,dauer_min,projekt_fotos(id)'
+    // Schritte hängen an der Zeile der ersten Person; bei Team-Einträgen verweist weitere_stunden_ids auf die übrigen Zeilen
+    Promise.all([
+      supabase.from('projekt_schritte').select(felder).in('stunden_id',ids),
+      supabase.from('projekt_schritte').select(felder).overlaps('weitere_stunden_ids',ids)
+    ]).then(([a,b])=>{
+      if(!live||a.error||!a.data) return
+      const rows=new Map(); [...a.data,...((b&&!b.error&&b.data)||[])].forEach(r=>rows.set(r.id,r))
+      const wanted=new Set(ids)
+      const m={}; rows.forEach(r=>{[r.stunden_id,...(r.weitere_stunden_ids||[])].map(String).filter(id=>wanted.has(id)).forEach(id=>{const e=m[id]||(m[id]={n:0,min:0,fotos:0}); e.n++; e.min+=r.dauer_min; e.fotos+=(r.projekt_fotos||[]).length})})
       setDokuInfo(m)
     },()=>{})
     return ()=>{live=false}
@@ -4686,6 +4695,7 @@ export default function App() {
   const [showBerufsschule,setShowBerufsschule]=useState(false)
   const [projektId,setProjektId]=useState(null)
   const [stundenPreset,setStundenPreset]=useState(null)
+  const [teamBs,setTeamBs]=useState(null)
   const [installPrompt,setInstallPrompt]=useState(null)
   const [showInstallBanner,setShowInstallBanner]=useState(false)
 
@@ -4794,15 +4804,16 @@ export default function App() {
           bzw. im Admin-Menü (Freigabe/Signatur) — keine eigenen Top-Level-Tabs mehr.
           Das Ausblenden der Navigation ersetzt keine Server-Rechte: alle Supabase-
           RLS-Policies und Rollen-Prüfungen in den Unterseiten bleiben unverändert. */}
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>{setStundenPreset(null);setShowStunden(true)}} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)} onProjekt={oeffneProjekt} onErfassenProjekt={erfasseFuer}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>{setStundenPreset(null);setShowStunden(true)}} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)} onProjekt={oeffneProjekt} onErfassenProjekt={erfasseFuer} onTeamProjekt={setTeamBs}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers} onProjekt={oeffneProjekt}/>}
       {page==='projekt'&&!isExtern&&(projektBs
-        ?<ProjektPage baustelle={projektBs} user={user} allUsers={allUsers} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onBack={()=>setPage('baustellen')} onErfassen={()=>erfasseFuer(projektBs.id)} onRefresh={loadData}/>
+        ?<ProjektPage baustelle={projektBs} user={user} allUsers={allUsers} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onBack={()=>setPage('baustellen')} onErfassen={()=>erfasseFuer(projektBs.id)} onTeam={setTeamBs} onRefresh={loadData}/>
         :<div className="page-content"><p className="text-muted text-sm">Projekt nicht gefunden.</p><button className="btn btn-secondary" onClick={()=>setPage('baustellen')}>‹ Zu den Baustellen</button></div>)}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
+      {teamBs&&isAdmin&&<TeamErfassung baustelle={teamBs} user={user} allUsers={allUsers} onClose={()=>setTeamBs(null)} onSaved={loadData}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>{setShowStunden(false);setStundenPreset(null)}} onSaved={loadData} isBuero={isBuero} presetBaustelleId={stundenPreset}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       {showBerufsschule&&<AbwesenheitModal user={user} typen={['berufsschule']} baustellen={baustellen} onClose={()=>setShowBerufsschule(false)} onSaved={loadData}/>}

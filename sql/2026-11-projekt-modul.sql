@@ -2,7 +2,9 @@
 -- Elektro Pees – Projekt-Modul (Rhenus Dietzenbach): Arbeitsschritte, Fotos, Nachweise
 -- Im Supabase SQL-Editor als GANZES Skript ausführen (Run). Idempotent: kann mehrfach laufen.
 -- Läuft in einer Transaktion: entweder wird alles angelegt oder nichts.
--- Rein additiv: bestehende Tabellen/Policies von `stunden`/`profiles` bleiben unangetastet.
+-- Rein additiv: neue Tabellen/Spalten/Funktionen; an bestehenden Tabellen nur neue Spalten (baustellen)
+-- und EINE zusätzliche Policy (stunden_insert_admin: Admin darf Stunden für Mitarbeiter anlegen).
+-- Bestehende Policies von `stunden`/`profiles` werden nicht verändert.
 -- Rollback (nur falls nötig, VORHER Export sichern): siehe Ende der Datei.
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
@@ -78,8 +80,29 @@ begin
       erstellt_von    uuid default auth.uid(),
       created_at      timestamptz not null default now()
     )$t$, t_baustelle);
+
+  -- Gastzugang (Link für Rhenus-Mitarbeiter: nur Ansicht der gespeicherten Nachweise)
+  execute format($t$
+    create table if not exists public.projekt_gastlinks (
+      id                uuid primary key default gen_random_uuid(),
+      baustelle_id      %s not null references public.baustellen(id) on delete cascade,
+      token             uuid not null unique default gen_random_uuid(),
+      label             text not null check (char_length(btrim(label)) >= 2),
+      aktiv             boolean not null default true,
+      gueltig_bis       date,
+      aufrufe           integer not null default 0,
+      zuletzt_geoeffnet timestamptz,
+      erstellt_von      uuid default auth.uid(),
+      created_at        timestamptz not null default now()
+    )$t$, t_baustelle);
 end
 $mig$;
+
+-- Team-Einträge: ein Arbeitsschritt kann zu mehreren Stundenzeilen gehören
+-- (stunden_id = erste Person, weitere_stunden_ids = Stundenzeilen der übrigen Teammitglieder, als Text).
+alter table public.projekt_schritte add column if not exists weitere_stunden_ids text[] not null default '{}';
+-- Foto-Pfade eines gespeicherten Nachweises (damit der Gastzugang genau diese Fotos zeigen darf)
+alter table public.projekt_exporte  add column if not exists foto_pfade text[] not null default '{}';
 
 create table if not exists public.projekt_fotos (
   id              uuid primary key default gen_random_uuid(),
@@ -107,6 +130,7 @@ create index if not exists projekt_schritte_stunden_idx on public.projekt_schrit
 create index if not exists projekt_fotos_schritt_idx    on public.projekt_fotos (schritt_id);
 create index if not exists projekt_exporte_baustelle_idx on public.projekt_exporte (baustelle_id, created_at desc);
 create index if not exists stunden_baustelle_datum_idx  on public.stunden (baustelle_id, datum);
+create index if not exists projekt_gastlinks_baustelle_idx on public.projekt_gastlinks (baustelle_id);
 
 -- ── 4. Trigger: updated_at + Änderungsprotokoll ─────────────────────────────
 create or replace function public.projekt_touch() returns trigger
@@ -216,6 +240,81 @@ create policy projekt_fotos_obj_delete on storage.objects for delete to authenti
   using (bucket_id = 'projekt-fotos'
          and ((storage.foldername(name))[2] = auth.uid()::text or public.ep_leitung()));
 
+-- ── 7. Team-Erfassung: Admin darf Stunden für Mitarbeiter anlegen ────────────
+-- (wird auch für „Krank/Berufsschule nachtragen“ gebraucht; ersetzt eine frühere gleichnamige Policy)
+drop policy if exists stunden_insert_admin on public.stunden;
+create policy stunden_insert_admin on public.stunden for insert to authenticated
+  with check (public.ep_rolle() = 'admin');
+
+-- ── 8. Gastzugang (Rhenus): Link-Verwaltung nur Admin, Ansicht ohne Anmeldung per Token ──
+alter table public.projekt_gastlinks enable row level security;
+revoke all on public.projekt_gastlinks from anon;
+grant select, insert, update, delete on public.projekt_gastlinks to authenticated;
+drop policy if exists projekt_gastlinks_select on public.projekt_gastlinks;
+create policy projekt_gastlinks_select on public.projekt_gastlinks for select to authenticated
+  using (public.ep_rolle() = 'admin');
+drop policy if exists projekt_gastlinks_insert on public.projekt_gastlinks;
+create policy projekt_gastlinks_insert on public.projekt_gastlinks for insert to authenticated
+  with check (public.ep_rolle() = 'admin');
+drop policy if exists projekt_gastlinks_update on public.projekt_gastlinks;
+create policy projekt_gastlinks_update on public.projekt_gastlinks for update to authenticated
+  using (public.ep_rolle() = 'admin') with check (public.ep_rolle() = 'admin');
+drop policy if exists projekt_gastlinks_delete on public.projekt_gastlinks;
+create policy projekt_gastlinks_delete on public.projekt_gastlinks for delete to authenticated
+  using (public.ep_rolle() = 'admin');
+
+-- Liste der gespeicherten Nachweise für einen gültigen Link (null = Link ungültig/gesperrt/abgelaufen)
+create or replace function public.projekt_gast_liste(p_token uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare g public.projekt_gastlinks; erg jsonb;
+begin
+  select * into g from public.projekt_gastlinks
+   where token = p_token and aktiv and (gueltig_bis is null or gueltig_bis >= current_date);
+  if not found then return null; end if;
+  update public.projekt_gastlinks set aufrufe = aufrufe + 1, zuletzt_geoeffnet = now() where id = g.id;
+  select jsonb_build_object(
+           'label', g.label,
+           'baustelle', jsonb_build_object('name', b.name, 'kunde', b.kunde, 'adresse', b.adresse, 'auftragsnr', b.auftragsnr),
+           'nachweise', coalesce((
+              select jsonb_agg(jsonb_build_object('id', e.id, 'nr', e.nr, 'von', e.von, 'bis', e.bis, 'summe_min', e.summe_min,
+                                                  'anzahl_eintraege', e.anzahl_eintraege, 'anzahl_fotos', e.anzahl_fotos,
+                                                  'created_at', e.created_at) order by e.created_at desc)
+                from public.projekt_exporte e where e.baustelle_id = g.baustelle_id), '[]'::jsonb))
+    into erg
+    from public.baustellen b where b.id = g.baustelle_id;
+  return erg;
+end $$;
+
+-- Ein gespeicherter Nachweis (nur wenn er zur Baustelle des Links gehört)
+create or replace function public.projekt_gast_nachweis(p_token uuid, p_id uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare g public.projekt_gastlinks; erg jsonb;
+begin
+  select * into g from public.projekt_gastlinks
+   where token = p_token and aktiv and (gueltig_bis is null or gueltig_bis >= current_date);
+  if not found then return null; end if;
+  select jsonb_build_object('id', e.id, 'nr', e.nr, 'von', e.von, 'bis', e.bis, 'created_at', e.created_at, 'snapshot', e.snapshot)
+    into erg
+    from public.projekt_exporte e where e.id = p_id and e.baustelle_id = g.baustelle_id;
+  return erg;
+end $$;
+
+-- Darf ein Gast diese Bilddatei sehen? Nur Fotos, die in einem gespeicherten Nachweis einer Baustelle mit aktivem Link vorkommen.
+create or replace function public.ep_gast_foto(p_name text) returns boolean
+language sql stable security definer set search_path = public as
+$$ select exists (
+     select 1 from public.projekt_exporte e
+       join public.projekt_gastlinks g on g.baustelle_id = e.baustelle_id
+      where g.aktiv and (g.gueltig_bis is null or g.gueltig_bis >= current_date)
+        and p_name = any (e.foto_pfade)) $$;
+
+revoke all on function public.projekt_gast_liste(uuid), public.projekt_gast_nachweis(uuid, uuid), public.ep_gast_foto(text) from public;
+grant execute on function public.projekt_gast_liste(uuid), public.projekt_gast_nachweis(uuid, uuid), public.ep_gast_foto(text) to anon, authenticated;
+
+drop policy if exists projekt_fotos_obj_gast on storage.objects;
+create policy projekt_fotos_obj_gast on storage.objects for select to anon
+  using (bucket_id = 'projekt-fotos' and public.ep_gast_foto(name));
+
 commit;
 
 -- PostgREST soll die neuen Tabellen/Spalten sofort kennen
@@ -234,8 +333,21 @@ union all select 'Policies angelegt (13 Tabellen-Policies)',
   (select count(*) from pg_policies where schemaname = 'public' and tablename in ('projekt_schritte','projekt_fotos','projekt_exporte','projekt_historie')) = 13
 union all select 'Storage-Bucket projekt-fotos (privat)',
   exists (select 1 from storage.buckets where id='projekt-fotos' and public = false)
-union all select 'Storage-Policies (3)',
-  (select count(*) from pg_policies where schemaname='storage' and policyname like 'projekt_fotos_obj_%') = 3;
+union all select 'Storage-Policies (3 intern + 1 Gast)',
+  (select count(*) from pg_policies where schemaname='storage' and policyname like 'projekt_fotos_obj_%') = 4
+union all select 'Spalte projekt_schritte.weitere_stunden_ids (Team)',
+  exists (select 1 from information_schema.columns where table_schema='public' and table_name='projekt_schritte' and column_name='weitere_stunden_ids')
+union all select 'Spalte projekt_exporte.foto_pfade',
+  exists (select 1 from information_schema.columns where table_schema='public' and table_name='projekt_exporte' and column_name='foto_pfade')
+union all select 'Tabelle projekt_gastlinks (RLS + 4 Policies)',
+  to_regclass('public.projekt_gastlinks') is not null
+  and (select relrowsecurity from pg_class where oid = 'public.projekt_gastlinks'::regclass)
+  and (select count(*) from pg_policies where schemaname='public' and tablename='projekt_gastlinks') = 4
+union all select 'Gast-Funktionen (3)',
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public' and p.proname in ('projekt_gast_liste','projekt_gast_nachweis','ep_gast_foto')) = 3
+union all select 'Policy stunden_insert_admin',
+  exists (select 1 from pg_policies where schemaname='public' and tablename='stunden' and policyname='stunden_insert_admin');
 
 -- ── Optional: Baustelle „Rhenus“ gleich anlegen (Adresse danach in der App ergänzen) ──
 -- insert into public.baustellen (name, kunde, adresse, beschreibung, status, doku_pflicht, projekt_phase)
@@ -244,6 +356,8 @@ union all select 'Storage-Policies (3)',
 --  where not exists (select 1 from public.baustellen where name = 'Rhenus Dietzenbach – Bestandshalle');
 
 -- ── Rollback (nur bei Bedarf; zerstört alle Doku-Daten – vorher Nachweise exportieren!) ──
--- drop table if exists public.projekt_fotos, public.projekt_schritte, public.projekt_exporte, public.projekt_historie cascade;
+-- drop table if exists public.projekt_fotos, public.projekt_schritte, public.projekt_exporte, public.projekt_historie, public.projekt_gastlinks cascade;
+-- drop function if exists public.projekt_gast_liste(uuid), public.projekt_gast_nachweis(uuid, uuid), public.ep_gast_foto(text);
+-- drop policy if exists projekt_fotos_obj_gast on storage.objects;
 -- delete from storage.objects where bucket_id = 'projekt-fotos'; delete from storage.buckets where id = 'projekt-fotos';
 -- alter table public.baustellen drop column if exists doku_pflicht, drop column if exists projekt_phase, drop column if exists auftragsnr;

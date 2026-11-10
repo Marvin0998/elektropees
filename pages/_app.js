@@ -4,6 +4,8 @@ import Head from 'next/head'
 
 export default function App({ Component, pageProps }) {
   useEffect(() => {
+    // Gastzugang (/nachweise): keine App-Funktionen – weder Service-Worker noch Frage nach Benachrichtigungen
+    if (window.location.pathname.startsWith('/nachweise')) return
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => {
