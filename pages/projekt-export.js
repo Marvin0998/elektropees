@@ -27,7 +27,7 @@ export default function ProjektExport() {
   const [baustellen, setBaustellen] = useState([])
   const [bsId, setBsId] = useState('')
   const [von, setVon] = useState(''); const [bis, setBis] = useState(heuteStr())
-  const [opt, setOpt] = useState({ pause: 'netto', namen: 'voll', mitFotos: true, funktionen: {} })
+  const [opt, setOpt] = useState({ pause: 'brutto', namen: 'voll', mitFotos: true, funktionen: {} })
   const [daten, setDaten] = useState(null)
   const [lade, setLade] = useState(false)
   const [fehler, setFehler] = useState('')
@@ -162,8 +162,8 @@ export default function ProjektExport() {
           <div className="exp-optionen">
             <div>
               <div className="proj-label">Pause</div>
-              <label className="exp-radio"><input type="radio" name="pause" checked={opt.pause === 'netto'} onChange={() => setOpt(o => ({ ...o, pause: 'netto' }))} /> Abziehen (netto) <em>Standard</em></label>
-              <label className="exp-radio"><input type="radio" name="pause" checked={opt.pause === 'brutto'} onChange={() => setOpt(o => ({ ...o, pause: 'brutto' }))} /> Mitberechnen (brutto)</label>
+              <label className="exp-radio"><input type="radio" name="pause" checked={opt.pause === 'brutto'} onChange={() => setOpt(o => ({ ...o, pause: 'brutto' }))} /> Mitberechnen (brutto) <em>Standard</em></label>
+              <label className="exp-radio"><input type="radio" name="pause" checked={opt.pause === 'netto'} onChange={() => setOpt(o => ({ ...o, pause: 'netto' }))} /> Abziehen (netto)</label>
             </div>
             <div>
               <div className="proj-label">Namen</div>

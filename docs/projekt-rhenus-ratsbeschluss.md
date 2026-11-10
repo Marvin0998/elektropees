@@ -18,7 +18,7 @@ Beraten haben fünf Blickwinkel: Abrechnung/Kunde, Monteur-UX, Daten-Architekt, 
 - Eigene Seite `/projekt-export` (kein Popup/`document.write`). PDF über die Druckfunktion des Browsers, dazu CSV (`;`, UTF-8-BOM, Dezimalkomma, Formel-Schutz).
 - Nur **freigegebene** Stunden; Krank/Berufsschule nie; keine Preise; keine Freitag-/Überstunden-Marker.
 - Teil A Zeitnachweis (KW-Blöcke, Summen je KW/Person/Funktion), Teil B Arbeitsschritte, Teil C Foto-Anlage (optional, max. 150 Fotos), Gegenzeichnung.
-- Pause: Standard **netto** (Von − Bis − Pause), Schalter „Pause mitberechnen“ (dann Hinweis im Kopf). Entscheidung gegenüber Rhenus liegt bei Marvin.
+- Pause: Standard **brutto** (Von–Bis inkl. bezahlter Pause, Entscheidung Marvin 10.11.2026; Hinweis im Kopf des Nachweises). Ausnahme-Schalter „Abziehen (netto)“ bleibt im Export.
 - „Als Nachweis speichern“ friert den Stand ein (`projekt_exporte`, Nr. `LN-JJJJ-nnn`).
 - Prüfliste vor dem Export: nicht freigegebene Einträge, freigegebene ohne Doku, Abweichung Σ Schritte vs. Nettozeit > 5 Min, Schritte ohne Foto.
 - Paginierte Abfrage (`range`) mit Kontrollsumme, weil `loadData` nur 2000 Zeilen lädt. Zeitnachweis funktioniert für **jede** Baustelle, auch ohne Migration.
@@ -32,7 +32,7 @@ Beraten haben fünf Blickwinkel: Abrechnung/Kunde, Monteur-UX, Daten-Architekt, 
 Eigener Tab, XLSX/PDF-Bibliothek, Offline-Queue mit IndexedDB-Fotos, Leistungsverzeichnis/Preise, Kundenunterschrift digital, Bereichsstatus (Offen/Erledigt), „Mit wem?“-Pflicht für Azubis, Datenbank-Trigger „keine Freigabe ohne Doku“.
 
 ## Offene Entscheidungen für Marvin
-1. Pause netto oder brutto abrechnen (Voreinstellung netto).
+1. ~~Pause netto oder brutto~~ → entschieden: brutto (Pause wird mitgerechnet).
 2. Darf bei Rhenus fotografiert werden? (sonst „Fotos exportieren“ ausschalten / Hinweis beachten)
 3. Muss der Nachweis Namen voll oder „Vorname N.“ zeigen?
 4. Bestell-/Auftragsnummer von Rhenus eintragen (Pflicht für den Final-Export).
@@ -40,5 +40,5 @@ Eigener Tab, XLSX/PDF-Bibliothek, Offline-Queue mit IndexedDB-Fotos, Leistungsve
 ## Umsetzung (Stand 10.11.2026, Branch `projekt-rhenus`)
 - `sql/2026-11-projekt-modul.sql` – einmal im Supabase-SQL-Editor ausführen (idempotent, eine Transaktion, am Ende Prüftabelle „alles t“).
 - `lib/projekt.js` (Logik, getestet) · `lib/projektdaten.js` (Datenbank/Fotos) · `components/Projekt.js` (Projektseite, Erfassung, Foto-Betrachter) · `pages/projekt-export.js` (Export) · Hooks in `pages/index.js` (Start, Baustellen, Stunden-Dialog, Freigabe) · Styles `proj-*`/`exp-*` in `styles/globals.css`.
-- Geprüft: 140 Logik-Tests (3 Zeitzonen), Speicher-Reihenfolge mit Rückabwicklung, kompletter Browser-Durchlauf (Mitarbeiter, Admin, Export, PDF, CSV, Archiv), Verhalten VOR dem SQL, SQL zweimal auf PostgreSQL 16 (uuid- und bigint-IDs) inkl. 45 Rechte-Tests (RLS, Storage, Constraints, Cascade, Protokoll).
+- Geprüft: 143 Logik-Tests (3 Zeitzonen), Speicher-Reihenfolge mit Rückabwicklung, kompletter Browser-Durchlauf (Mitarbeiter, Admin, Export, PDF, CSV, Archiv), Verhalten VOR dem SQL, SQL zweimal auf PostgreSQL 16 (uuid- und bigint-IDs) inkl. 45 Rechte-Tests (RLS, Storage, Constraints, Cascade, Protokoll).
 - Rückfall: Tag `vor-rhenus` auf dem alten Stand von `main`; Projekt-Modus ist je Baustelle abschaltbar.
