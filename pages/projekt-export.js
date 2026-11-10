@@ -1,5 +1,6 @@
 // Export für die Rechnungsstellung: Zeitnachweis + Arbeitsschritte + Foto-Anlage (nur admin/buero).
 // Eigene Seite statt Popup: Druck/PDF über den Browser, CSV für Excel, eingefrorene Nachweise im Archiv.
+import PdfButton from '../components/PdfButton'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
@@ -191,7 +192,8 @@ export default function ProjektExport() {
 
           {nw && (
             <div className="exp-aktionen">
-              <button className="btn btn-primary" onClick={drucken}>🖨️ Drucken / als PDF speichern</button>
+              <PdfButton nw={nw} nr={gesicht ? gesicht.nr : null} erstellt={(gesicht ? String(gesicht.created_at) : heuteStr()).slice(0, 10)} fotoUrls={fotoUrls} onMeldung={setMeldung} />
+              <button className="btn btn-secondary" onClick={drucken}>🖨️ Drucken (Computer)</button>
               <div className="exp-aktionen-zeile">
                 <button className="btn btn-secondary" onClick={() => speichereDatei(P.csvZeiten(nw), P.dateiname(nw, 'Zeitnachweis'), 'text/csv;charset=utf-8')}>⬇ CSV Zeiten</button>
                 <button className="btn btn-secondary" onClick={() => speichereDatei(P.csvSchritte(nw), P.dateiname(nw, 'Arbeitsschritte'), 'text/csv;charset=utf-8')}>⬇ CSV Arbeitsschritte</button>

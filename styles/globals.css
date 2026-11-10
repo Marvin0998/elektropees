@@ -679,3 +679,5 @@ body {
 @media screen and (max-width: 640px) {
   .exp-kw .exp-tab { min-width: 520px; }
 }
+.pdf-fertig { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border, #d5dce8); border-radius: 12px; background: #f3f8f4; font-size: 0.9rem; }
+.pdf-fertig .btn { width: 100%; text-align: center; text-decoration: none; }

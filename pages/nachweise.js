@@ -1,6 +1,7 @@
 // Gastzugang (z. B. Rhenus): NUR ANSEHEN der gespeicherten Leistungs- und Zeitnachweise einer Baustelle.
 // Kein Login, kein Zugriff auf die App: der Link enthält einen geheimen Schlüssel (Token), der Server gibt nur
 // die Nachweise genau dieser Baustelle heraus (siehe SQL-Funktionen projekt_gast_liste / projekt_gast_nachweis).
+import PdfButton from '../components/PdfButton'
 import { useState, useEffect, useMemo } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
@@ -95,7 +96,8 @@ export default function Nachweise() {
               {offen && (
                 <div className="exp-aktionen">
                   <button className="proj-link" onClick={() => { setOffen(null); setMeldung('') }}>‹ Zurück zur Übersicht</button>
-                  <button className="btn btn-primary" onClick={drucken}>🖨️ Drucken / als PDF speichern</button>
+                  <PdfButton nw={offen.nw} nr={offen.nr} erstellt={String(offen.created_at).slice(0, 10)} fotoUrls={fotoUrls} onMeldung={setMeldung} />
+                  <button className="btn btn-secondary" onClick={drucken}>🖨️ Drucken (Computer)</button>
                   <div className="exp-aktionen-zeile">
                     <button className="btn btn-secondary" onClick={() => speichereDatei(P.csvZeiten(offen.nw), P.dateiname(offen.nw, 'Zeitnachweis'), 'text/csv;charset=utf-8')}>⬇ CSV Zeiten</button>
                     <button className="btn btn-secondary" onClick={() => speichereDatei(P.csvSchritte(offen.nw), P.dateiname(offen.nw, 'Arbeitsschritte'), 'text/csv;charset=utf-8')}>⬇ CSV Arbeiten</button>
