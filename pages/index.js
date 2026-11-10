@@ -235,7 +235,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule,onProjekt,onErfassenProjekt,onTeamProjekt}) {
+function HomePage({user,allUsers=[],stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule,onProjekt,onErfassenProjekt,onTeamProjekt}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -268,7 +268,7 @@ function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,is
             {s.notiz==='🤒 Krank'?<span style={{color:'#c53030',fontWeight:700}}>🤒 Krankmeldung</span>:s.notiz==='🎓 Berufsschule'?<span style={{color:'var(--blue)',fontWeight:700}}>🎓 Berufsschule</span>:(b?.name||'—')}
             {isFri&&s.notiz!=='🤒 Krank'&&<span className="badge badge-pending" style={{marginLeft:6,fontSize:'0.62rem'}}>Freitag</span>}
           </div>
-          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&s.notiz!=='🤒 Krank'&&s.notiz!=='🎓 Berufsschule'?` · ${s.notiz}`:''}</div>
+          <div className="entry-meta">{getDayName(s.datum)}, {formatDate(s.datum)} · {s.start_zeit}–{s.end_zeit}{s.notiz&&s.notiz!=='🤒 Krank'&&s.notiz!=='🎓 Berufsschule'?` · ${s.notiz}`:''}{s.erfasst_von&&s.erfasst_von!==s.user_id&&<span style={{color:'var(--blue)',fontWeight:600}}> · ✍️ von {(allUsers.find(u=>u.id===s.erfasst_von)?.name||'Kollege').split(' ')[0]} eingetragen</span>}</div>
         </div>
         <div className="entry-right">
           <div className="entry-hours">{s.dauer.toFixed(1)}h</div>
@@ -320,7 +320,7 @@ function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,is
         </div>
         <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
       </button>
-      {baustellen.filter(b=>b.status==='aktiv'&&istProjekt(b)).map(b=><ProjektKarte key={b.id} baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)} onErfassen={isBuero?null:()=>onErfassenProjekt(b.id)} onTeam={isAdmin&&onTeamProjekt?()=>onTeamProjekt(b):null}/>)}
+      {baustellen.filter(b=>b.status==='aktiv'&&istProjekt(b)).map(b=><ProjektKarte key={b.id} baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)} onErfassen={isBuero?null:()=>onErfassenProjekt(b.id)} onTeam={onTeamProjekt?()=>onTeamProjekt(b):null}/>)}
       {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid #fecaca',borderRadius:'var(--r-lg)',padding:'0.625rem 1rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
         <div style={{width:32,height:32,borderRadius:'50%',background:'#fee2e2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>🤒</div>
         <div style={{flex:1}}>
@@ -1127,6 +1127,7 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                         </div>
                         <div className="freigabe-meta">{getDayName(s.datum)}, {formatDate(s.datum)}</div>
                         <div className="freigabe-meta">🏗️ {b?.name||'—'} · {s.start_zeit}–{s.end_zeit}</div>
+                        {s.erfasst_von&&s.erfasst_von!==s.user_id&&<div className="freigabe-meta" style={{color:'var(--blue)',fontWeight:600}}>✍️ eingetragen von {allUsers.find(u=>u.id===s.erfasst_von)?.name||'Kollege'}</div>}
                         {s.notiz&&s.notiz!=='🤒 Krank'&&<div className="freigabe-meta" style={{color:'var(--blue)',fontWeight:500}}>📋 {s.notiz.length>60?s.notiz.slice(0,60)+'…':s.notiz}</div>}
                         {dokuInfo&&istProjekt(b)&&(dokuInfo[s.id]
                           ?<div className="freigabe-meta" style={{color:'var(--green)',fontWeight:600}}>📷 {dokuInfo[s.id].n} Schritte · {PRJ.fmtMin(dokuInfo[s.id].min)} · {dokuInfo[s.id].fotos} Fotos</div>
@@ -4768,6 +4769,7 @@ export default function App() {
   const isBuero=user.profile?.role==='buero'
   const isAzubi=user.profile?.role==='azubi'
   const isExtern=user.profile?.role==='extern'
+  const kannTeam=isAdmin||user.profile?.role==='mitarbeiter' // Stunden für mehrere erfassen: Chef und Monteure (Büro/Azubi/Extern nicht)
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
   const projektBs=baustellen.find(b=>b.id===projektId)
   const oeffneProjekt=id=>{setProjektId(id);setPage('projekt')}
@@ -4804,16 +4806,16 @@ export default function App() {
           bzw. im Admin-Menü (Freigabe/Signatur) — keine eigenen Top-Level-Tabs mehr.
           Das Ausblenden der Navigation ersetzt keine Server-Rechte: alle Supabase-
           RLS-Policies und Rollen-Prüfungen in den Unterseiten bleiben unverändert. */}
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>{setStundenPreset(null);setShowStunden(true)}} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)} onProjekt={oeffneProjekt} onErfassenProjekt={erfasseFuer} onTeamProjekt={setTeamBs}/>}
+      {page==='home'&&<HomePage user={user} allUsers={allUsers} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>{setStundenPreset(null);setShowStunden(true)}} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)} onProjekt={oeffneProjekt} onErfassenProjekt={erfasseFuer} onTeamProjekt={kannTeam?setTeamBs:null}/>}
       {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers} onProjekt={oeffneProjekt}/>}
       {page==='projekt'&&!isExtern&&(projektBs
-        ?<ProjektPage baustelle={projektBs} user={user} allUsers={allUsers} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onBack={()=>setPage('baustellen')} onErfassen={()=>erfasseFuer(projektBs.id)} onTeam={setTeamBs} onRefresh={loadData}/>
+        ?<ProjektPage baustelle={projektBs} user={user} allUsers={allUsers} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onBack={()=>setPage('baustellen')} onErfassen={()=>erfasseFuer(projektBs.id)} onTeam={kannTeam?setTeamBs:null} onRefresh={loadData}/>
         :<div className="page-content"><p className="text-muted text-sm">Projekt nicht gefunden.</p><button className="btn btn-secondary" onClick={()=>setPage('baustellen')}>‹ Zu den Baustellen</button></div>)}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
-      {teamBs&&isAdmin&&<TeamErfassung baustelle={teamBs} user={user} allUsers={allUsers} onClose={()=>setTeamBs(null)} onSaved={loadData}/>}
+      {teamBs&&kannTeam&&<TeamErfassung baustelle={teamBs} user={user} allUsers={allUsers} isAdmin={isAdmin} onClose={()=>setTeamBs(null)} onSaved={loadData}/>}
       {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>{setShowStunden(false);setStundenPreset(null)}} onSaved={loadData} isBuero={isBuero} presetBaustelleId={stundenPreset}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       {showBerufsschule&&<AbwesenheitModal user={user} typen={['berufsschule']} baustellen={baustellen} onClose={()=>setShowBerufsschule(false)} onSaved={loadData}/>}

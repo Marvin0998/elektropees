@@ -14,13 +14,16 @@ Beraten haben fünf Blickwinkel: Abrechnung/Kunde, Monteur-UX, Daten-Architekt, 
 - Fotos werden sofort verkleinert (1600 px / JPEG 0,72, dazu Vorschaubild 640 px) und einzeln hochgeladen; „Einreichen“ ist gesperrt, bis alle Fotos grün sind. Entwurf (Text, Minuten, hochgeladene Pfade) liegt in localStorage.
 - Eigene Schritte sind bearbeit-/löschbar, solange der Eintrag nicht freigegeben ist.
 
-## Team-Stunden (Admin, Wunsch Marvin 10.11.2026)
-- Knopf „👥 Team-Stunden erfassen“ auf der Projektkarte und der Projektseite (nur Admin). Assistent in 5 Schritten: **Team** (Dropdown aus der Mitarbeiter-Datenbank, Chips, „Letztes Team übernehmen“) → **Zeit** (Datum, Von–Bis, Pause, Rechner) → **Arbeiten** (Beschreibung, Minuten) → **Fotos** → **Abschluss** (Zusammenfassung, „Direkt freigeben“).
+## Stunden für mehrere Personen (Chef und Monteure, Wunsch Marvin 10.11.2026)
+- Knopf „👥 Stunden für mehrere erfassen“ auf der Projektkarte und der Projektseite (Chef und Monteure; nicht Büro/Azubi/Extern). Assistent in 5 Schritten: **Personen** (Dropdown aus der Mitarbeiter-Datenbank, Chips, „Letzte Auswahl übernehmen“) → **Zeit** (Datum, Von–Bis, Pause, Rechner) → **Arbeiten** (Beschreibung, Minuten) → **Fotos** → **Abschluss** (Zusammenfassung, „Direkt freigeben“).
 - Datenmodell ohne Umbau von `stunden`: **je Person eine Stundenzeile** mit identischen Zeiten. Schritte und Fotos werden **einmal** an der Zeile der ersten gewählten Person gespeichert; `projekt_schritte.weitere_stunden_ids` verweist auf die Zeilen der übrigen. Löscht jemand die Träger-Zeile, geht die Doku mit (Prüfliste weist darauf hin).
 - Speichern alles-oder-nichts: alle Stundenzeilen in **einer** Anweisung, danach Schritte, dann Fotos; scheitert etwas, werden alle Zeilen wieder gelöscht, Eingaben und Fotos bleiben im Entwurf.
 - Doppelbuchungen: Überschneidung je Person und Tag blockiert das Speichern (Name + vorhandene Zeit werden genannt).
-- Export: pro Tag werden gleiche Schrittlisten zu einem Block zusammengefasst („Team: A, B · 07:30–17:00 · 9,50 Std je Person“), Foto-Nummern und Schrittzähler zählen einmal. Das Zeitnachweis-Blatt bleibt je Person eine Zeile.
+- Export: pro Tag werden gleiche Schrittlisten zu einem Block zusammengefasst („A und B · 07:30–17:00 · je 9,50 Std · erfasst von X“, ohne das Wort „Team“); Zeitnachweis mit Spalte „Erfasst von“ (auch CSV; ohne neue SQL-Spalte entfällt sie), Foto-Nummern und Schrittzähler zählen einmal. Das Zeitnachweis-Blatt bleibt je Person eine Zeile.
 - Rechte: Admin darf für andere Personen Stundenzeilen anlegen (`stunden_insert_admin`, im SQL).
+- **Monteur trägt für Kollegen ein:** er selbst ist immer dabei (seine Zeile trägt die Doku und bleibt von ihm bearbeitbar), Kollegen (Monteur, Azubi, Chef; kein Büro/Extern) kommen dazu. Alle Zeilen bleiben „ausstehend“ (kein Selbstfreigeben), nur auf aktiven Projekt-Baustellen. Die Zeilen der Kollegen tragen `stunden.erfasst_von`; der Kollege sieht bei sich „✍️ von Max eingetragen“ und kann den Eintrag löschen, der Chef sieht es in der Freigabe-Karte. Policies: `stunden_insert_kollegen`, `stunden_select_erfasser`, `stunden_delete_erfasser`.
+- **Abgleich:** Doppelbuchungen werden für alle gewählten Personen (inkl. anderer Baustellen) vor dem Speichern geprüft. Monteure sehen fremde Stunden nicht – die Datenbank-Funktion `projekt_stunden_konflikte` meldet nur WER sich überschneidet (keine Zeiten, Notizen, Krankmeldungen).
+- Wer etwas anderes gemacht hat, legt einen eigenen Vorgang an → eigener Block im Export.
 
 ## Gastzugang für den Kunden (Rhenus)
 - Ziel: Mitarbeiter des Kunden sehen **nur die exportierten Nachweise**, ohne Konto. Admin erstellt auf der Projektseite (Übersicht → „Gastzugang für den Kunden“) einen Link `/nachweise?t=<Schlüssel>` mit Namen, optionaler Gültigkeit (30/90/365 Tage oder unbegrenzt); sperren, wieder aktivieren, löschen jederzeit; Zähler „n× geöffnet“.

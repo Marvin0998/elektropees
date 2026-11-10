@@ -79,7 +79,7 @@ export default function ProjektExport() {
   const nw = useMemo(() => {
     if (gesicht) return gesicht.nw
     if (!daten || !bs) return null
-    return P.baueNachweis({ baustelle: bs, stunden: daten.stunden, schritte: daten.schritte, fotos: daten.fotos, profile: daten.profile, optionen: { von, bis, ...opt } })
+    return P.baueNachweis({ baustelle: bs, stunden: daten.stunden, schritte: daten.schritte, fotos: daten.fotos, profile: daten.profile, optionen: { von, bis, ...opt, erfasserBekannt: daten.erfasserBekannt !== false } })
   }, [gesicht, daten, bs, opt, von, bis])
 
   const pruefliste = useMemo(() => (gesicht || !daten || !bs) ? [] : P.pruefliste({ baustelle: bs, stunden: daten.stunden, schritte: daten.schritte, fotos: daten.fotos, von, bis, profile: daten.profile }), [gesicht, daten, bs, von, bis])

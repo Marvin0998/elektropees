@@ -37,7 +37,7 @@ export function ProjektKarte({ baustelle: b, stunden, onOpen, onErfassen, onTeam
         <div className="proj-karte-foot"><span>{stdKomma(std)} Std freigegeben</span><span className="proj-karte-go">Öffnen ›</span></div>
       </button>
       {onErfassen && <button className="proj-karte-cta" onClick={onErfassen}>⏱️ Stunden + Arbeitsschritte erfassen</button>}
-      {onTeam && <button className="proj-karte-cta proj-karte-cta2" onClick={onTeam}>👥 Team-Stunden erfassen</button>}
+      {onTeam && <button className="proj-karte-cta proj-karte-cta2" onClick={onTeam}>👥 Stunden für mehrere erfassen</button>}
     </div>
   )
 }
@@ -297,7 +297,7 @@ export function useDokuEntwurf({ aktiv, userId, baustelleId, snapshot, onRestore
 }
 
 // ─── Einen gespeicherten Schritt ansehen / bearbeiten ────────────────────────
-function SchrittSheet({ row, eintragSchritte, alleSchritte, kannBearbeiten, personName, phase, ctx, onClose, onGeaendert, onFoto }) {
+function SchrittSheet({ row, eintragSchritte, alleSchritte, kannBearbeiten, personName, erfasserName = '', phase, ctx, onClose, onGeaendert, onFoto }) {
   const [modus, setModus] = useState('ansicht')
   const [s, setS] = useState(null)
   const [entfernt, setEntfernt] = useState([])
@@ -348,6 +348,7 @@ function SchrittSheet({ row, eintragSchritte, alleSchritte, kannBearbeiten, pers
           <div className="proj-detail-text">{row.beschreibung}</div>
           <div className="proj-detail-meta">
             <div>👤 {personName} · {P.wochentagKurz(e.datum)} {P.fmtDatum(e.datum)}</div>
+            {erfasserName && <div>✍️ Eingetragen von {erfasserName}</div>}
             <div>🕐 {P.hhmm(e.start_zeit)}–{P.hhmm(e.end_zeit)} · ⏱ {P.fmtMin(row.dauer_min)}{row.bereich ? ` · 📍 ${row.bereich}` : ''}</div>
             <div>{e.freigabe_status === 'freigegeben' ? '✓ Freigegeben' : e.freigabe_status === 'abgelehnt' ? '✗ Abgelehnt' : '⏳ Wartet auf Freigabe'}</div>
           </div>
@@ -493,6 +494,12 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
   const leitung = isAdmin || isBuero
   const nameVon = id => (allUsers.find(u => u.id === id) || {}).name || '—'
   const personenText = row => [nameVon(row.eintrag.user_id), ...mitglieder(row).map(m => nameVon(m.user_id))].join(', ')
+  // Wer hat den Eintrag für die anderen angelegt? (erfasst_von steht an den Zeilen der Kollegen; Spalte gibt es erst nach dem SQL)
+  const erfasserText = row => {
+    const alle = [stundeNachId.get(String(row.stunden_id)), ...mitglieder(row)].filter(Boolean)
+    const ids = [...new Set(alle.map(x => x.erfasst_von).filter(Boolean))]
+    return ids.map(id => nameVon(id)).join(', ')
+  }
 
   const bsStunden = useMemo(() => stunden.filter(s => s.baustelle_id === b.id && !P.istAbwesenheit(s)), [stunden, b.id])
   const sig = bsStunden.map(s => `${s.id}${s.freigabe_status[0]}`).join(',')
@@ -546,7 +553,7 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
       </div>
       <div className="page-content" style={{ paddingTop: '1rem' }}>
         <button className="btn btn-primary proj-cta" onClick={onErfassen}>⏱️ Stunden + Arbeitsschritte erfassen</button>
-        {isAdmin && onTeam && <button className="btn btn-secondary proj-cta" onClick={() => onTeam(b)}>👥 Team-Stunden erfassen (mehrere Mitarbeiter)</button>}
+        {onTeam && <button className="btn btn-secondary proj-cta" onClick={() => onTeam(b)}>👥 Stunden für mehrere erfassen (mit Kollegen)</button>}
         <div className="tab-row">
           {[['uebersicht', 'Übersicht'], ['schritte', 'Schritte'], ['fotos', `Fotos${fotoAnzahl ? ` (${fotoAnzahl})` : ''}`]].map(([id, l]) => <button key={id} className={`tab-btn ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{l}</button>)}
         </div>
@@ -619,7 +626,7 @@ export function ProjektPage({ baustelle: b, user, allUsers, stunden, isAdmin, is
       </div>
 
       {detail && detailEintrag && (
-        <SchrittSheet row={detail} eintragSchritte={detailEintrag.schritte} kannBearbeiten={kannBearbeiten(detail)} personName={personenText(detail)}
+        <SchrittSheet row={detail} eintragSchritte={detailEintrag.schritte} kannBearbeiten={kannBearbeiten(detail)} personName={personenText(detail)} erfasserName={erfasserText(detail)}
           phase={detail.phase || b.projekt_phase} ctx={ctx} alleSchritte={daten.schritte}
           onClose={() => setDetail(null)} onGeaendert={async () => { setDetail(null); await laden(); await onRefresh() }} onFoto={oeffneFoto} />
       )}

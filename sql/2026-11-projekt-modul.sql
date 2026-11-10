@@ -3,8 +3,11 @@
 -- Im Supabase SQL-Editor als GANZES Skript ausführen (Run). Idempotent: kann mehrfach laufen.
 -- Läuft in einer Transaktion: entweder wird alles angelegt oder nichts.
 -- Rein additiv: neue Tabellen/Spalten/Funktionen; an bestehenden Tabellen nur neue Spalten (baustellen)
--- und EINE zusätzliche Policy (stunden_insert_admin: Admin darf Stunden für Mitarbeiter anlegen).
--- Bestehende Policies von `stunden`/`profiles` werden nicht verändert.
+-- und zusätzliche (rein erweiternde) Policies auf `stunden`:
+--   stunden_insert_admin      Admin darf Stunden für Mitarbeiter anlegen
+--   stunden_insert_kollegen   Monteur darf für Kollegen AUSSTEHENDE Stunden auf Projekt-Baustellen anlegen
+--   stunden_select_erfasser / stunden_delete_erfasser   der Erfasser sieht/löscht diese Einträge (solange ausstehend)
+-- plus neue Spalte stunden.erfasst_von. Bestehende Policies von `stunden`/`profiles` werden nicht verändert.
 -- Rollback (nur falls nötig, VORHER Export sichern): siehe Ende der Datei.
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
@@ -246,6 +249,45 @@ drop policy if exists stunden_insert_admin on public.stunden;
 create policy stunden_insert_admin on public.stunden for insert to authenticated
   with check (public.ep_rolle() = 'admin');
 
+-- ── 7b. Eintragen für Kollegen (Monteur) ─────────────────────────────────────
+-- Ein Monteur kann beim Erfassen Kollegen mitnehmen, die dieselbe Arbeit gemacht haben. Für die Kollegen entstehen
+-- eigene Stundenzeilen – immer „ausstehend“ (der Chef gibt frei), nur auf aktiven Projekt-Baustellen, markiert mit
+-- erfasst_von. Der Kollege sieht den Eintrag bei sich („von X eingetragen“) und kann ihn löschen.
+alter table public.stunden add column if not exists erfasst_von uuid;   -- wer den Eintrag für eine andere Person angelegt hat (sonst NULL)
+
+create or replace function public.ep_darf_fuer_kollegen(p_user uuid, p_baustelle text) returns boolean
+language sql stable security definer set search_path = public as
+$$ select coalesce(public.ep_rolle() = 'mitarbeiter', false)
+      and p_user is not null and p_user <> auth.uid()
+      and exists (select 1 from public.baustellen b where b.id::text = p_baustelle and b.doku_pflicht and b.status = 'aktiv')
+      and exists (select 1 from public.profiles p where p.id = p_user and p.role in ('admin','mitarbeiter','azubi')) $$;
+
+drop policy if exists stunden_insert_kollegen on public.stunden;
+create policy stunden_insert_kollegen on public.stunden for insert to authenticated
+  with check (erfasst_von = auth.uid() and freigabe_status = 'ausstehend'
+              and public.ep_darf_fuer_kollegen(user_id, baustelle_id::text));
+drop policy if exists stunden_select_erfasser on public.stunden;
+create policy stunden_select_erfasser on public.stunden for select to authenticated
+  using (erfasst_von = auth.uid());
+drop policy if exists stunden_delete_erfasser on public.stunden;
+create policy stunden_delete_erfasser on public.stunden for delete to authenticated
+  using (erfasst_von = auth.uid() and freigabe_status = 'ausstehend');
+
+-- Abgleich vor dem Speichern: Wer aus der Liste hat an dem Tag schon Stunden, die sich mit von–bis überschneiden?
+-- Liefert NUR die Personen (keine Uhrzeiten, Baustellen oder Notizen – damit z. B. Krankmeldungen privat bleiben).
+create or replace function public.projekt_stunden_konflikte(p_user_ids text[], p_datum text, p_start text, p_end text)
+returns table (user_id text)
+language sql stable security definer set search_path = public as
+$$ select distinct s.user_id::text
+     from public.stunden s
+    where public.ep_intern()
+      and s.user_id::text = any (p_user_ids)
+      and s.datum::text = p_datum
+      and s.start_zeit is not null and s.end_zeit is not null
+      and s.start_zeit::time < p_end::time and s.end_zeit::time > p_start::time $$;
+revoke all on function public.projekt_stunden_konflikte(text[], text, text, text) from public, anon;
+grant execute on function public.projekt_stunden_konflikte(text[], text, text, text) to authenticated;
+
 -- ── 8. Gastzugang (Rhenus): Link-Verwaltung nur Admin, Ansicht ohne Anmeldung per Token ──
 alter table public.projekt_gastlinks enable row level security;
 revoke all on public.projekt_gastlinks from anon;
@@ -347,7 +389,15 @@ union all select 'Gast-Funktionen (3)',
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname='public' and p.proname in ('projekt_gast_liste','projekt_gast_nachweis','ep_gast_foto')) = 3
 union all select 'Policy stunden_insert_admin',
-  exists (select 1 from pg_policies where schemaname='public' and tablename='stunden' and policyname='stunden_insert_admin');
+  exists (select 1 from pg_policies where schemaname='public' and tablename='stunden' and policyname='stunden_insert_admin')
+union all select 'Spalte stunden.erfasst_von (Eintragen für Kollegen)',
+  exists (select 1 from information_schema.columns where table_schema='public' and table_name='stunden' and column_name='erfasst_von')
+union all select 'Kollegen-Policies auf stunden (3)',
+  (select count(*) from pg_policies where schemaname='public' and tablename='stunden'
+    and policyname in ('stunden_insert_kollegen','stunden_select_erfasser','stunden_delete_erfasser')) = 3
+union all select 'Kollegen-Funktionen (2)',
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public' and p.proname in ('ep_darf_fuer_kollegen','projekt_stunden_konflikte')) = 2;
 
 -- ── Optional: Baustelle „Rhenus“ gleich anlegen (Adresse danach in der App ergänzen) ──
 -- insert into public.baustellen (name, kunde, adresse, beschreibung, status, doku_pflicht, projekt_phase)
@@ -358,6 +408,9 @@ union all select 'Policy stunden_insert_admin',
 -- ── Rollback (nur bei Bedarf; zerstört alle Doku-Daten – vorher Nachweise exportieren!) ──
 -- drop table if exists public.projekt_fotos, public.projekt_schritte, public.projekt_exporte, public.projekt_historie, public.projekt_gastlinks cascade;
 -- drop function if exists public.projekt_gast_liste(uuid), public.projekt_gast_nachweis(uuid, uuid), public.ep_gast_foto(text);
+-- drop policy if exists stunden_insert_kollegen on public.stunden; drop policy if exists stunden_select_erfasser on public.stunden; drop policy if exists stunden_delete_erfasser on public.stunden;
+-- drop function if exists public.projekt_stunden_konflikte(text[], text, text, text), public.ep_darf_fuer_kollegen(uuid, text);
+-- alter table public.stunden drop column if exists erfasst_von;
 -- drop policy if exists projekt_fotos_obj_gast on storage.objects;
 -- delete from storage.objects where bucket_id = 'projekt-fotos'; delete from storage.buckets where id = 'projekt-fotos';
 -- alter table public.baustellen drop column if exists doku_pflicht, drop column if exists projekt_phase, drop column if exists auftragsnr;
