@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { ProjektPage, ProjektKarte, ProjektSchrittForm, ProjektModusAdmin, useDokuEntwurf, istProjekt } from '../components/Projekt'
+import * as PRJ from '../lib/projekt'
+import * as PRJD from '../lib/projektdaten'
 
 const IconHome = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
 const IconHardHat = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 18h20v2a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z"/><path d="M12 2a9 9 0 019 9H3a9 9 0 019-9z"/></svg>
@@ -231,7 +234,7 @@ function LoginPage({onLogin}) {
   )
 }
 
-function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule}) {
+function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,isBuero,onKrank,onBerufsschule,onProjekt,onErfassenProjekt}) {
   const myStunden=stunden.filter(s=>s.user_id===user.id)
   const now=new Date(); const weekStart=getWeekStart(now); const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6)
   const freigegebeneStunden=myStunden.filter(s=>s.freigabe_status==='freigegeben')
@@ -316,6 +319,7 @@ function HomePage({user,stunden,baustellen,termine,onStunden,onDelete,isAdmin,is
         </div>
         <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
       </button>
+      {baustellen.filter(b=>b.status==='aktiv'&&istProjekt(b)).map(b=><ProjektKarte key={b.id} baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)} onErfassen={isBuero?null:()=>onErfassenProjekt(b.id)}/>)}
       {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid #fecaca',borderRadius:'var(--r-lg)',padding:'0.625rem 1rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
         <div style={{width:32,height:32,borderRadius:'50%',background:'#fee2e2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>🤒</div>
         <div style={{flex:1}}>
@@ -444,13 +448,17 @@ function BaustellenCounterOverview({baustelleId}) {
   )
 }
 
-function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUsers}) {
+function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUsers,onProjekt}) {
   const [filter,setFilter]=useState('aktiv'); const [showDetail,setShowDetail]=useState(null); const [showNew,setShowNew]=useState(false); const [bsDeleteConfirm,setBsDeleteConfirm]=useState(false)
   const [editMode,setEditMode]=useState(false); const [editForm,setEditForm]=useState({})
   const [showVerschieben,setShowVerschieben]=useState(false); const [verschiebeZiel,setVerschiebeZiel]=useState(''); const [verschiebing,setVerschiebing]=useState(false)
   const [form,setForm]=useState({name:'',kunde:'',adresse:'',beschreibung:'',kontakt:'',telefon:'',foto_link:''}); const [saving,setSaving]=useState(false)
   const kannBueroBaustelle=isAdmin||isBuero
   const list=baustellen.filter(b=>b.status===filter&&(kannBueroBaustelle||b.name!=='Büro'))
+  // Projekt-Baustellen (Doku-Modus) stehen als angepinnte Karte oben; ihre Details/Verwaltung bleiben über die Karte erreichbar.
+  const projektListe=filter==='aktiv'?list.filter(b=>istProjekt(b)):[]
+  const normalListe=list.filter(b=>!projektListe.includes(b))
+  function openDetail(b){setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||'',foto_link:b.foto_link||''})}
   async function handleSave() {
     if(!form.name||!form.kunde){alert('Name und Kunde sind Pflichtfelder!');return}
     setSaving(true); await supabase.from('baustellen').insert([{...form,status:'aktiv',erstellt_von:user?.id}]); await onRefresh()
@@ -484,10 +492,16 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
     <div className="page-content">
       <div className="section-header"><span className="section-title">Baustellen</span><button className="btn btn-outline btn-sm" onClick={()=>setShowNew(true)}>+ Neu</button></div>
       <div className="tab-row">{['aktiv','abgeschlossen'].map(f=><button key={f} className={`tab-btn ${filter===f?'active':''}`} onClick={()=>setFilter(f)}>{f==='aktiv'?'Aktiv':'Archiv'}</button>)}</div>
-      {list.length===0?<p className="text-muted text-sm">Keine Baustellen.</p>:list.map(b=>{
+      {projektListe.map(b=>(
+        <div key={b.id}>
+          <ProjektKarte baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)}/>
+          <button className="proj-karte-details" onClick={()=>openDetail(b)}>Details &amp; Verwaltung ›</button>
+        </div>
+      ))}
+      {list.length===0?<p className="text-muted text-sm">Keine Baustellen.</p>:normalListe.map(b=>{
         const hours=stunden.filter(s=>s.baustelle_id===b.id&&s.freigabe_status==='freigegeben').reduce((a,s)=>a+s.dauer,0)
         return (
-          <div key={b.id} className="card" onClick={()=>{setShowDetail(b.id);setEditMode(false);setEditForm({name:b.name,kunde:b.kunde,adresse:b.adresse||'',beschreibung:b.beschreibung||'',kontakt:b.kontakt||'',telefon:b.telefon||'',foto_link:b.foto_link||''})}} style={{cursor:'pointer'}}>
+          <div key={b.id} className="card" onClick={()=>openDetail(b)} style={{cursor:'pointer'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><div className="font-bold" style={{color:'#0A0A44'}}>{b.name}</div><div className="text-xs text-muted" style={{marginTop:3}}>{b.kunde} · {b.adresse}</div></div>
               <span className={`badge ${b.status==='aktiv'?'badge-active':'badge-done'}`}>{b.status==='aktiv'?'Aktiv':'Fertig'}</span>
@@ -526,6 +540,9 @@ function BaustellenPage({baustellen,stunden,isAdmin,isBuero,onRefresh,user,allUs
           </div>
           <MaterialCounterEditor baustelleId={showDetail} user={user}/>
           <BaustellenCounterOverview baustelleId={showDetail}/>
+          {istProjekt(detailBs)&&<button className="btn btn-primary" style={{marginBottom:'0.5rem'}} onClick={()=>{setShowDetail(null);onProjekt(detailBs.id)}}>🏗️ Projektbereich öffnen</button>}
+          {(isAdmin||isBuero)&&detailBs.name!=='Büro'&&<a className="btn btn-secondary" style={{display:'block',textAlign:'center',textDecoration:'none',marginBottom:'0.5rem'}} href={`/projekt-export?b=${detailBs.id}`}>📄 Zeitnachweis exportieren</a>}
+          {isAdmin&&!editMode&&detailBs.name!=='Büro'&&<ProjektModusAdmin baustelle={detailBs} onRefresh={onRefresh}/>}
           {!editMode&&(
             <button className="btn btn-secondary" style={{marginBottom:'0.5rem'}} onClick={()=>setEditMode(true)}>✏️ Baustelle bearbeiten</button>
           )}
@@ -952,6 +969,19 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
     return true
   })
 
+  // Projekt-Baustellen: zeigt in der Freigabe, ob Arbeitsschritte + Fotos dokumentiert wurden (nur Hinweis, keine Sperre).
+  const [dokuInfo,setDokuInfo]=useState(null)
+  const dokuKey=ausstehend.filter(s=>istProjekt(baustellen.find(b=>b.id===s.baustelle_id))).map(s=>s.id).join(',')
+  useEffect(()=>{
+    if(!dokuKey){setDokuInfo(null);return}
+    let live=true
+    supabase.from('projekt_schritte').select('stunden_id,dauer_min,projekt_fotos(id)').in('stunden_id',dokuKey.split(',')).then(({data,error})=>{
+      if(!live||error||!data) return
+      const m={}; data.forEach(r=>{const e=m[r.stunden_id]||(m[r.stunden_id]={n:0,min:0,fotos:0}); e.n++; e.min+=r.dauer_min; e.fotos+=(r.projekt_fotos||[]).length})
+      setDokuInfo(m)
+    },()=>{})
+    return ()=>{live=false}
+  },[dokuKey])
   async function handleFreigabe(id,entscheidung) {
     await supabase.from('stunden').update({freigabe_status:entscheidung}).eq('id',id)
     setMsg(entscheidung==='freigegeben'?'✓ Stunden freigegeben!':'Stunden abgelehnt.')
@@ -1089,6 +1119,9 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
                         <div className="freigabe-meta">{getDayName(s.datum)}, {formatDate(s.datum)}</div>
                         <div className="freigabe-meta">🏗️ {b?.name||'—'} · {s.start_zeit}–{s.end_zeit}</div>
                         {s.notiz&&s.notiz!=='🤒 Krank'&&<div className="freigabe-meta" style={{color:'var(--blue)',fontWeight:500}}>📋 {s.notiz.length>60?s.notiz.slice(0,60)+'…':s.notiz}</div>}
+                        {dokuInfo&&istProjekt(b)&&(dokuInfo[s.id]
+                          ?<div className="freigabe-meta" style={{color:'var(--green)',fontWeight:600}}>📷 {dokuInfo[s.id].n} Schritte · {PRJ.fmtMin(dokuInfo[s.id].min)} · {dokuInfo[s.id].fotos} Fotos</div>
+                          :<div className="freigabe-meta" style={{color:'var(--red)',fontWeight:600}}>⚠ Keine Arbeitsschritte dokumentiert</div>)}
                       </div>
                       <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
                         <div className="freigabe-hours">{s.dauer.toFixed(1)}h</div>
@@ -1593,19 +1626,43 @@ function AbwesenheitModal({user,ziel,admin=false,typen=['berufsschule'],baustell
   )
 }
 
-function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
+function StundenModal({user,baustellen,onClose,onSaved,isBuero,presetBaustelleId}) {
   const bueroBaustelle=baustellen.find(b=>b.name==='Büro'&&b.status==='aktiv')
-  const [form,setForm]=useState({datum:today(),start:'07:30',end:'17:00',baustelle_id:isBuero&&bueroBaustelle?bueroBaustelle.id:'',notiz:'',taetigkeit:'',arbeiten:''})
+  const [form,setForm]=useState({datum:today(),start:'07:30',end:'17:00',baustelle_id:isBuero&&bueroBaustelle?bueroBaustelle.id:(presetBaustelleId||''),notiz:'',taetigkeit:'',arbeiten:''})
   const [saving,setSaving]=useState(false); const [showNewBs,setShowNewBs]=useState(false)
   const [newBs,setNewBs]=useState({name:'',kunde:'',adresse:'',beschreibung:''})
   const aktiveBaustellen=baustellen.filter(b=>b.status==='aktiv')
   const dauer=calcDauer(form.start,form.end)
   const isFriday=new Date(form.datum).getDay()===5
+  // Projekt-Baustelle (Doku-Pflicht): statt Freitext „Ausgeführte Arbeiten“ gibt es Arbeitsschritte mit Foto + Dauer.
+  const gewaehlteBs=baustellen.find(b=>b.id===form.baustelle_id)
+  const dokuModus=!isBuero&&istProjekt(gewaehlteBs)
+  const [schritte,setSchritte]=useState([])
+  const [zeigeFehler,setZeigeFehler]=useState(false)
+  const bruttoMin=Math.round(dauer*60)
+  const nettoMin=PRJ.nettoMinuten(dauer,45)
+  const pruefung=dokuModus?PRJ.pruefeSchritte(schritte,nettoMin):null
+  const fotosLaden=dokuModus&&schritte.some(s=>s.fotos.some(f=>f.status==='laedt'))
+  const entwurf=useDokuEntwurf({
+    aktiv:dokuModus,userId:user.id,baustelleId:form.baustelle_id,
+    snapshot:dokuModus?{form:{datum:form.datum,start:form.start,end:form.end},zusatz:form.notiz,schritte}:null,
+    onRestore:d=>{setForm(f=>({...f,...(d.form||{}),notiz:d.zusatz||''}));setSchritte(d.schritte)},
+    onInit:()=>setSchritte([PRJ.neuerSchritt(PRJ.vorschlagMinuten(nettoMin,[]))])
+  })
+  async function entwurfVerwerfen() {
+    await PRJD.loescheFotoDateien(schritte.flatMap(s=>s.fotos.filter(f=>f.status==='ok'&&f.neu)))
+    entwurf.leeren(); setSchritte([PRJ.neuerSchritt(PRJ.vorschlagMinuten(nettoMin,[]))]); setForm(f=>({...f,notiz:''})); setZeigeFehler(false)
+  }
   async function handleSave() {
     if(!form.baustelle_id){alert('Bitte eine Baustelle auswählen!');return}
     if(dauer<=0){alert('Endzeit muss nach der Startzeit liegen!');return}
     if(isBuero&&!form.taetigkeit.trim()){alert('Bitte Tätigkeit beschreiben!');return}
-    if(!isBuero&&!form.arbeiten.trim()){alert('Bitte ausgeführte Arbeiten beschreiben!');return}
+    if(!isBuero&&!dokuModus&&!form.arbeiten.trim()){alert('Bitte ausgeführte Arbeiten beschreiben!');return}
+    if(dokuModus&&!pruefung.ok){
+      setZeigeFehler(true)
+      setTimeout(()=>{const el=document.getElementById('proj-fehlerbox');if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'center'})},50)
+      return
+    }
     setSaving(true)
     const {data:existing}=await supabase.from('stunden').select('start_zeit,end_zeit,baustellen(name)').eq('user_id',user.id).eq('datum',form.datum)
     if(existing&&existing.length>0) {
@@ -1621,8 +1678,20 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
         return
       }
     }
+    if(dokuModus){
+      const r=await PRJD.speichereDoku(supabase,{userId:user.id,baustelleId:form.baustelle_id,datum:form.datum,start:form.start,end:form.end,dauer,pause:45,notizExtra:form.notiz,schritte,phase:gewaehlteBs.projekt_phase})
+      if(!r.ok){
+        setSaving(false)
+        alert('Nicht gespeichert: '+r.fehler+(r.tabelleFehlt?'\n\nDie Projekt-Datenbank ist noch nicht eingerichtet – bitte den Chef informieren.':'\n\nDeine Eingaben und Fotos bleiben erhalten – bitte nochmal versuchen. Falls danach „Überschneidung“ erscheint, den leeren Eintrag unter Start → „Meine Einträge“ löschen.'))
+        return
+      }
+      schritte.forEach(s=>PRJ.bereichMerken(form.baustelle_id,s.bereich))
+      entwurf.loeschen()
+      await onSaved(); onClose(); setSaving(false); return
+    }
     const notizFinal=isBuero?form.taetigkeit:(form.arbeiten+(form.notiz?(' | '+form.notiz):''))
-    await supabase.from('stunden').insert([{user_id:user.id,baustelle_id:form.baustelle_id,datum:form.datum,start_zeit:form.start,end_zeit:form.end,pause_min:isBuero?0:45,dauer,notiz:notizFinal,freigabe_status:'ausstehend'}])
+    const {error:insErr}=await supabase.from('stunden').insert([{user_id:user.id,baustelle_id:form.baustelle_id,datum:form.datum,start_zeit:form.start,end_zeit:form.end,pause_min:isBuero?0:45,dauer,notiz:notizFinal,freigabe_status:'ausstehend'}])
+    if(insErr){setSaving(false);alert('Stunden konnten nicht gespeichert werden: '+insErr.message);return}
     await onSaved(); onClose(); setSaving(false)
   }
   async function handleNewBs() {
@@ -1664,15 +1733,26 @@ function StundenModal({user,baustellen,onClose,onSaved,isBuero}) {
             </select>
           </div>
           <div style={{marginBottom:'1rem'}}><button className="btn btn-outline btn-sm" onClick={()=>setShowNewBs(true)}>+ Neue Baustelle anlegen</button></div>
-          <div className="form-group">
-            <label>Ausgeführte Arbeiten *</label>
-            <textarea value={form.arbeiten} onChange={e=>setForm(f=>({...f,arbeiten:e.target.value}))} placeholder="Kurze Beschreibung reicht, z.B. Kabelverlegung EG, Steckdosen montiert, Verteilung verdrahtet..." style={{minHeight:80,border:!form.arbeiten.trim()?'1.5px solid #fc8181':'1.5px solid var(--green)'}}/>
-            {!form.arbeiten.trim()&&<div style={{fontSize:'0.72rem',color:'var(--red)',marginTop:3}}>Pflichtfeld — eine kurze Beschreibung reicht</div>}
-          </div>
-          <div className="form-group"><label>Zusätzliche Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Material fehlt, nächste Schritte..."/></div>
+          {dokuModus?(
+            <>
+              {entwurf.wiederhergestellt&&<div className="proj-entwurf">📝 Entwurf wiederhergestellt — deine Schritte und Fotos sind noch da. <button onClick={entwurfVerwerfen}>Verwerfen</button></div>}
+              <ProjektSchrittForm schritte={schritte} setSchritte={setSchritte} netto={nettoMin} brutto={bruttoMin} pause={45} phase={gewaehlteBs.projekt_phase} ctx={{baustelleId:form.baustelle_id,userId:user.id}} zeigeFehler={zeigeFehler}/>
+              <div className="form-group"><label>Zusätzliche Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Material fehlt, nächste Schritte..."/></div>
+              {zeigeFehler&&pruefung&&!pruefung.ok&&<div id="proj-fehlerbox" className="proj-fehlerbox"><strong>Bitte vervollständigen:</strong><ul>{pruefung.fehler.map(f=><li key={f}>{f}</li>)}</ul></div>}
+            </>
+          ):(
+            <>
+              <div className="form-group">
+                <label>Ausgeführte Arbeiten *</label>
+                <textarea value={form.arbeiten} onChange={e=>setForm(f=>({...f,arbeiten:e.target.value}))} placeholder="Kurze Beschreibung reicht, z.B. Kabelverlegung EG, Steckdosen montiert, Verteilung verdrahtet..." style={{minHeight:80,border:!form.arbeiten.trim()?'1.5px solid #fc8181':'1.5px solid var(--green)'}}/>
+                {!form.arbeiten.trim()&&<div style={{fontSize:'0.72rem',color:'var(--red)',marginTop:3}}>Pflichtfeld — eine kurze Beschreibung reicht</div>}
+              </div>
+              <div className="form-group"><label>Zusätzliche Notiz (optional)</label><textarea value={form.notiz} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Material fehlt, nächste Schritte..."/></div>
+            </>
+          )}
         </>
       )}
-      <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'Wird gespeichert...':'✓ Stunden einreichen'}</button>
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving||fotosLaden}>{saving?'Wird gespeichert...':fotosLaden?'Fotos werden hochgeladen …':'✓ Stunden einreichen'}</button>
       <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
       {showNewBs&&(
         <div className="modal-overlay open" style={{zIndex:300}}><div className="modal-sheet">
@@ -4604,6 +4684,8 @@ export default function App() {
   const [showStunden,setShowStunden]=useState(false)
   const [showKrank,setShowKrank]=useState(false)
   const [showBerufsschule,setShowBerufsschule]=useState(false)
+  const [projektId,setProjektId]=useState(null)
+  const [stundenPreset,setStundenPreset]=useState(null)
   const [installPrompt,setInstallPrompt]=useState(null)
   const [showInstallBanner,setShowInstallBanner]=useState(false)
 
@@ -4658,7 +4740,9 @@ export default function App() {
   }
   async function handleLogout(){await supabase.auth.signOut(); setUser(null); setPage('home')}
   async function handleDelete(id) {
-    await supabase.from('stunden').delete().eq('id',id)
+    const fotoDateien=await PRJD.fotoPfadeEinesEintrags(id) // Projekt-Fotos des Eintrags (leer, wenn es keine gibt)
+    const {error:delErr}=await supabase.from('stunden').delete().eq('id',id)
+    if(!delErr&&fotoDateien.length) PRJD.loescheFotoDateien(fotoDateien)
     await loadData()
   }
   async function handleInstall() {
@@ -4675,6 +4759,9 @@ export default function App() {
   const isAzubi=user.profile?.role==='azubi'
   const isExtern=user.profile?.role==='extern'
   const ausstehendCount=stunden.filter(s=>s.freigabe_status==='ausstehend').length
+  const projektBs=baustellen.find(b=>b.id===projektId)
+  const oeffneProjekt=id=>{setProjektId(id);setPage('projekt')}
+  const erfasseFuer=id=>{setStundenPreset(id);setShowStunden(true)}
   const kalenderBadge=termine.filter(t=>{const d=new Date(t.datum);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<=2&&(t.zugewiesen_an?.includes(user.id)||t.erstellt_von===user.id)}).length
   return (
     <div className="app-container">
@@ -4707,18 +4794,21 @@ export default function App() {
           bzw. im Admin-Menü (Freigabe/Signatur) — keine eigenen Top-Level-Tabs mehr.
           Das Ausblenden der Navigation ersetzt keine Server-Rechte: alle Supabase-
           RLS-Policies und Rollen-Prüfungen in den Unterseiten bleiben unverändert. */}
-      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>setShowStunden(true)} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)}/>}
-      {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers}/>}
+      {page==='home'&&<HomePage user={user} stunden={stunden} baustellen={baustellen} termine={termine} onStunden={()=>{setStundenPreset(null);setShowStunden(true)}} onDelete={handleDelete} isAdmin={isAdmin} isBuero={isBuero} onKrank={()=>setShowKrank(true)} onBerufsschule={()=>setShowBerufsschule(true)} onProjekt={oeffneProjekt} onErfassenProjekt={erfasseFuer}/>}
+      {page==='baustellen'&&<BaustellenPage baustellen={baustellen} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onRefresh={loadData} user={user} allUsers={allUsers} onProjekt={oeffneProjekt}/>}
+      {page==='projekt'&&!isExtern&&(projektBs
+        ?<ProjektPage baustelle={projektBs} user={user} allUsers={allUsers} stunden={stunden} isAdmin={isAdmin} isBuero={isBuero} onBack={()=>setPage('baustellen')} onErfassen={()=>erfasseFuer(projektBs.id)} onRefresh={loadData}/>
+        :<div className="page-content"><p className="text-muted text-sm">Projekt nicht gefunden.</p><button className="btn btn-secondary" onClick={()=>setPage('baustellen')}>‹ Zu den Baustellen</button></div>)}
       {page==='profil'&&<ProfilPage user={user} stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} isAdmin={isAdmin} isBuero={isBuero} setPage={setPage} onLogout={handleLogout} installAvailable={!!installPrompt} onInstall={handleInstall}/>}
       {page==='kalender'&&<KalenderPage user={user} baustellen={baustellen} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero}/>}
       {page==='admin'&&(isAdmin||isBuero)&&<AdminPage stunden={stunden} baustellen={baustellen} allUsers={allUsers} urlaub={urlaub} onRefresh={loadData} currentUser={user} isAdmin={isAdmin}/>}
       {page==='waermepumpen'&&(isAdmin||isBuero||isExtern)&&<WaermepumpenPage user={user} allUsers={allUsers} isAdmin={isAdmin} isBuero={isBuero} isExtern={isExtern}/>}
-      {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>setShowStunden(false)} onSaved={loadData} isBuero={isBuero}/>}
+      {showStunden&&<StundenModal user={user} baustellen={baustellen} onClose={()=>{setShowStunden(false);setStundenPreset(null)}} onSaved={loadData} isBuero={isBuero} presetBaustelleId={stundenPreset}/>}
       {showKrank&&<KrankModal user={user} baustellen={baustellen} onClose={()=>setShowKrank(false)} onSaved={loadData}/>}
       {showBerufsschule&&<AbwesenheitModal user={user} typen={['berufsschule']} baustellen={baustellen} onClose={()=>setShowBerufsschule(false)} onSaved={loadData}/>}
       <nav className="bottom-nav">
         {!isExtern&&<button className={`nav-item ${page==='home'?'active':''}`} onClick={()=>setPage('home')}><IconHome/><span>Start</span></button>}
-        {!isExtern&&<button className={`nav-item ${page==='baustellen'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>}
+        {!isExtern&&<button className={`nav-item ${page==='baustellen'||page==='projekt'?'active':''}`} onClick={()=>setPage('baustellen')}><IconHardHat/><span>Baustellen</span></button>}
         {!isExtern&&<button className={`nav-item ${page==='kalender'?'active':''}`} onClick={()=>setPage('kalender')} style={{position:'relative'}}>
           <IconKalender/>
           {kalenderBadge>0&&<span style={{position:'absolute',top:4,right:'50%',transform:'translateX(8px)',background:'#d69e2e',color:'white',borderRadius:'50%',width:16,height:16,fontSize:'0.6rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{kalenderBadge}</span>}

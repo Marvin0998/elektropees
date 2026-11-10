@@ -1,0 +1,249 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- Elektro Pees – Projekt-Modul (Rhenus Dietzenbach): Arbeitsschritte, Fotos, Nachweise
+-- Im Supabase SQL-Editor als GANZES Skript ausführen (Run). Idempotent: kann mehrfach laufen.
+-- Läuft in einer Transaktion: entweder wird alles angelegt oder nichts.
+-- Rein additiv: bestehende Tabellen/Policies von `stunden`/`profiles` bleiben unangetastet.
+-- Rollback (nur falls nötig, VORHER Export sichern): siehe Ende der Datei.
+-- ════════════════════════════════════════════════════════════════════════════
+begin;
+
+-- ── 1. Baustellen: Projekt-Flag ────────────────────────────────────────────
+alter table public.baustellen add column if not exists doku_pflicht boolean not null default false;
+alter table public.baustellen add column if not exists projekt_phase text;   -- rueckbau | erneuerung | abnahme
+alter table public.baustellen add column if not exists auftragsnr text;      -- Bestell-/Auftragsnr. des Kunden
+
+-- ── 2. Rollen-Helfer (SECURITY DEFINER, damit keine RLS-Rekursion auf profiles entsteht) ──
+create or replace function public.ep_rolle() returns text
+language sql stable security definer set search_path = public as
+$$ select role from public.profiles where id = auth.uid() $$;
+
+create or replace function public.ep_intern() returns boolean
+language sql stable security definer set search_path = public as
+$$ select coalesce(public.ep_rolle() in ('admin','buero','mitarbeiter','azubi'), false) $$;
+
+create or replace function public.ep_leitung() returns boolean
+language sql stable security definer set search_path = public as
+$$ select coalesce(public.ep_rolle() in ('admin','buero'), false) $$;
+
+-- Eigener, noch nicht freigegebener Stundeneintrag? (Typ von stunden.id egal → Vergleich über Text)
+create or replace function public.ep_stunde_offen(p_id text) returns boolean
+language sql stable security definer set search_path = public as
+$$ select exists (
+     select 1 from public.stunden s
+      where s.id::text = p_id and s.user_id = auth.uid() and s.freigabe_status <> 'freigegeben') $$;
+
+-- ── 3. Tabellen (Spaltentypen für FKs werden aus dem bestehenden Schema gelesen) ──
+do $mig$
+declare
+  t_stunden  text;
+  t_baustelle text;
+begin
+  select format_type(a.atttypid, a.atttypmod) into t_stunden
+    from pg_attribute a
+   where a.attrelid = 'public.stunden'::regclass and a.attname = 'id' and not a.attisdropped;
+  select format_type(a.atttypid, a.atttypmod) into t_baustelle
+    from pg_attribute a
+   where a.attrelid = 'public.baustellen'::regclass and a.attname = 'id' and not a.attisdropped;
+  if t_stunden is null or t_baustelle is null then
+    raise exception 'stunden.id oder baustellen.id nicht gefunden';
+  end if;
+
+  execute format($t$
+    create table if not exists public.projekt_schritte (
+      id              uuid primary key default gen_random_uuid(),
+      stunden_id      %s not null references public.stunden(id) on delete cascade,
+      nr              smallint not null default 1,
+      taetigkeit      text,
+      beschreibung    text not null check (char_length(btrim(beschreibung)) >= 8),
+      dauer_min       smallint not null check (dauer_min between 1 and 720),
+      bereich         text,
+      phase           text,
+      kein_foto_grund text,
+      created_at      timestamptz not null default now(),
+      updated_at      timestamptz not null default now()
+    )$t$, t_stunden);
+
+  execute format($t$
+    create table if not exists public.projekt_exporte (
+      id              uuid primary key default gen_random_uuid(),
+      baustelle_id    %s not null references public.baustellen(id) on delete cascade,
+      nr              text not null unique,
+      von             date not null,
+      bis             date not null,
+      summe_min       integer not null default 0,
+      anzahl_eintraege integer not null default 0,
+      anzahl_fotos    integer not null default 0,
+      optionen        jsonb,
+      snapshot        jsonb not null,
+      erstellt_von    uuid default auth.uid(),
+      created_at      timestamptz not null default now()
+    )$t$, t_baustelle);
+end
+$mig$;
+
+create table if not exists public.projekt_fotos (
+  id              uuid primary key default gen_random_uuid(),
+  schritt_id      uuid not null references public.projekt_schritte(id) on delete cascade,
+  storage_path    text not null unique,
+  thumb_path      text,
+  art             text not null default 'nachher' check (art in ('vorher','nachher')),
+  bytes           integer,
+  sort            smallint not null default 0,
+  aufgenommen_am  timestamptz not null default now(),
+  created_at      timestamptz not null default now()
+);
+
+create table if not exists public.projekt_historie (
+  id         bigint generated always as identity primary key,
+  tabelle    text not null,
+  aktion     text not null,
+  row_id     text,
+  alt        jsonb,
+  user_id    uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists projekt_schritte_stunden_idx on public.projekt_schritte (stunden_id);
+create index if not exists projekt_fotos_schritt_idx    on public.projekt_fotos (schritt_id);
+create index if not exists projekt_exporte_baustelle_idx on public.projekt_exporte (baustelle_id, created_at desc);
+create index if not exists stunden_baustelle_datum_idx  on public.stunden (baustelle_id, datum);
+
+-- ── 4. Trigger: updated_at + Änderungsprotokoll ─────────────────────────────
+create or replace function public.projekt_touch() returns trigger
+language plpgsql as $$ begin new.updated_at = now(); return new; end $$;
+
+drop trigger if exists projekt_schritte_touch on public.projekt_schritte;
+create trigger projekt_schritte_touch before update on public.projekt_schritte
+  for each row execute function public.projekt_touch();
+
+create or replace function public.projekt_historie_log() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.projekt_historie (tabelle, aktion, row_id, alt, user_id)
+  values (tg_table_name, tg_op, to_jsonb(old)->>'id', to_jsonb(old), auth.uid());
+  return null;
+end $$;
+
+drop trigger if exists projekt_schritte_hist on public.projekt_schritte;
+create trigger projekt_schritte_hist after update or delete on public.projekt_schritte
+  for each row execute function public.projekt_historie_log();
+drop trigger if exists projekt_fotos_hist on public.projekt_fotos;
+create trigger projekt_fotos_hist after update or delete on public.projekt_fotos
+  for each row execute function public.projekt_historie_log();
+
+-- Foto-Berechtigung hängt am Schritt → am Stundeneintrag
+create or replace function public.ep_schritt_offen(p_id uuid) returns boolean
+language sql stable security definer set search_path = public as
+$$ select exists (
+     select 1 from public.projekt_schritte ps
+       join public.stunden s on s.id = ps.stunden_id
+      where ps.id = p_id and s.user_id = auth.uid() and s.freigabe_status <> 'freigegeben') $$;
+
+-- ── 5. RLS: an, anon raus, vier Befehle getrennt ────────────────────────────
+alter table public.projekt_schritte  enable row level security;
+alter table public.projekt_fotos     enable row level security;
+alter table public.projekt_exporte   enable row level security;
+alter table public.projekt_historie  enable row level security;
+revoke all on public.projekt_schritte, public.projekt_fotos, public.projekt_exporte, public.projekt_historie from anon;
+grant select, insert, update, delete on public.projekt_schritte, public.projekt_fotos, public.projekt_exporte to authenticated;
+grant select on public.projekt_historie to authenticated;
+
+-- Schritte: lesen alle internen Rollen; schreiben Leitung immer, Mitarbeiter/Azubi nur eigene, nicht freigegebene Einträge
+drop policy if exists projekt_schritte_select on public.projekt_schritte;
+create policy projekt_schritte_select on public.projekt_schritte for select to authenticated
+  using (public.ep_intern());
+drop policy if exists projekt_schritte_insert on public.projekt_schritte;
+create policy projekt_schritte_insert on public.projekt_schritte for insert to authenticated
+  with check (public.ep_leitung() or public.ep_stunde_offen(stunden_id::text));
+drop policy if exists projekt_schritte_update on public.projekt_schritte;
+create policy projekt_schritte_update on public.projekt_schritte for update to authenticated
+  using (public.ep_leitung() or public.ep_stunde_offen(stunden_id::text))
+  with check (public.ep_leitung() or public.ep_stunde_offen(stunden_id::text));
+drop policy if exists projekt_schritte_delete on public.projekt_schritte;
+create policy projekt_schritte_delete on public.projekt_schritte for delete to authenticated
+  using (public.ep_leitung() or public.ep_stunde_offen(stunden_id::text));
+
+-- Fotos: analog über den Schritt
+drop policy if exists projekt_fotos_select on public.projekt_fotos;
+create policy projekt_fotos_select on public.projekt_fotos for select to authenticated
+  using (public.ep_intern());
+drop policy if exists projekt_fotos_insert on public.projekt_fotos;
+create policy projekt_fotos_insert on public.projekt_fotos for insert to authenticated
+  with check (public.ep_leitung() or public.ep_schritt_offen(schritt_id));
+drop policy if exists projekt_fotos_update on public.projekt_fotos;
+create policy projekt_fotos_update on public.projekt_fotos for update to authenticated
+  using (public.ep_leitung() or public.ep_schritt_offen(schritt_id))
+  with check (public.ep_leitung() or public.ep_schritt_offen(schritt_id));
+drop policy if exists projekt_fotos_delete on public.projekt_fotos;
+create policy projekt_fotos_delete on public.projekt_fotos for delete to authenticated
+  using (public.ep_leitung() or public.ep_schritt_offen(schritt_id));
+
+-- Nachweise (eingefroren): nur Leitung; löschen nur Admin
+drop policy if exists projekt_exporte_select on public.projekt_exporte;
+create policy projekt_exporte_select on public.projekt_exporte for select to authenticated
+  using (public.ep_leitung());
+drop policy if exists projekt_exporte_insert on public.projekt_exporte;
+create policy projekt_exporte_insert on public.projekt_exporte for insert to authenticated
+  with check (public.ep_leitung());
+drop policy if exists projekt_exporte_update on public.projekt_exporte;
+create policy projekt_exporte_update on public.projekt_exporte for update to authenticated
+  using (public.ep_rolle() = 'admin') with check (public.ep_rolle() = 'admin');
+drop policy if exists projekt_exporte_delete on public.projekt_exporte;
+create policy projekt_exporte_delete on public.projekt_exporte for delete to authenticated
+  using (public.ep_rolle() = 'admin');
+
+-- Protokoll: nur lesen (Leitung); geschrieben wird ausschließlich vom Trigger
+drop policy if exists projekt_historie_select on public.projekt_historie;
+create policy projekt_historie_select on public.projekt_historie for select to authenticated
+  using (public.ep_leitung());
+
+-- ── 6. Storage: privater Foto-Bucket ────────────────────────────────────────
+-- Pfad: {baustelle_id}/{user_id}/{foto_id}.jpg  (+ {foto_id}_t.jpg als Vorschau)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('projekt-fotos', 'projekt-fotos', false, 5242880, array['image/jpeg'])
+on conflict (id) do update
+  set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists projekt_fotos_obj_select on storage.objects;
+create policy projekt_fotos_obj_select on storage.objects for select to authenticated
+  using (bucket_id = 'projekt-fotos' and public.ep_intern());
+drop policy if exists projekt_fotos_obj_insert on storage.objects;
+create policy projekt_fotos_obj_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'projekt-fotos' and public.ep_intern()
+              and ((storage.foldername(name))[2] = auth.uid()::text or public.ep_leitung()));
+drop policy if exists projekt_fotos_obj_delete on storage.objects;
+create policy projekt_fotos_obj_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'projekt-fotos'
+         and ((storage.foldername(name))[2] = auth.uid()::text or public.ep_leitung()));
+
+commit;
+
+-- PostgREST soll die neuen Tabellen/Spalten sofort kennen
+notify pgrst, 'reload schema';
+
+-- ── Prüfung: alle Zeilen sollten ok = true zeigen ───────────────────────────
+select 'Tabelle projekt_schritte' as pruefung, to_regclass('public.projekt_schritte') is not null as ok
+union all select 'Tabelle projekt_fotos',   to_regclass('public.projekt_fotos')   is not null
+union all select 'Tabelle projekt_exporte', to_regclass('public.projekt_exporte') is not null
+union all select 'Tabelle projekt_historie',to_regclass('public.projekt_historie') is not null
+union all select 'Spalte baustellen.doku_pflicht',
+  exists (select 1 from information_schema.columns where table_schema='public' and table_name='baustellen' and column_name='doku_pflicht')
+union all select 'RLS aktiv (4 Tabellen)',
+  (select count(*) from pg_class where relname in ('projekt_schritte','projekt_fotos','projekt_exporte','projekt_historie') and relrowsecurity) = 4
+union all select 'Policies angelegt (13 Tabellen-Policies)',
+  (select count(*) from pg_policies where schemaname = 'public' and tablename in ('projekt_schritte','projekt_fotos','projekt_exporte','projekt_historie')) = 13
+union all select 'Storage-Bucket projekt-fotos (privat)',
+  exists (select 1 from storage.buckets where id='projekt-fotos' and public = false)
+union all select 'Storage-Policies (3)',
+  (select count(*) from pg_policies where schemaname='storage' and policyname like 'projekt_fotos_obj_%') = 3;
+
+-- ── Optional: Baustelle „Rhenus“ gleich anlegen (Adresse danach in der App ergänzen) ──
+-- insert into public.baustellen (name, kunde, adresse, beschreibung, status, doku_pflicht, projekt_phase)
+-- select 'Rhenus Dietzenbach – Bestandshalle', 'Rhenus Freight Logistik', 'Dietzenbach',
+--        'Elektrotechnische Restaurierung der Bestandshalle, Phase 1: Rückbau', 'aktiv', true, 'rueckbau'
+--  where not exists (select 1 from public.baustellen where name = 'Rhenus Dietzenbach – Bestandshalle');
+
+-- ── Rollback (nur bei Bedarf; zerstört alle Doku-Daten – vorher Nachweise exportieren!) ──
+-- drop table if exists public.projekt_fotos, public.projekt_schritte, public.projekt_exporte, public.projekt_historie cascade;
+-- delete from storage.objects where bucket_id = 'projekt-fotos'; delete from storage.buckets where id = 'projekt-fotos';
+-- alter table public.baustellen drop column if exists doku_pflicht, drop column if exists projekt_phase, drop column if exists auftragsnr;
