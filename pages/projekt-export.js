@@ -88,7 +88,7 @@ export default function ProjektExport() {
   useEffect(() => {
     let live = true
     if (!nw || !nw.fotos.length) { setFotoUrls({}); return }
-    D.signierteUrls(nw.fotos.map(f => f.thumb)).then(m => { if (live) setFotoUrls(m) })
+    D.signierteUrls(nw.fotos.map(f => f.path)).then(m => { if (live) setFotoUrls(m) })
     return () => { live = false }
   }, [nw])
 

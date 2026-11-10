@@ -66,3 +66,5 @@ Eigener Tab, XLSX/PDF-Bibliothek, Offline-Queue mit IndexedDB-Fotos, Leistungsve
 - „Wie lange“: Schritte à **15 Min** (Stepper ±15, Minimum 15, Restvorschlag auf 15 gerundet).
 - Export: keine Pause-Auswahl mehr (immer brutto, bezahlte Pause zählt mit). Namensoption „Voller Name“ oder „V. Nachname“.
 - Stunden-Dialog/Assistent im Projektmodus: keine Pause-Hinweise mehr. Die Arbeitsschritte decken die **komplette Arbeitszeit von–bis** (nicht mehr Netto). Ein einzelner Schritt übernimmt die Arbeitszeit automatisch (solange nicht von Hand geändert); bei „Weiteren Schritt“ wird sie geteilt (15-Min-Raster). Prüfliste vergleicht gegen die Arbeitszeit (brutto), Toleranz 15 Min.
+- Nachweis: keine Pause-Spalte und kein Pause-Hinweis mehr (nur bei alten, eingefrorenen Netto-Nachweisen bleibt der Hinweis). CSV enthält die Pause-Spalten weiterhin als Rohdaten.
+- Fotos: Nachweis/Foto-Anlage zeigt das Hauptbild (1800 px, JPEG 0,82) statt der Vorschau (800 px); Verkleinern schrittweise + Software-Canvas für schärfere, robustere Bilder. Bereits hochgeladene Alt-Fotos behalten ihre alte Qualität (1600 px/0,72).

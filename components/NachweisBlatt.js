@@ -49,7 +49,7 @@ export function NachweisBlatt({ nw, nr, erstellt, fotoUrls = {}, onFoto }) {
         <tr><th>Auftraggeber</th><td>{kopf.kunde || '—'}</td><th>Auftrags-Nr.</th><td>{kopf.auftragsnr || '—'}</td></tr>
         <tr><th>Objekt</th><td>{kopf.adresse || '—'}</td><th>Erstellt</th><td>{P.fmtDatum(erstellt)}</td></tr>
       </tbody></table>
-      <p className="exp-basis">Berücksichtigt sind nur freigegebene Arbeitszeiten. {nw.optionen.pause === 'brutto' ? 'Die Arbeitszeit umfasst die bezahlte Pause (Von bis Bis).' : 'Die Arbeitszeit ist ohne Pause ausgewiesen (Von bis Bis abzüglich Pause).'}</p>
+      <p className="exp-basis">Berücksichtigt sind nur freigegebene Arbeitszeiten. {nw.optionen.pause === 'netto' ? 'Die Arbeitszeit ist ohne Pause ausgewiesen (Von bis Bis abzüglich Pause).' : ''}</p>
 
       <h2>A · Zeitnachweis</h2>
       {nw.kw.length === 0 && <p>Im gewählten Zeitraum gibt es keine freigegebenen Stunden.</p>}
@@ -57,13 +57,13 @@ export function NachweisBlatt({ nw, nr, erstellt, fotoUrls = {}, onFoto }) {
         <section key={k.montag} className="exp-kw">
           <h3>KW {k.kw}/{k.jahr} <span>({P.fmtDatum(k.montag)} – {P.fmtDatum(k.sonntag)})</span></h3>
           <table className="exp-tab">
-            <thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Funktion</th><th>Von</th><th>Bis</th><th className="r">Pause</th><th className="r">Std.</th>{zeigeErfasser && <th>Erfasst von</th>}</tr></thead>
+            <thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Funktion</th><th>Von</th><th>Bis</th><th className="r">Std.</th>{zeigeErfasser && <th>Erfasst von</th>}</tr></thead>
             <tbody>
               {k.tage.flatMap(t => t.eintraege.map(e => (
-                <tr key={e.id}><td>{t.wt} {P.fmtDatumKurz(t.datum)}</td><td>{e.person}</td><td>{e.funktion}</td><td>{e.von}</td><td>{e.bis}</td><td className="r">{e.pause} Min</td><td className="r">{P.fmtStdKomma(e.min)}</td>{zeigeErfasser && <td>{e.erfasser || '—'}</td>}</tr>
+                <tr key={e.id}><td>{t.wt} {P.fmtDatumKurz(t.datum)}</td><td>{e.person}</td><td>{e.funktion}</td><td>{e.von}</td><td>{e.bis}</td><td className="r">{P.fmtStdKomma(e.min)}</td>{zeigeErfasser && <td>{e.erfasser || '—'}</td>}</tr>
               )))}
             </tbody>
-            <tfoot><tr><td colSpan={6}>Summe KW {k.kw}</td><td className="r">{P.fmtStdKomma(k.min)}</td>{zeigeErfasser && <td />}</tr></tfoot>
+            <tfoot><tr><td colSpan={5}>Summe KW {k.kw}</td><td className="r">{P.fmtStdKomma(k.min)}</td>{zeigeErfasser && <td />}</tr></tfoot>
           </table>
         </section>
       ))}
@@ -121,7 +121,7 @@ export function NachweisBlatt({ nw, nr, erstellt, fotoUrls = {}, onFoto }) {
           <div className="exp-fotos">
             {nw.fotos.map(f => (
               <figure key={f.id}>
-                {fotoUrls[f.thumb] ? <img src={fotoUrls[f.thumb]} alt={f.nr} onClick={onFoto ? () => onFoto(f) : undefined} style={onFoto ? { cursor: 'zoom-in' } : undefined} /> : <div className="exp-foto-platz">Foto wird geladen …</div>}
+                {(fotoUrls[f.path] || fotoUrls[f.thumb]) ? <img src={fotoUrls[f.path] || fotoUrls[f.thumb]} alt={f.nr} onClick={onFoto ? () => onFoto(f) : undefined} style={onFoto ? { cursor: 'zoom-in' } : undefined} /> : <div className="exp-foto-platz">Foto wird geladen …</div>}
                 <figcaption><strong>{f.nr}</strong> · {P.fmtDatum(f.datum)} · {f.art === 'vorher' ? 'Vorher' : 'Nachher'}<br />{f.text}</figcaption>
               </figure>
             ))}

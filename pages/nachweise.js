@@ -37,7 +37,7 @@ export default function Nachweise() {
   useEffect(() => {
     let live = true
     if (!nw || !nw.fotos || !nw.fotos.length) { setFotoUrls({}); return }
-    D.signierteUrls(nw.fotos.map(f => f.thumb), db).then(m => { if (live) setFotoUrls(m) })
+    D.signierteUrls(nw.fotos.map(f => f.path), db).then(m => { if (live) setFotoUrls(m) })
     return () => { live = false }
   }, [nw, db])
 
