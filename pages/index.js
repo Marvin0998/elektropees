@@ -320,6 +320,7 @@ function HomePage({user,allUsers=[],stunden,baustellen,termine,onStunden,onDelet
         </div>
         <div className="hero-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
       </button>
+      <a className="lg-home" href="/lager"><span style={{fontSize:'1.4rem'}}>📦</span><span style={{flex:1}}><span style={{display:'block',fontSize:'0.9rem',fontWeight:600,color:'var(--dark)'}}>Lager</span><span style={{display:'block',fontSize:'0.72rem',color:'var(--text3)'}}>Barcode scannen · entnehmen · einlagern</span></span><span style={{color:'var(--text3)'}}>›</span></a>
       {baustellen.filter(b=>b.status==='aktiv'&&istProjekt(b)).map(b=><ProjektKarte key={b.id} baustelle={b} stunden={stunden} onOpen={()=>onProjekt(b.id)} onErfassen={isBuero?null:()=>onErfassenProjekt(b.id)} onTeam={onTeamProjekt?()=>onTeamProjekt(b):null}/>)}
       {!isBuero&&<button onClick={onKrank} style={{width:'100%',display:'flex',alignItems:'center',gap:'0.75rem',background:'white',border:'1px solid #fecaca',borderRadius:'var(--r-lg)',padding:'0.625rem 1rem',marginBottom:'0.75rem',cursor:'pointer',textAlign:'left',fontFamily:'inherit'}}>
         <div style={{width:32,height:32,borderRadius:'50%',background:'#fee2e2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0}}>🤒</div>

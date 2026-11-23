@@ -681,3 +681,59 @@ body {
 }
 .pdf-fertig { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border, #d5dce8); border-radius: 12px; background: #f3f8f4; font-size: 0.9rem; }
 .pdf-fertig .btn { width: 100%; text-align: center; text-decoration: none; }
+
+/* ── Lager ───────────────────────────────────────────────────────────────── */
+.lg-seite { max-width: 560px; margin: 0 auto; padding: 1rem 1rem 6rem; }
+.lg-kopf h1 { font-size: 1.3rem; font-weight: 700; color: var(--dark); margin: 0 0 0.75rem; }
+.lg-panel { background: white; border-radius: var(--r-lg); box-shadow: var(--shadow-md); padding: 1rem; margin-bottom: 1rem; }
+.lg-panel h1 { font-size: 1.2rem; color: var(--dark); margin-bottom: 0.5rem; }
+.lg-warn, .lg-warn-klein { background: var(--orange-pale); border: 1px solid #f6c98b; color: #7a4a08; border-radius: var(--r-sm); padding: 0.6rem 0.8rem; font-size: 0.85rem; margin-bottom: 0.75rem; }
+.lg-fehler { background: var(--red-pale); border: 1px solid #f3b9b9; color: var(--red); border-radius: var(--r-sm); padding: 0.6rem 0.8rem; font-size: 0.85rem; margin-bottom: 0.75rem; }
+.lg-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--border); padding: 4px; border-radius: var(--r-md); margin-bottom: 0.75rem; }
+.lg-tabs button { border: none; background: transparent; padding: 0.7rem 0.25rem; border-radius: var(--r-sm); font-weight: 600; font-size: 0.85rem; color: var(--text2); min-height: 44px; }
+.lg-tabs button.aktiv { background: white; color: var(--dark); box-shadow: var(--shadow-sm); }
+.lg-art { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0.75rem; }
+.lg-art-btn { min-height: 52px; border-radius: var(--r-md); border: 2px solid var(--border2); background: white; font-weight: 700; font-size: 0.95rem; color: var(--text2); }
+.lg-art-btn.aktiv.aus { background: var(--blue); border-color: var(--blue); color: white; }
+.lg-art-btn.aktiv.ein { background: var(--green); border-color: var(--green); color: white; }
+.lg-kamera { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0b0f24; border-radius: var(--r-md); overflow: hidden; margin-bottom: 0.75rem; }
+.lg-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lg-rahmen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.lg-rahmen span { width: 78%; height: 38%; border: 3px solid rgba(255,255,255,0.9); border-radius: 14px; box-shadow: 0 0 0 9999px rgba(10,10,68,0.35); }
+.lg-kamera-info { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1rem; text-align: center; color: white; font-size: 0.9rem; }
+.lg-kamera-fehler { font-size: 0.85rem; line-height: 1.4; }
+.lg-kamera-aus { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(10,10,68,0.55); color: white; font-size: 1rem; }
+.lg-manuell { display: flex; gap: 8px; align-items: stretch; }
+.lg-manuell input, .lg-suche, .lg-stepper input { flex: 1; min-width: 0; padding: 0.7rem 0.9rem; border: 1.5px solid var(--border2); border-radius: var(--r-sm); font-size: 1rem; background: white; }
+.lg-suche { width: 100%; margin-bottom: 0.6rem; }
+.lg-hinweis { font-size: 0.78rem; color: var(--text3); margin-top: 0.6rem; }
+.lg-zuordnen { background: var(--blue-pale); border-radius: var(--r-sm); padding: 0.6rem 0.8rem; font-size: 0.85rem; margin-bottom: 0.6rem; }
+.lg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.4rem 0 0.6rem; }
+.lg-aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.4rem 0 0.6rem; }
+.lg-liste { list-style: none; padding: 0; margin: 0; }
+.lg-zeile { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem 0.25rem; min-height: 56px; border: none; border-bottom: 1px solid var(--border); background: transparent; text-align: left; }
+.lg-zeile-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.lg-zeile-text b { font-size: 0.95rem; color: var(--dark); overflow-wrap: anywhere; }
+.lg-zeile-text small { font-size: 0.75rem; color: var(--text3); }
+.lg-bestand { font-weight: 700; font-size: 0.95rem; white-space: nowrap; }
+.lg-bestand.ok { color: var(--green); } .lg-bestand.knapp { color: #b7791f; } .lg-bestand.leer, .lg-bestand.negativ { color: var(--red); }
+.lg-vzeile { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.25rem; border-bottom: 1px solid var(--border); }
+.lg-menge { font-weight: 700; min-width: 78px; font-size: 0.9rem; }
+.lg-menge.plus { color: var(--green); } .lg-menge.minus { color: var(--blue); }
+.lg-leer { padding: 1rem 0.25rem; color: var(--text3); font-size: 0.88rem; text-align: center; }
+.lg-info { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.9rem; color: var(--text2); margin-bottom: 0.6rem; }
+.lg-status { font-size: 0.8rem; color: var(--text3); margin-bottom: 0.6rem; }
+.lg-feld { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+.lg-feld > span:first-child { color: var(--text3); }
+.lg-codes { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.lg-codechip { background: var(--bg); border: 1px solid var(--border2); border-radius: 12px; padding: 2px 8px; font-family: ui-monospace, monospace; font-size: 0.75rem; }
+.lg-codechip button { border: none; background: transparent; color: var(--red); margin-left: 4px; }
+.lg-code { font-family: ui-monospace, monospace; font-size: 1.1rem; word-break: break-all; background: var(--bg); padding: 0.6rem; border-radius: var(--r-sm); }
+.lg-stepper { display: flex; gap: 8px; }
+.lg-stepper button { width: 56px; min-height: 52px; border-radius: var(--r-sm); border: 1.5px solid var(--border2); background: var(--bg); font-size: 1.4rem; font-weight: 700; color: var(--dark); }
+.lg-stepper input { text-align: center; font-size: 1.4rem; font-weight: 700; }
+.lg-verlauf-titel { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text3); margin: 1rem 0 0.25rem; }
+.lg-toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: calc(100% - 32px); max-width: 520px; z-index: 300; background: var(--dark); color: white; border-radius: var(--r-md); padding: 0.8rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.88rem; box-shadow: var(--shadow-lg); }
+.lg-toast.fehler { background: var(--red); }
+.lg-toast button { border: 1.5px solid rgba(255,255,255,0.6); background: transparent; color: white; border-radius: var(--r-sm); padding: 0.4rem 0.7rem; font-weight: 600; white-space: nowrap; }
+.lg-home { width: 100%; display: flex; align-items: center; gap: 0.75rem; background: white; border: 1px solid var(--border2); border-radius: var(--r-lg); padding: 0.75rem 1rem; margin-bottom: 0.75rem; text-decoration: none; }
