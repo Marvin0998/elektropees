@@ -1,0 +1,16 @@
+{
+  "name": "Elektro Pees Lager",
+  "short_name": "Lager",
+  "description": "Lager-Scanner: Entnahme und Einlagerung per Barcode",
+  "id": "/lager",
+  "start_url": "/lager",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A0A44",
+  "theme_color": "#1B52DD",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -18,3 +18,10 @@ Unbekannter Code: Büro/Admin legen den Artikel an (Code vorausgefüllt) oder or
 **Scanner:** ZXing im Browser (EAN-13/8, UPC, Code 128/39, ITF, QR, Data Matrix); Eingabefeld für Handscanner/Tastatur als Rückfall. iOS fragt die Kamera-Freigabe in der Home-Bildschirm-App ggf. bei jedem Start.
 
 **Geplant:** Stufe 2 Etiketten-PDF, Bestellliste, Auswertung je Baustelle · Stufe 3 Inventur, Werkzeugausgabe, Offline-Warteschlange.
+
+## Lager-Handy (Kiosk) – Konto, App-Symbol, Dauerbetrieb
+- **Rolle `lager`** (SQL: `sql/2026-11-lager-konto.sql`): darf nur das Lager lesen und Entnahme/Einlagerung buchen. Kein Zugriff auf Projekte (Rhenus), keine Inventur, kein Artikelstamm. Wird in der Startseite sofort nach `/lager` geleitet und taucht nicht in Mitarbeiter-/Urlaubs-/Kalenderlisten auf.
+- **Konto anlegen:** in der App als Admin „Mitarbeiter anlegen“ → Rolle „Lager-Handy (nur Lager scannen)“, Name z. B. „Lager“, Passwort selbst vergeben.
+- **Eigenes App-Symbol:** `/lager` hat ein eigenes Manifest (`public/manifest-lager.json`, start_url `/lager`, Name „Lager“). In Safari `/lager` öffnen → Teilen → „Zum Home-Bildschirm“.
+- **Bildschirm an:** Wake Lock auf der Lager-Seite (☀ im Titel, wenn aktiv). iOS: im Home-Bildschirm-Modus erst ab iOS 18.4 zuverlässig → zusätzlich Automatische Sperre „Nie“ + Geführter Zugriff.
+- Abmelden (nur Lager-Konto): oben links, zweimal tippen.

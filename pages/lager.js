@@ -40,7 +40,7 @@ export default function Lager() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { setAuth({ lade: false, ok: false, grund: 'Bitte zuerst in der App anmelden.' }); return }
       const { data: profil } = await supabase.from('profiles').select('id,name,role').eq('id', session.user.id).single()
-      if (!profil || !['admin', 'buero', 'mitarbeiter', 'azubi'].includes(profil.role)) { setAuth({ lade: false, ok: false, grund: 'Das Lager ist nur für das Team von Elektro Pees.' }); return }
+      if (!profil || !['admin', 'buero', 'mitarbeiter', 'azubi', 'lager'].includes(profil.role)) { setAuth({ lade: false, ok: false, grund: 'Das Lager ist nur für das Team von Elektro Pees.' }); return }
       setAuth({ lade: false, ok: true, user: session.user, rolle: profil.role, name: profil.name })
       const sv = lsGet('lager_art'); if (sv === 'einlagerung' || sv === 'entnahme') setArt(sv)
       D.ladeStammdaten().then(setStamm)
@@ -50,6 +50,27 @@ export default function Lager() {
   }, [neuLaden])
 
   useEffect(() => { lsSet('lager_art', art) }, [art])
+
+  // Bildschirm anlassen, solange das Lager offen ist (Handscanner-Betrieb). Geht nicht überall – dann hilft „Automatische Sperre: Nie“.
+  const [wach, setWach] = useState(false)
+  const [abmeldenFrage, setAbmeldenFrage] = useState(false)
+  useEffect(() => {
+    if (!auth.ok) return
+    let sperre = null; let weg = false
+    const an = async () => {
+      try {
+        if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return
+        const s = await navigator.wakeLock.request('screen')
+        if (weg) { s.release().catch(() => {}); return }
+        sperre = s; setWach(true)
+        s.addEventListener('release', () => { if (sperre === s) { sperre = null; setWach(false) } })
+      } catch (e) { setWach(false) }
+    }
+    const sichtbar = () => { if (document.visibilityState === 'visible' && !sperre) an() }
+    an(); document.addEventListener('visibilitychange', sichtbar)
+    return () => { weg = true; document.removeEventListener('visibilitychange', sichtbar); if (sperre) sperre.release().catch(() => {}) }
+  }, [auth.ok])
+  const abmelden = async () => { try { await supabase.auth.signOut() } catch (e) { /* weiter */ } window.location.href = '/' }
   useEffect(() => {
     if (tab !== 'verlauf' || !auth.ok) return
     D.ladeVerlauf().then(r => setVerlauf({ ...r, geladen: true }))
@@ -78,15 +99,17 @@ export default function Lager() {
 
   if (auth.lade) return <div className="loading">Wird geladen …</div>
   if (!auth.ok) return (
-    <div className="lg-seite"><div className="lg-panel"><h1>📦 Lager</h1><p>{auth.grund}</p><a className="btn btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }} href="/">Zur App</a></div></div>
+    <div className="lg-seite"><div className="lg-panel"><h1>📦 Lager</h1><p>{auth.grund}</p><a className="btn btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }} href="/">Zur Anmeldung</a></div></div>
   )
 
   return (
     <div className="lg-seite">
       <Head><title>Lager · Elektro Pees</title></Head>
       <div className="lg-kopf">
-        <a className="exp-zurueck" href="/">‹ Zurück zur App</a>
-        <h1>📦 Lager</h1>
+        {auth.rolle === 'lager'
+          ? <button className="exp-zurueck" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => { if (abmeldenFrage) abmelden(); else { setAbmeldenFrage(true); setTimeout(() => setAbmeldenFrage(false), 4000) } }}>{abmeldenFrage ? 'Wirklich abmelden? Nochmal tippen' : 'Abmelden'}</button>
+          : <a className="exp-zurueck" href="/">‹ Zurück zur App</a>}
+        <h1>📦 Lager{wach && <span className="lg-wach" title="Bildschirm bleibt an"> ☀</span>}</h1>
       </div>
 
       {daten.fehlt && <div className="lg-panel lg-warn">Das Lager ist noch nicht eingerichtet. Bitte die Datei <b>sql/2026-11-lager.sql</b> im Supabase-SQL-Editor ausführen.</div>}

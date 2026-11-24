@@ -1,15 +1,17 @@
 import '../styles/globals.css'
 import { useEffect } from 'react'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 
 export default function App({ Component, pageProps }) {
+  const istLager = useRouter().pathname === '/lager'
   useEffect(() => {
     // Gastzugang (/nachweise): keine App-Funktionen – weder Service-Worker noch Frage nach Benachrichtigungen
     if (window.location.pathname.startsWith('/nachweise')) return
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => {
-          if ('Notification' in window && Notification.permission === 'default') {
+          if (!window.location.pathname.startsWith('/lager') && 'Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission()
           }
         })
@@ -23,9 +25,9 @@ export default function App({ Component, pageProps }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Elektro Pees" />
+        <meta name="apple-mobile-web-app-title" content={istLager ? 'Lager' : 'Elektro Pees'} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href={istLager ? '/manifest-lager.json' : '/manifest.json'} />
         <meta name="theme-color" content="#1B52DD" />
       </Head>
       <Component {...pageProps} />
