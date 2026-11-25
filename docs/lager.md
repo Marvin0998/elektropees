@@ -25,3 +25,4 @@ Unbekannter Code: Büro/Admin legen den Artikel an (Code vorausgefüllt) oder or
 - **Eigenes App-Symbol:** `/lager` hat ein eigenes Manifest (`public/manifest-lager.json`, start_url `/lager`, Name „Lager“). In Safari `/lager` öffnen → Teilen → „Zum Home-Bildschirm“.
 - **Bildschirm an:** Wake Lock auf der Lager-Seite (☀ im Titel, wenn aktiv). iOS: im Home-Bildschirm-Modus erst ab iOS 18.4 zuverlässig → zusätzlich Automatische Sperre „Nie“ + Geführter Zugriff.
 - Abmelden (nur Lager-Konto): oben links, zweimal tippen.
+- Lager-Konto darf Artikel anlegen/ändern/archivieren und Codes zuordnen/entfernen (`ep_lager_pflege()`); wer einen Artikel selbst angelegt hat, kann ihn 10 Minuten lang wieder löschen (Rollback bei Fehler). Mitarbeiter/Azubi bekommen weiter den Hinweis „im Büro Bescheid geben“.
