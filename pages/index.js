@@ -1034,13 +1034,20 @@ function AdminPage({stunden,baustellen,allUsers,urlaub=[],onRefresh,currentUser,
     setSaving(true)
     const cleanName=newUser.name.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z.]/g,'')
     const autoEmail=cleanName+'@elektropees.de'
+    // signUp meldet im Browser automatisch den NEUEN Nutzer an – die Admin-Sitzung merken und danach wiederherstellen,
+    // sonst laufen alle weiteren Abfragen (z.B. Wärmepumpen) mit den Rechten des neuen Kontos und die Listen sind leer.
+    const {data:{session:adminSession}}=await supabase.auth.getSession()
     const {data,error}=await supabase.auth.signUp({email:autoEmail,password:newUser.password})
     if(error){alert('Fehler: '+error.message);setSaving(false);return}
     if(data.user){
       await supabase.from('profiles').upsert({id:data.user.id,name:newUser.name,email:autoEmail,role:newUser.rolle||'mitarbeiter',regel_stunden:newUser.regel_stunden,urlaub_gesamt:newUser.urlaub_gesamt,urlaub_genommen:0})
     }
+    if(adminSession){
+      const {error:e2}=await supabase.auth.setSession({access_token:adminSession.access_token,refresh_token:adminSession.refresh_token})
+      if(e2){alert('Konto wurde angelegt. Deine Sitzung ist aber abgelaufen – bitte einmal abmelden und neu anmelden.');setSaving(false);return}
+    }
     setMsg('✓ Mitarbeiter "'+newUser.name+'" wurde angelegt!')
-    setNewUser({name:'',password:'',regel_stunden:38,urlaub_gesamt:24})
+    setNewUser({name:'',email:'',password:'',rolle:'mitarbeiter',regel_stunden:38,urlaub_gesamt:24})
     setShowNewUser(false); setSaving(false)
   }
 
