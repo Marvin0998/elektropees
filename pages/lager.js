@@ -29,7 +29,7 @@ export default function Lager() {
   const datenRef = useRef(daten); datenRef.current = daten
   const zuordnenRef = useRef(zuordnen); zuordnenRef.current = zuordnen
 
-  const verwalten = ['admin', 'buero'].includes(auth.rolle)
+  const verwalten = ['admin', 'buero', 'lager'].includes(auth.rolle) // Artikel anlegen, Codes zuordnen, bearbeiten (Inventur/Löschen bleibt Leitung)
   const istAdmin = auth.rolle === 'admin'
 
   const zeigeToast = useCallback((t, ms = 7000) => { setToast(t); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), ms) }, [])
