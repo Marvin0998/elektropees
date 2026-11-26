@@ -22,19 +22,26 @@ function kameraFehler(e) {
   return 'Die Kamera konnte nicht gestartet werden: ' + ((e && e.message) || e)
 }
 
+// Akku schonen: Läuft ~45 s lang kein Scan (bei offenem Buchungsfenster 120 s), schaltet sich die Kamera selbst aus
+// und wartet auf Antippen. Beim Verlassen des Reiters oder Sperren/Wechseln der App wird sie sofort beendet.
+const LEERLAUF_MS = 45000
+const LEERLAUF_BUCHEN_MS = 120000
+const leerlauf = () => (typeof window !== 'undefined' && window.__LAGER_IDLE_MS) || LEERLAUF_MS
+
 export default function LagerScanner({ onCode, pausiert = false }) {
   const videoRef = useRef(null)
   const stopRef = useRef(null)
   const letzter = useRef({ code: '', zeit: 0 })
   const pauseRef = useRef(pausiert)
   const cbRef = useRef(onCode)
+  const aktivitaet = useRef(Date.now())
   const [status, setStatus] = useState('aus')      // aus | startet | laeuft | fehler
   const [fehler, setFehler] = useState('')
   pauseRef.current = pausiert; cbRef.current = onCode
 
   async function starten() {
     if (stopRef.current) return
-    setStatus('startet'); setFehler('')
+    setStatus('startet'); setFehler(''); aktivitaet.current = Date.now()
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('Kamera-Zugriff wird hier nicht unterstützt (nur über https).'), { name: 'NotFoundError' })
       const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([import('@zxing/browser'), import('@zxing/library')])
@@ -53,17 +60,30 @@ export default function LagerScanner({ onCode, pausiert = false }) {
           if (code === letzter.current.code && jetzt - letzter.current.zeit < 2500) { letzter.current.zeit = jetzt; return }
           if (!code) return
           letzter.current = { code, zeit: jetzt }
+          aktivitaet.current = jetzt
           piep(); cbRef.current && cbRef.current(code)
         })
       stopRef.current = () => { try { controls.stop() } catch (e) { /* schon beendet */ } }
+      aktivitaet.current = Date.now()
       setStatus('laeuft')
     } catch (e) { stopRef.current = null; setStatus('fehler'); setFehler(kameraFehler(e)) }
   }
-  function stoppen() { if (stopRef.current) { stopRef.current(); stopRef.current = null }; setStatus('aus') }
+  function stoppen(grund) { if (stopRef.current) { stopRef.current(); stopRef.current = null }; setStatus(grund === 'ruhe' ? 'ruhe' : 'aus') }
 
-  useEffect(() => { starten(); return () => { if (stopRef.current) { stopRef.current(); stopRef.current = null } } }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    starten()
+    // Leerlauf-Wächter + Kamera aus, sobald die App nicht mehr sichtbar ist (Sperrbildschirm, App-Wechsel)
+    const takt = setInterval(() => {
+      if (!stopRef.current) return
+      const limit = pauseRef.current ? LEERLAUF_BUCHEN_MS : leerlauf()
+      if (Date.now() - aktivitaet.current > limit) stoppen('ruhe')
+    }, 1000)
+    const sichtbar = () => { if (document.visibilityState === 'hidden') stoppen('ruhe'); else if (!stopRef.current) starten() }
+    document.addEventListener('visibilitychange', sichtbar)
+    return () => { clearInterval(takt); document.removeEventListener('visibilitychange', sichtbar); if (stopRef.current) { stopRef.current(); stopRef.current = null } }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // Nach dem Buchen hält man die Kamera oft noch auf dem Etikett: derselbe Code löst nicht gleich nochmal aus
-  useEffect(() => { if (!pausiert) letzter.current = { code: letzter.current.code, zeit: Date.now() } }, [pausiert])
+  useEffect(() => { aktivitaet.current = Date.now(); if (!pausiert) letzter.current = { code: letzter.current.code, zeit: Date.now() } }, [pausiert])
 
   return (
     <div className="lg-kamera">
@@ -74,6 +94,7 @@ export default function LagerScanner({ onCode, pausiert = false }) {
           {status === 'startet' && <div>Kamera startet …</div>}
           {status === 'fehler' && <><div className="lg-kamera-fehler">{fehler}</div><button className="btn btn-secondary btn-sm" onClick={starten}>Nochmal versuchen</button></>}
           {status === 'aus' && <button className="btn btn-primary btn-sm" onClick={starten}>📷 Kamera starten</button>}
+          {status === 'ruhe' && <button className="lg-ruhe" onClick={starten}><span>📷</span><b>Kamera ist aus (spart Akku)</b><small>Zum Scannen antippen</small></button>}
         </div>
       )}
       {status === 'laeuft' && <button className="lg-kamera-aus" onClick={stoppen} aria-label="Kamera ausschalten">✕</button>}

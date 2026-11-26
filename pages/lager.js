@@ -133,7 +133,7 @@ export default function Lager() {
             <input value={manuell} onChange={e => setManuell(e.target.value)} placeholder="Code eintippen oder Handscanner" inputMode="text" autoCapitalize="off" autoCorrect="off" aria-label="Barcode eintippen" />
             <button className="btn btn-secondary btn-sm" type="submit" disabled={!L.normalisiereCode(manuell)}>OK</button>
           </form>
-          <div className="lg-hinweis">Code vor die Kamera halten – das Buchungsfenster öffnet sich automatisch.</div>
+          <div className="lg-hinweis">Code vor die Kamera halten – das Buchungsfenster öffnet sich automatisch. Ohne Scan schaltet sich die Kamera nach 45 Sekunden selbst aus (spart Akku).</div>
         </div>
       )}
 
